@@ -556,6 +556,7 @@ export default function RFFRetirementCalculator() {
   const [hasEmployerMatch, setHasEmployerMatch] = useState(SAVED.hasEmployerMatch ?? false);
   const [returnRate, setReturnRate] = useState(SAVED.returnRate ?? 8);
   const [retireDrawRate, setRetireDrawRate] = useState(SAVED.retireDrawRate ?? 4);
+  const [retireReturnRate, setRetireReturnRate] = useState(SAVED.retireReturnRate ?? 3);
   // Current overtime worked, hours per month — for the "salary with OT" comparison.
   const [currentOTHours, setCurrentOTHours] = useState(SAVED.currentOTHours ?? 0);
   // Sick leave — user enters CURRENT hours; we project forward to retirement
@@ -695,7 +696,7 @@ export default function RFFRetirementCalculator() {
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, currentOTHours,
+      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, currentOTHours,
       currentSickLeaveHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -708,7 +709,7 @@ export default function RFFRetirementCalculator() {
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, currentOTHours,
+    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, currentOTHours,
     currentSickLeaveHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -1024,6 +1025,15 @@ export default function RFFRetirementCalculator() {
   const value457 = future457Value(current457, effectiveMember457, 0, yearsToRetirement, rate457)
     + future457Value(0, 0, cityMatchAnnual, matchedYears, rate457);
   const monthly457 = value457 * (Math.max(0, parseFloat(retireDrawRate) || 0) / 100) / 12;
+  // How long the 457 balance lasts at the chosen monthly draw and retirement-return rate.
+  const retRetMonthlyRate = Math.max(0, parseFloat(retireReturnRate) || 0) / 100 / 12;
+  const years457Lasts = (() => {
+    const B = value457, d = monthly457;
+    if (d <= 0) return Infinity;
+    if (retRetMonthlyRate <= 0) return B / (d * 12);
+    if (d <= B * retRetMonthlyRate + 1e-9) return Infinity; // draw covered by growth — never depletes
+    return (-Math.log(1 - (B * retRetMonthlyRate) / d) / Math.log(1 + retRetMonthlyRate)) / 12;
+  })();
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
   // Pension boost from sick leave credit (monthly)
@@ -2471,11 +2481,21 @@ export default function RFFRetirementCalculator() {
                       <span>2%</span><span>4% rule of thumb</span><span>10%</span>
                     </div>
                   </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Return during retirement: {retireReturnRate}%</label>
+                    <input type="range" min={0} max={8} step={0.5} value={retireReturnRate} onChange={e => setRetireReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim }}>
+                      <span>0%</span><span>3% conservative</span><span>8%</span>
+                    </div>
+                  </div>
                   <div style={{ textAlign: "center", padding: "16px", background: "rgba(16,185,129,0.06)", borderRadius: "10px" }}>
                     <div style={styles.metricLabel}>Projected 457 balance at {retirementAge}</div>
                     <div style={styles.bigNumberGreen}>{fmt(value457)}</div>
                     <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "6px" }}>
                       ≈ {fmt(monthly457)}/mo income at {retireDrawRate}% draw · {yearsToRetirement.toFixed(1)} yrs growth at {returnRate}%
+                    </div>
+                    <div style={{ fontSize: "14px", color: COLORS.gold, fontWeight: "700", marginTop: "10px" }}>
+                      {years457Lasts === Infinity ? "Lasts indefinitely — your draw is covered by growth" : `At ${fmt(monthly457)}/mo and ${retireReturnRate}% return, lasts about ${years457Lasts.toFixed(0)} years`}
                     </div>
                   </div>
                 </>)}
