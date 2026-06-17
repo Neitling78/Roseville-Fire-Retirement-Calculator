@@ -1218,9 +1218,9 @@ export default function RFFRetirementCalculator() {
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "nowrap", gap: isMobile ? "8px" : "10px" }}>
-          {["inputs", "pension", "medical", "savings", "income", "help"].map(t => (
+          {["inputs", "pension", "medical", "income", "help"].map(t => (
             <button key={t} style={{ ...styles.tab(tab === t), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-              {{ inputs: isMobile ? "Start" : "1 · Start", pension: isMobile ? "Pension" : "2 · Pension", medical: isMobile ? "Med" : "3 · Medical", savings: isMobile ? "457" : "4 · 457", income: isMobile ? "Income" : "5 · All Income & Tax", help: isMobile ? "Guide" : "Guide" }[t]}
+              {{ inputs: isMobile ? "Overview" : "1 · Retirement Overview", pension: isMobile ? "Pension" : "2 · Pension Details", medical: isMobile ? "Med" : "3 · Medical", income: isMobile ? "Income" : "4 · Additional Income & Tax", help: isMobile ? "Guide" : "Guide" }[t]}
             </button>
           ))}
         </div>
@@ -2429,7 +2429,7 @@ export default function RFFRetirementCalculator() {
                 </>)}
               </div>
             )}
-            {tab === "savings" && (
+            {tab === "income" && (
               <div style={styles.card}>
                 {sectionHeader("def457", "457 deferred compensation")}
                 {openSections.def457 !== false && (<>
@@ -2815,7 +2815,7 @@ export default function RFFRetirementCalculator() {
                 </div>
               </div>
             )}
-            {tab === "savings" && (
+            {tab === "income" && (
               <div style={styles.card}>
                 {sectionHeader("eq401k", "Private-sector 401(k) equivalent")}
                 {openSections.eq401k !== false && (<>
