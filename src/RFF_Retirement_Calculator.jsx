@@ -1133,6 +1133,8 @@ export default function RFFRetirementCalculator() {
   const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - calpersMedicalDeduction);
   // Separate City reimbursement check = the City's allowance (up to the premium) minus the $162 it already sent CalPERS.
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
+  // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement check.
+  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck;
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1207,23 +1209,14 @@ export default function RFFRetirementCalculator() {
                   </button>
                 </div>
                 {/* HERO — Monthly PERS Benefit, always visible */}
-                <div style={{ textAlign: "center", padding: isMobile ? "20px 16px" : "32px 24px", background: "rgba(210,31,51,0.08)", border: `1px solid ${COLORS.accent}`, borderRadius: "14px", marginBottom: "20px" }}>
-                  <div style={{ ...styles.metricLabel, fontSize: isMobile ? "12px" : "13px" }}>Monthly PERS Benefit</div>
-                  <div style={{ ...styles.bigNumber, fontSize: isMobile ? "40px" : "68px" }}>{fmt(monthlyPension)}</div>
-                  <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "10px" }}>
-                    {fmt(annualPension)} / year{priorPensionMonthly > 0 ? " · incl. prior service" : ""}
+                <div style={{ textAlign: "center", padding: isMobile ? "22px 16px" : "34px 24px", background: "rgba(16,185,129,0.10)", border: `1px solid ${COLORS.green}`, borderRadius: "14px", marginBottom: "20px" }}>
+                  <div style={{ ...styles.metricLabel, fontSize: isMobile ? "12px" : "14px" }}>Your Monthly Take-Home <span style={{ textTransform: "none", letterSpacing: 0 }}>· what actually lands in your bank account</span></div>
+                  <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "46px" : "78px" }}>{fmt(totalMonthlyTakeHome)}</div>
+                  <div style={{ color: COLORS.text, fontSize: isMobile ? "12px" : "13px", marginTop: "10px" }}>
+                    PERS direct deposit <strong>{fmt(pensionTakeHome)}</strong>{cityMedicalCheck > 0 ? <> + City medical check <strong>{fmt(cityMedicalCheck)}</strong></> : null}
                   </div>
-                  <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: `1px solid ${COLORS.border}` }}>
-                    <div style={{ ...styles.metricLabel, fontSize: isMobile ? "11px" : "12px" }}>Your PERS direct deposit <span style={{ textTransform: "none", letterSpacing: 0 }}>· after taxes &amp; medical</span></div>
-                    <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "30px" : "48px" }}>{fmt(pensionTakeHome)}</div>
-                    <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>
-                      −{pct(retEffRate)} est. tax · −{fmt(calpersMedicalDeduction)}/mo medical (premium minus ${PEMHCA_MIN_MONTHLY} PEMHCA paid by City)
-                    </div>
-                    {cityMedicalCheck > 0 && (
-                      <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "6px", lineHeight: 1.5 }}>
-                        Plus a separate City medical reimbursement check (~{fmt(cityMedicalCheck)}/mo) deposited on the 1st — city benefit, shown in the summary below.
-                      </div>
-                    )}
+                  <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textDim, lineHeight: 1.6 }}>
+                    From a gross PERS benefit of <strong style={{ color: COLORS.accent }}>{fmt(monthlyPension)}/mo</strong> ({fmt(annualPension)}/yr){priorPensionMonthly > 0 ? ", incl. prior service" : ""} — after −{pct(retEffRate)} est. tax and −{fmt(calpersMedicalDeduction)}/mo medical premium ({fmt(PEMHCA_MIN_MONTHLY)} PEMHCA min paid by the City directly to CalPERS).
                   </div>
                 </div>
                 {/* INPUT BOXES — responsive 2-column grid */}
