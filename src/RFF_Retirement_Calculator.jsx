@@ -1143,6 +1143,8 @@ export default function RFFRetirementCalculator() {
   const ledger457TakeHome = monthly457 * (1 - retEffRate);
   const ledgerTax = (monthlyPension + monthly457) * retEffRate;
   const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - ledgerTax - retireePremium;
+  // True working take-home (net paycheck after income taxes too, for the working-vs-retired box).
+  const workingTakeHome = Math.max(0, currentTakeHome - workTaxAnnual / 12);
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1799,28 +1801,28 @@ export default function RFFRetirementCalculator() {
                   </div>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.green, marginBottom: "4px" }}>Money you keep</div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· after tax &amp; medical</span></span>
+                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax &amp; medical</span></span>
                     <span style={styles.tableValGreen}>−{fmt(pensionTakeHome)}</span>
                   </div>
                   {cityMedicalCheck > 0 && (
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· separate deposit</span></span>
+                      <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>· separate deposit</span></span>
                       <span style={styles.tableValGreen}>−{fmt(cityMedicalCheck)}</span>
                     </div>
                   )}
                   {monthly457 > 0 && (
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· after tax</span></span>
+                      <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
                       <span style={styles.tableValGreen}>−{fmt(ledger457TakeHome)}</span>
                     </div>
                   )}
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.accent, margin: "12px 0 4px" }}>Money paid out</div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Income taxes <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· ~{pct(retEffRate)} est., withheld</span></span>
+                    <span style={styles.tableKey}>Income taxes <span style={{ fontSize: "10px", color: COLORS.textDim }}>· ~{pct(retEffRate)} est., withheld</span></span>
                     <span style={styles.tableVal}>−{fmt(ledgerTax)}</span>
                   </div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Health insurance premium <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· full plan cost</span></span>
+                    <span style={styles.tableKey}>Health insurance premium <span style={{ fontSize: "10px", color: COLORS.textDim }}>· full plan cost</span></span>
                     <span style={styles.tableVal}>−{fmt(retireePremium)}</span>
                   </div>
                   <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "8px", paddingTop: "10px" }}>
@@ -1843,24 +1845,33 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.tableRow}><span style={styles.tableKey}>Prior agency pension ({priorTotalYears} yrs)</span><span style={styles.tableVal}>{fmt(priorPensionMonthly)}/mo</span></div>
                   )}
                   </>)}
-
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "18px 0 8px" }}>Working vs. retired (net)</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Current net paycheck</span>
-                    <span style={styles.tableVal}>{fmt(currentTakeHome)}/mo</span>
+                  </>)}
+                </div>
+                <div style={{ ...styles.card, border: `2px solid ${COLORS.green}`, background: "rgba(16,185,129,0.06)", marginTop: "20px" }}>
+                  <div style={{ ...styles.metricLabel, fontSize: isMobile ? "12px" : "14px", textAlign: "center", marginBottom: "16px" }}>Take-home pay — working now vs. retired</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: isMobile ? "6px" : "16px", alignItems: "center" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ ...styles.metricLabel, fontSize: "11px" }}>Working now</div>
+                      <div style={{ ...styles.bigNumber, color: COLORS.blue, fontSize: isMobile ? "26px" : "46px" }}>{fmt(workingTakeHome)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo after taxes &amp; deductions</div>
+                    </div>
+                    <div style={{ fontSize: isMobile ? "18px" : "26px", color: COLORS.textDim }}>→</div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ ...styles.metricLabel, fontSize: "11px" }}>Retired</div>
+                      <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "26px" : "46px" }}>{fmt(totalMonthlyTakeHome)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo take-home</div>
+                    </div>
                   </div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Retirement take-home <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· today's dollars</span></span>
-                    <span style={styles.tableValGold}>{fmt(totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement))}/mo</span>
+                  <div style={{ textAlign: "center", marginTop: "16px", fontSize: "13px", color: COLORS.text, lineHeight: 1.6 }}>
+                    That's <strong style={{ color: COLORS.gold }}>{workingTakeHome > 0 ? ((totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement)) / workingTakeHome * 100).toFixed(0) : "—"}%</strong> of your current take-home in today's dollars ({fmt(totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement))}/mo){monthly457 > 0 ? ` — plus ~${fmt(monthly457)}/mo if you draw your 457` : ""}.
                   </div>
-                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "8px", lineHeight: "1.6" }}>
-                    ≈ <strong style={{ color: COLORS.gold }}>{currentTakeHome > 0 ? ((totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement)) / currentTakeHome * 100).toFixed(0) : "—"}%</strong> of your current net pay, in today's buying power. In retirement you stop paying PERS, 457, and dues.
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, textAlign: "center", marginTop: "8px", lineHeight: 1.5 }}>
+                    Net-to-net: in retirement you stop paying into PERS, 457, and union dues. The retired figure is in retirement-year dollars; the percentage adjusts to today's buying power.
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "12px" }}>
                     <label style={{ ...styles.label, marginBottom: 0, flex: "none" }}>Inflation assumption (%)</label>
                     <input style={{ ...styles.input, width: "90px" }} type="number" step="0.1" min={0} max={10} value={inflationRate || ""} placeholder="2.5" onChange={e => setInflationRate(parseFloat(e.target.value) || 0)} />
                   </div>
-                  </>)}
                 </div>
               </>
             )}
