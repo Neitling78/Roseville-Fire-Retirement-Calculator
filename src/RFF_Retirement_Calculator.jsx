@@ -1143,8 +1143,9 @@ export default function RFFRetirementCalculator() {
   const ledger457TakeHome = monthly457 * (1 - retEffRate);
   const ledgerTax = (monthlyPension + monthly457) * retEffRate;
   const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - ledgerTax - retireePremium;
-  // True working take-home (net paycheck after income taxes too, for the working-vs-retired box).
-  const workingTakeHome = Math.max(0, currentTakeHome - workTaxAnnual / 12);
+  // True working take-home: base + incentives + your overtime, net of income tax (on salary+OT) and the
+  // deductions already in currentTakeHome (PERS, 457, dues, medical). Overtime ends at retirement.
+  const workingTakeHome = Math.max(0, currentTakeHome + otMonthly - taxSalaryOT.tax / 12);
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
   const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
   const takeHomeDiff = totalMonthlyTakeHome - workingTakeHome;
@@ -1231,7 +1232,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                   <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}` }}>
                     <div style={{ color: COLORS.textMuted, fontSize: isMobile ? "12px" : "13px" }}>
-                      You take home <strong style={{ color: COLORS.blue }}>{fmt(workingTakeHome)}/mo</strong> working now
+                      You take home <strong style={{ color: COLORS.blue }}>{fmt(workingTakeHome)}/mo</strong> working now{otMonthly > 0 ? " (incl. overtime)" : ""}
                     </div>
                     <div style={{ ...styles.bigNumber, fontSize: isMobile ? "30px" : "46px", marginTop: "8px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
                       {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
@@ -1871,7 +1872,7 @@ export default function RFFRetirementCalculator() {
                     <div style={{ textAlign: "center" }}>
                       <div style={{ ...styles.metricLabel, fontSize: "11px" }}>Working now</div>
                       <div style={{ ...styles.bigNumber, color: COLORS.blue, fontSize: isMobile ? "26px" : "46px" }}>{fmt(workingTakeHome)}</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo after taxes &amp; deductions</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo after taxes &amp; deductions{otMonthly > 0 ? ", incl. overtime" : ""}</div>
                     </div>
                     <div style={{ fontSize: isMobile ? "18px" : "26px", color: COLORS.textDim }}>→</div>
                     <div style={{ textAlign: "center" }}>
