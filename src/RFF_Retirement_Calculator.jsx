@@ -2441,6 +2441,18 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "income" && (
               <div style={styles.card}>
+                {sectionHeader("otsurv", "Overtime")}
+                {openSections.otsurv !== false && (<>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
+                    <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>Adds to your working take-home — not pensionable, and gone in retirement.</div>
+                  </div>
+                </>)}
+              </div>
+            )}
+            {tab === "income" && (
+              <div style={styles.card}>
                 {sectionHeader("sav457", "457 deferred compensation")}
                 {openSections.sav457 !== false && (<>
                   <div style={styles.fieldGroup}>
@@ -2611,18 +2623,6 @@ export default function RFFRetirementCalculator() {
                   )}
                   <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", lineHeight: "1.6" }}>
                     You work in California; pick where you'll retire to compare. Breakdown is below. Estimate only — not tax advice.
-                  </div>
-                </>)}
-              </div>
-            )}
-            {tab === "income" && (
-              <div style={styles.card}>
-                {sectionHeader("otsurv", "Overtime")}
-                {openSections.otsurv !== false && (<>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
-                    <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>Adds to your working take-home — not pensionable, and gone in retirement.</div>
                   </div>
                 </>)}
               </div>
