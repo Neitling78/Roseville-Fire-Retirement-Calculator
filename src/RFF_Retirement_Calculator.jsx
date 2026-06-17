@@ -1201,8 +1201,12 @@ export default function RFFRetirementCalculator() {
                       <select style={styles.select} value={hireMonth} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${String(+e.target.value).padStart(2, "0")}-${hireDate.slice(8, 10)}`)}>
                         {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
                       </select>
-                      <input style={styles.input} type="number" min={1} max={31} value={hireDay} placeholder="Day" onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${hireDate.slice(5, 7)}-${String(Math.min(31, Math.max(1, +e.target.value || 1))).padStart(2, "0")}`)} />
-                      <input style={styles.input} type="number" min={1980} max={2026} value={hireYear} placeholder="Year" onChange={e => setHireDate(`${String(Math.min(2026, Math.max(1980, +e.target.value || 2000)))}-${hireDate.slice(5, 7)}-${hireDate.slice(8, 10)}`)} />
+                      <select style={styles.select} value={hireDay} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${hireDate.slice(5, 7)}-${String(+e.target.value).padStart(2, "0")}`)}>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
+                      </select>
+                      <select style={styles.select} value={hireYear} onChange={e => setHireDate(`${e.target.value}-${hireDate.slice(5, 7)}-${hireDate.slice(8, 10)}`)}>
+                        {Array.from({ length: 2026 - 1980 + 1 }, (_, i) => 2026 - i).map(y => (<option key={y} value={y}>{y}</option>))}
+                      </select>
                     </div>
                     <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                       <span style={{ ...styles.badge, ...styles.badgeGreen }}>
