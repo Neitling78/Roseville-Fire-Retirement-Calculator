@@ -557,6 +557,10 @@ export default function RFFRetirementCalculator() {
   const [returnRate, setReturnRate] = useState(SAVED.returnRate ?? 8);
   const [retireDrawRate, setRetireDrawRate] = useState(SAVED.retireDrawRate ?? 4);
   const [retireReturnRate, setRetireReturnRate] = useState(SAVED.retireReturnRate ?? 3);
+  // 457 "delay your draw": age you start drawing (0 = draw immediately at retirement) and the return
+  // earned while retired but NOT yet drawing (balance keeps growing until the later draw age).
+  const [drawStartAge, setDrawStartAge] = useState(SAVED.drawStartAge ?? 0);
+  const [retireWaitReturnRate, setRetireWaitReturnRate] = useState(SAVED.retireWaitReturnRate ?? 5);
   // Current overtime worked, hours per month — for the "salary with OT" comparison.
   const [currentOTHours, setCurrentOTHours] = useState(SAVED.currentOTHours ?? 0);
   // Sick leave — user enters CURRENT hours; we project forward to retirement
@@ -696,7 +700,7 @@ export default function RFFRetirementCalculator() {
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, currentOTHours,
+      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
       currentSickLeaveHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -709,7 +713,7 @@ export default function RFFRetirementCalculator() {
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, currentOTHours,
+    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
     currentSickLeaveHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -1024,16 +1028,24 @@ export default function RFFRetirementCalculator() {
   // runs only over the vested (matched) years.
   const value457 = future457Value(current457, effectiveMember457, 0, yearsToRetirement, rate457)
     + future457Value(0, 0, cityMatchAnnual, matchedYears, rate457);
-  const monthly457 = value457 * (Math.max(0, parseFloat(retireDrawRate) || 0) / 100) / 12;
+  // 457 "delay your draw": if the member starts drawing AFTER retirement, the balance keeps growing
+  // at the "wait" return rate during the gap, so the eventual draw is larger and starts later.
+  // Default drawStartAge=0 → effectiveDrawStartAge=retirementAge, waitYears=0 → identical to before.
+  const effectiveDrawStartAge = (drawStartAge && drawStartAge > retirementAge) ? drawStartAge : retirementAge;
+  const waitYears = Math.max(0, effectiveDrawStartAge - retirementAge);
+  const value457AtDraw = value457 * Math.pow(1 + (Math.max(0, parseFloat(retireWaitReturnRate) || 0) / 100), waitYears);
+  const monthly457 = value457AtDraw * (Math.max(0, parseFloat(retireDrawRate) || 0) / 100) / 12;
   // How long the 457 balance lasts at the chosen monthly draw and retirement-return rate.
   const retRetMonthlyRate = Math.max(0, parseFloat(retireReturnRate) || 0) / 100 / 12;
   const years457Lasts = (() => {
-    const B = value457, d = monthly457;
+    const B = value457AtDraw, d = monthly457;
     if (d <= 0) return Infinity;
     if (retRetMonthlyRate <= 0) return B / (d * 12);
     if (d <= B * retRetMonthlyRate + 1e-9) return Infinity; // draw covered by growth — never depletes
     return (-Math.log(1 - (B * retRetMonthlyRate) / d) / Math.log(1 + retRetMonthlyRate)) / 12;
   })();
+  // Age the 457 runs out (draws start at effectiveDrawStartAge, not retirement, when delayed).
+  const depletionAge = effectiveDrawStartAge + years457Lasts;
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
   // Pension boost from sick leave credit (monthly)
@@ -1230,9 +1242,9 @@ export default function RFFRetirementCalculator() {
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "nowrap", gap: isMobile ? "8px" : "10px" }}>
-          {["inputs", "pension", "medical", "income", "help"].map(t => (
+          {["inputs", "pension", "medical", "income", "timeline", "help"].map(t => (
             <button key={t} style={{ ...styles.tab(tab === t), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-              {{ inputs: isMobile ? "Overview" : "1 · Retirement Overview", pension: isMobile ? "Pension" : "2 · Pension Details", medical: isMobile ? "Med" : "3 · Medical", income: isMobile ? "Income" : "4 · Additional Income & Tax", help: isMobile ? "Guide" : "Guide" }[t]}
+              {{ inputs: isMobile ? "Overview" : "1 · Retirement Overview", pension: isMobile ? "Pension" : "2 · Pension Details", medical: isMobile ? "Med" : "3 · Medical", income: isMobile ? "Income" : "4 · Additional Income & Tax", timeline: isMobile ? "Timeline" : "5 · Income Timeline", help: isMobile ? "Guide" : "Guide" }[t]}
             </button>
           ))}
         </div>
@@ -2492,9 +2504,28 @@ export default function RFFRetirementCalculator() {
                       <span>0%</span><span>3% conservative</span><span>8%</span>
                     </div>
                   </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Start drawing at age</label>
+                    <input style={styles.input} type="number" min={retirementAge} value={drawStartAge || ""} onChange={e => setDrawStartAge(+e.target.value || 0)} placeholder={String(retirementAge)} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Leave blank to draw at retirement. Delay it to let the balance keep growing first.</div>
+                  </div>
+                  {effectiveDrawStartAge > retirementAge && (
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Return while waiting to draw: {retireWaitReturnRate}%</label>
+                      <input type="range" min={0} max={10} step={0.5} value={retireWaitReturnRate} onChange={e => setRetireWaitReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim }}>
+                        <span>0%</span><span>5% moderate</span><span>10%</span>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ textAlign: "center", padding: "16px", background: "rgba(16,185,129,0.06)", borderRadius: "10px" }}>
                     <div style={styles.metricLabel}>Projected 457 balance at {retirementAge}</div>
                     <div style={styles.bigNumberGreen}>{fmt(value457)}</div>
+                    {effectiveDrawStartAge > retirementAge && (
+                      <div style={{ color: COLORS.gold, fontSize: "13px", fontWeight: "700", marginTop: "6px" }}>
+                        Balance when you start drawing at {effectiveDrawStartAge}: {fmt(value457AtDraw)}
+                      </div>
+                    )}
                     <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "6px" }}>
                       ≈ {fmt(monthly457)}/mo income at {retireDrawRate}% draw · {yearsToRetirement.toFixed(1)} yrs growth at {returnRate}%
                     </div>
@@ -2852,6 +2883,68 @@ export default function RFFRetirementCalculator() {
                   </div>
                 ))}
                 </>)}
+              </div>
+            )}
+            {tab === "timeline" && (
+              <div style={styles.card}>
+                <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>Income timeline</div>
+                <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: "1.6" }}>
+                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows with the {pct(colaRate)} COLA; medical out-of-pocket drops to $0 at 65 (Medicare).
+                </div>
+                {(() => {
+                  // Build the age set: retirement → 90 in 5-yr steps, plus 65 and the 457 draw-start age
+                  // if they land strictly after retirement. All integers, ascending, within [retirementAge, 90].
+                  const ages = new Set();
+                  for (let a = retirementAge; a <= 90; a += 5) ages.add(a);
+                  if (65 > retirementAge && 65 <= 90) ages.add(65);
+                  if (effectiveDrawStartAge > retirementAge && effectiveDrawStartAge <= 90) ages.add(Math.round(effectiveDrawStartAge));
+                  const ageList = Array.from(ages).filter(a => a >= retirementAge && a <= 90).sort((x, y) => x - y);
+                  const inflRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
+                  let depletedMarked = false;
+                  const rows = ageList.map(A => {
+                    const yrsSinceRetire = A - retirementAge;
+                    const pensionNominal = monthlyPension * Math.pow(1 + colaRate, yrsSinceRetire);
+                    const medOOP = (A >= 65) ? 0 : retireeMedicalOOP; // Medicare at 65 → City covers supplement
+                    const pensionTakeHomeM = pensionNominal * (1 - retEffRate) - medOOP;
+                    const drawing = (A >= effectiveDrawStartAge) && (A < depletionAge);
+                    const draw457M = drawing ? monthly457 * (1 - retEffRate) : 0;
+                    const totalNominalM = Math.max(0, pensionTakeHomeM) + draw457M;
+                    const yrsFromNow = A - currentAge;
+                    const totalTodayM = totalNominalM / Math.pow(1 + inflRate, Math.max(0, yrsFromNow));
+                    const notes = [];
+                    if (effectiveDrawStartAge > retirementAge && A === Math.round(effectiveDrawStartAge)) notes.push("457 starts");
+                    if (A === 65) notes.push("Medicare — $0 medical");
+                    if (!depletedMarked && depletionAge <= 90 && A >= depletionAge) { notes.push("457 depleted"); depletedMarked = true; }
+                    return { A, totalNominalM, totalTodayM, notes };
+                  });
+                  return (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "12px" : "13px" }}>
+                        <thead>
+                          <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Age</th>
+                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(nominal)</span></th>
+                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(today's $)</span></th>
+                            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(r => (
+                            <tr key={r.A} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                              <td style={{ padding: "8px 6px", color: COLORS.text, fontWeight: "600" }}>{r.A}</td>
+                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.text, fontWeight: "600" }}>{fmt(r.totalNominalM)}</td>
+                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.textMuted }}>{fmt(r.totalTodayM)}</td>
+                              <td style={{ padding: "8px 6px", color: COLORS.gold, fontSize: "11px" }}>{r.notes.join(" · ")}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "16px", lineHeight: "1.6" }}>
+                  Estimates only — not a benefit statement or financial advice. Figures assume the COLA caps every year, a steady 457 draw, and your chosen return/inflation assumptions. Actual results will vary. Confirm official numbers with CalPERS and your 457 provider.
+                </div>
               </div>
             )}
             {tab === "help" && (
