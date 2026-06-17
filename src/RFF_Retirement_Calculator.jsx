@@ -1241,9 +1241,15 @@ export default function RFFRetirementCalculator() {
         </div>
       </div>
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
-        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 16px" : "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <span style={{ fontSize: isMobile ? "10px" : "12px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly take-home</span>
-          <span style={{ fontSize: isMobile ? "22px" : "30px", fontWeight: "800", color: COLORS.green, lineHeight: 1 }}>{fmt(totalMonthlyTakeHome)}/mo</span>
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly take-home</div>
+            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{fmt(totalMonthlyTakeHome)}/mo</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>{takeHomeDiff >= 0 ? "Gained by retiring" : "Lost by retiring"}</div>
+            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold, lineHeight: 1.1 }}>{takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo</div>
+          </div>
         </div>
       </div>
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
@@ -1284,31 +1290,6 @@ export default function RFFRetirementCalculator() {
                   }}>
                     Reset
                   </button>
-                </div>
-                {/* HERO — Monthly PERS Benefit, always visible */}
-                <div style={{ textAlign: "center", padding: isMobile ? "22px 16px" : "34px 24px", background: "rgba(16,185,129,0.10)", border: `1px solid ${COLORS.green}`, borderRadius: "14px", marginBottom: "20px" }}>
-                  <div style={{ ...styles.metricLabel, fontSize: isMobile ? "12px" : "14px" }}>Your Monthly Take-Home <span style={{ textTransform: "none", letterSpacing: 0 }}>· what actually lands in your bank account</span></div>
-                  <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "46px" : "78px" }}>{fmt(totalMonthlyTakeHome)}</div>
-                  <div style={{ color: COLORS.text, fontSize: isMobile ? "12px" : "13px", marginTop: "10px" }}>
-                    PERS direct deposit <strong>{fmt(pensionTakeHome)}</strong>{cityMedicalCheck > 0 ? <> + City medical check <strong>{fmt(cityMedicalCheck)}</strong></> : null}
-                  </div>
-                  <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}` }}>
-                    <div style={{ color: COLORS.textMuted, fontSize: isMobile ? "12px" : "13px" }}>
-                      You take home <strong style={{ color: COLORS.blue }}>{fmt(workingTakeHome)}/mo</strong> working now{otMonthly > 0 ? " (incl. overtime)" : ""}
-                    </div>
-                    <div style={{ ...styles.bigNumber, fontSize: isMobile ? "30px" : "46px", marginTop: "8px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
-                      {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
-                    </div>
-                    <div style={{ fontSize: isMobile ? "12px" : "14px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "1px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
-                      {takeHomeDiff >= 0 ? "Gained each month by retiring" : "Lost each month by retiring"}
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>
-                      In today's dollars: {takeHomeDiffToday >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiffToday))}/mo vs. your current take-home.
-                    </div>
-                  </div>
-                  <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textDim, lineHeight: 1.6 }}>
-                    From a gross PERS benefit of <strong style={{ color: COLORS.accent }}>{fmt(monthlyPension)}/mo</strong> ({fmt(annualPension)}/yr){priorPensionMonthly > 0 ? ", incl. prior service" : ""} — after −{pct(retEffRate)} est. tax and −{fmt(calpersMedicalDeduction)}/mo medical premium ({fmt(PEMHCA_MIN_MONTHLY)} PEMHCA min paid by the City directly to CalPERS).
-                  </div>
                 </div>
                 {/* INPUT BOXES — responsive 2-column grid */}
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", alignItems: "start" }}>
