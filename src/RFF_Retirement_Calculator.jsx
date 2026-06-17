@@ -1145,6 +1145,10 @@ export default function RFFRetirementCalculator() {
   const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - ledgerTax - retireePremium;
   // True working take-home (net paycheck after income taxes too, for the working-vs-retired box).
   const workingTakeHome = Math.max(0, currentTakeHome - workTaxAnnual / 12);
+  // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
+  const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
+  const takeHomeDiff = totalMonthlyTakeHome - workingTakeHome;
+  const takeHomeDiffToday = retireTakeHomeToday - workingTakeHome;
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1224,6 +1228,20 @@ export default function RFFRetirementCalculator() {
                   <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "46px" : "78px" }}>{fmt(totalMonthlyTakeHome)}</div>
                   <div style={{ color: COLORS.text, fontSize: isMobile ? "12px" : "13px", marginTop: "10px" }}>
                     PERS direct deposit <strong>{fmt(pensionTakeHome)}</strong>{cityMedicalCheck > 0 ? <> + City medical check <strong>{fmt(cityMedicalCheck)}</strong></> : null}
+                  </div>
+                  <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}` }}>
+                    <div style={{ color: COLORS.textMuted, fontSize: isMobile ? "12px" : "13px" }}>
+                      You take home <strong style={{ color: COLORS.blue }}>{fmt(workingTakeHome)}/mo</strong> working now
+                    </div>
+                    <div style={{ ...styles.bigNumber, fontSize: isMobile ? "30px" : "46px", marginTop: "8px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
+                      {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
+                    </div>
+                    <div style={{ fontSize: isMobile ? "12px" : "14px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "1px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
+                      {takeHomeDiff >= 0 ? "Gained each month by retiring" : "Lost each month by retiring"}
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>
+                      In today's dollars: {takeHomeDiffToday >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiffToday))}/mo vs. your current take-home.
+                    </div>
                   </div>
                   <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: `1px solid ${COLORS.border}`, fontSize: "12px", color: COLORS.textDim, lineHeight: 1.6 }}>
                     From a gross PERS benefit of <strong style={{ color: COLORS.accent }}>{fmt(monthlyPension)}/mo</strong> ({fmt(annualPension)}/yr){priorPensionMonthly > 0 ? ", incl. prior service" : ""} — after −{pct(retEffRate)} est. tax and −{fmt(calpersMedicalDeduction)}/mo medical premium ({fmt(PEMHCA_MIN_MONTHLY)} PEMHCA min paid by the City directly to CalPERS).
