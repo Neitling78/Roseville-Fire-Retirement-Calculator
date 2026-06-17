@@ -1111,9 +1111,11 @@ export default function RFFRetirementCalculator() {
   const ret457AndOther = monthly457 * 12 + otherIncomeR;
   const age65 = retirementAge >= 65;
   // HELPS Act (IRC §402(l)): a retired public-safety officer may exclude up to $3,000/yr of pension used
-  // for health-insurance premiums deducted from the pension check. Reduces FEDERAL taxable income.
+  // for health premiums — but it is claimed at TAX FILING, not withheld by CalPERS. So it does NOT reduce
+  // the monthly withholding/take-home; it's shown separately as an estimated year-end benefit only.
   const helpsExclusion = Math.min(3000, calpersMedicalDeduction * 12);
-  const retFedTax = fedTaxAmt(Math.max(0, retGrossTax - helpsExclusion), 0, fedBrR, fedStdR, depCreditR);
+  const retFedTax = fedTaxAmt(retGrossTax, 0, fedBrR, fedStdR, depCreditR);
+  const helpsFedSavings = retGrossTax > 0 ? helpsExclusion * (retFedTax / retGrossTax) : 0;
   const retStateTax =
     retirementState === "CA" ? calcBracketTax(Math.max(0, retGrossTax - caStdR), caBrR) :
       retirementState === "SC" ? calcBracketTax(Math.max(0, retGrossTax - (age65 ? 10000 : 3000)), SC_BRACKETS) :
@@ -2659,12 +2661,14 @@ export default function RFFRetirementCalculator() {
                   {retirementState !== "CA" && (
                     <div style={styles.tableRow}><span style={styles.tableKey}>{stateName} vs. California</span><span style={{ ...styles.tableVal, color: stateVsCa >= 0 ? COLORS.green : COLORS.accent }}>{stateVsCa >= 0 ? `saves ${fmt(stateVsCa)}/yr` : `${fmt(Math.abs(stateVsCa))}/yr more`}</span></div>
                   )}
-                  {helpsExclusion > 0 && (
-                    <div style={styles.tableRow}><span style={styles.tableKey}>HELPS Act exclusion <span style={{ fontSize: "10px", color: COLORS.textDim }}>· retired safety officer, federal</span></span><span style={styles.tableValGreen}>−{fmt(helpsExclusion)}/yr taxable</span></div>
-                  )}
                   <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>After-tax retirement income</strong></span><span style={styles.tableValGreen}>{fmt(totalMonthly - retTaxAnnual / 12)}/mo</span></div>
+                  {helpsExclusion > 0 && (
+                    <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.2)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
+                      💡 <strong style={{ color: COLORS.green }}>HELPS Act — year-end benefit (not in the figures above):</strong> as a retired safety officer you can exclude up to {fmt(helpsExclusion)}/yr of pension used for health premiums on your federal return (write "PSO" on Form 1040). Estimated federal savings ≈ <strong>{fmt(helpsFedSavings)}/yr</strong>, realized as a lower tax bill at filing — CalPERS still withholds monthly on the full pension, so it is not included in the monthly take-home.
+                    </div>
+                  )}
                   <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: "1.6" }}>
-                    ⚠ Rough estimate — 2026 federal &amp; 2025 CA brackets, standard deduction, {(parseInt(dependents, 10) || 0)} dependent credit, plus your other/spouse income. Federal tax reflects the HELPS Act exclusion (up to $3,000/yr of pension used for health premiums, retired safety officers). "Net" = gross − income tax (working columns also subtract 1.45% Medicare). Pension &amp; 457 are taxable; medical subsidy isn't. Not tax advice — confirm with a professional.
+                    ⚠ Rough estimate — 2026 federal &amp; 2025 CA brackets, standard deduction, {(parseInt(dependents, 10) || 0)} dependent credit, plus your other/spouse income. Tax shown is what's withheld monthly (no HELPS reduction); each person's situation differs. "Net" = gross − income tax (working columns also subtract 1.45% Medicare). Pension &amp; 457 are taxable; medical subsidy isn't. Not tax advice — confirm with a professional.
                   </div>
                 </div>
                 <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.06)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: "1.8" }}>
