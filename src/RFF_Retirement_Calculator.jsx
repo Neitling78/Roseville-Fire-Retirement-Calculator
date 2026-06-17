@@ -1120,6 +1120,10 @@ export default function RFFRetirementCalculator() {
   const workTaxAnnual = taxSalary.tax;
   const workEffRate = taxSalary.gross > 0 ? taxSalary.tax / taxSalary.gross : 0;
   const retEffRate = taxRetire.gross > 0 ? taxRetire.tax / taxRetire.gross : 0;
+  // Retiree out-of-pocket medical = net premium after the City's tier subsidy (matches Medical tab "net retiree premium").
+  const retireeMedicalOOP = Math.max(0, retireePremium - medical.monthly);
+  // Member take-home: monthly PERS benefit after retirement taxes (blended effective rate) and out-of-pocket medical.
+  const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - retireeMedicalOOP);
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1199,6 +1203,13 @@ export default function RFFRetirementCalculator() {
                   <div style={{ ...styles.bigNumber, fontSize: isMobile ? "40px" : "68px" }}>{fmt(monthlyPension)}</div>
                   <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "10px" }}>
                     {fmt(annualPension)} / year{priorPensionMonthly > 0 ? " · incl. prior service" : ""}
+                  </div>
+                  <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: `1px solid ${COLORS.border}` }}>
+                    <div style={{ ...styles.metricLabel, fontSize: isMobile ? "11px" : "12px" }}>Estimated take-home <span style={{ textTransform: "none", letterSpacing: 0 }}>· after taxes &amp; out-of-pocket medical</span></div>
+                    <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "30px" : "48px" }}>{fmt(pensionTakeHome)}</div>
+                    <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>
+                      −{pct(retEffRate)} est. tax{retireeMedicalOOP > 0 ? ` · −${fmt(retireeMedicalOOP)}/mo medical` : " · no medical out-of-pocket"}
+                    </div>
                   </div>
                 </div>
                 {/* INPUT BOXES — responsive 2-column grid */}
