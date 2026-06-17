@@ -1927,7 +1927,7 @@ export default function RFFRetirementCalculator() {
                 </div>
               </>
             )}
-            {tab !== "inputs" && (
+            {tab !== "inputs" && tab !== "medical" && (
               <div style={styles.card}>
                 {sectionHeader("yourprofile", "Your profile")}
                 {openSections.yourprofile && (<>
