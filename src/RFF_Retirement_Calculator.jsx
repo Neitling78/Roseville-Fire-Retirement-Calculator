@@ -1137,6 +1137,12 @@ export default function RFFRetirementCalculator() {
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement check.
   const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck;
+  // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
+  const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck; // City's total toward premium (PEMHCA min + separate check)
+  const ledgerTotalIncome = monthlyPension + cityMedicalContribution + monthly457;
+  const ledger457TakeHome = monthly457 * (1 - retEffRate);
+  const ledgerTax = (monthlyPension + monthly457) * retEffRate;
+  const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - ledgerTax - retireePremium;
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1781,68 +1787,74 @@ export default function RFFRetirementCalculator() {
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   {sectionHeader("retsum", "Retirement summary")}
                   {openSections.retsum !== false && (<>
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "8px" }}>Each month</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after taxes &amp; medical</span></span>
-                    <span style={styles.tableValGreen}>{fmt(pensionTakeHome)}/mo</span>
+                  <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.5", marginBottom: "12px" }}>
+                    Where every dollar goes each month â total income at top, minus what you keep and what's paid out, balancing to $0.
                   </div>
-                  {medicalTier === "4" ? (
+                  <div style={{ ...styles.tableRow, borderBottom: `1px solid ${COLORS.accent}` }}>
+                    <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Total monthly income</span>
+                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(ledgerTotalIncome)}</span>
+                  </div>
+                  <div style={{ fontSize: "10px", color: COLORS.textDim, margin: "4px 0 12px", lineHeight: 1.5 }}>
+                    Gross PERS benefit {fmt(monthlyPension)} + City medical contribution {fmt(cityMedicalContribution)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}
+                  </div>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.green, marginBottom: "4px" }}>Money you keep</div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· after tax &amp; medical</span></span>
+                    <span style={styles.tableValGreen}>−{fmt(pensionTakeHome)}</span>
+                  </div>
+                  {cityMedicalCheck > 0 && (
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· RHS account</span></span>
-                      <span style={styles.tableValGreen}>{fmt(medical.rhsBalance)}</span>
-                    </div>
-                  ) : (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>· separate deposit</span></span>
-                      <span style={styles.tableValGreen}>{fmt(cityMedicalCheck)}/mo</span>
+                      <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· separate deposit</span></span>
+                      <span style={styles.tableValGreen}>−{fmt(cityMedicalCheck)}</span>
                     </div>
                   )}
-                  <div style={styles.tableRowLast}>
-                    <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Your monthly take-home</span>
-                    <span style={{ ...styles.tableValGreen, fontSize: "16px" }}>{fmt(totalMonthlyTakeHome)}/mo</span>
-                  </div>
                   {monthly457 > 0 && (
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>+ 457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 4% draw, optional</span></span>
-                      <span style={styles.tableValGreen}>{fmt(monthly457)}/mo</span>
+                      <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· after tax</span></span>
+                      <span style={styles.tableValGreen}>−{fmt(ledger457TakeHome)}</span>
                     </div>
                   )}
-
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "16px 0 8px" }}>At retirement</div>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.accent, margin: "12px 0 4px" }}>Money paid out</div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Gross PERS benefit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· before tax &amp; medical</span></span>
-                    <span style={styles.tableVal}>{fmt(monthlyPension)}/mo · {fmt(annualPension)}/yr</span>
+                    <span style={styles.tableKey}>Income taxes <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· ~{pct(retEffRate)} est., withheld</span></span>
+                    <span style={styles.tableVal}>−{fmt(ledgerTax)}</span>
                   </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Health insurance premium <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· full plan cost</span></span>
+                    <span style={styles.tableVal}>−{fmt(retireePremium)}</span>
+                  </div>
+                  <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "8px", paddingTop: "10px" }}>
+                    <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Balance</span>
+                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(Math.abs(ledgerBalance) < 0.5 ? 0 : ledgerBalance)}</span>
+                  </div>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: "1.6" }}>
+                    Every dollar is accounted for: what you keep (deposits) + what's paid out (taxes &amp; premium) = total income, so it nets to $0. Tax is estimated monthly withholding (no HELPS); your situation may differ.
+                  </div>
+
+                  {(sickLeavePayoff > 0 || value457 > 0 || priorPensionMonthly > 0) && (<>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "18px 0 8px" }}>Also at retirement</div>
                   {value457 > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>457 balance ({returnRate}% return)</span>
-                      <span style={styles.tableVal}>{fmt(value457)}</span>
-                    </div>
+                    <div style={styles.tableRow}><span style={styles.tableKey}>457 balance ({returnRate}% return)</span><span style={styles.tableVal}>{fmt(value457)}</span></div>
                   )}
                   {sickLeavePayoff > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Sick leave lump sum</span>
-                      <span style={styles.tableVal}>{fmt(sickLeavePayoff)}</span>
-                    </div>
+                    <div style={styles.tableRow}><span style={styles.tableKey}>Sick leave lump sum</span><span style={styles.tableVal}>{fmt(sickLeavePayoff)}</span></div>
                   )}
                   {priorPensionMonthly > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Prior agency pension ({priorTotalYears} yrs)</span>
-                      <span style={styles.tableVal}>{fmt(priorPensionMonthly)}/mo</span>
-                    </div>
+                    <div style={styles.tableRow}><span style={styles.tableKey}>Prior agency pension ({priorTotalYears} yrs)</span><span style={styles.tableVal}>{fmt(priorPensionMonthly)}/mo</span></div>
                   )}
+                  </>)}
 
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "16px 0 8px" }}>Working vs. retired (net)</div>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "18px 0 8px" }}>Working vs. retired (net)</div>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>Current net paycheck</span>
                     <span style={styles.tableVal}>{fmt(currentTakeHome)}/mo</span>
                   </div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Retirement take-home <span style={{ fontSize: "10px", color: COLORS.textDim }}>· today's dollars</span></span>
+                    <span style={styles.tableKey}>Retirement take-home <span style={{ fontSize: "10px", color: COLORS.textDim }}>Â· today's dollars</span></span>
                     <span style={styles.tableValGold}>{fmt(totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement))}/mo</span>
                   </div>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "8px", lineHeight: "1.6" }}>
-                    ≈ <strong style={{ color: COLORS.gold }}>{currentTakeHome > 0 ? ((totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement)) / currentTakeHome * 100).toFixed(0) : "—"}%</strong> of your current net pay, in today's buying power. In retirement you stop paying PERS, 457, and dues — so net-to-net is the fair comparison.
+                    ≈ <strong style={{ color: COLORS.gold }}>{currentTakeHome > 0 ? ((totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement)) / currentTakeHome * 100).toFixed(0) : "—"}%</strong> of your current net pay, in today's buying power. In retirement you stop paying PERS, 457, and dues.
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
                     <label style={{ ...styles.label, marginBottom: 0, flex: "none" }}>Inflation assumption (%)</label>
