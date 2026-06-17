@@ -1207,6 +1207,11 @@ export default function RFFRetirementCalculator() {
   const equiv401k_3pct = annualPension / 0.03;
   // COLA
   const colaRate = memberType === "classic" ? 0.03 : 0.02;
+  // Realized COLA = the LESSER of the contracted cap and actual CPI. CalPERS pays up to your cap but never
+  // more than inflation (a 3% cap only delivers 3% if CPI ≥ 3%); a 2% cap is limited to 2%. The timeline
+  // uses this realistic rate. (Banking of unused CPI in high-inflation years is not modeled.)
+  const cpiRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
+  const effectiveColaRate = Math.min(colaRate, cpiRate);
   const colaYears = [5, 10, 15, 20, 25, 30];
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
@@ -1303,8 +1308,32 @@ export default function RFFRetirementCalculator() {
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", alignItems: "start" }}>
                 {/* Box 1 — Birthdate & retirement */}
                 <div style={styles.card}>
-                  {sectionHeader("profile", "1 · Birthdate & retirement")}
+                  {sectionHeader("profile", "1 · Hire date, birthdate & retirement")}
                   {openSections.profile !== false && (<>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Roseville Hire Date <span style={{ color: COLORS.green, fontSize: "10px" }}>· drives Classic/PEPRA, medical tier &amp; longevity</span></label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
+                      <select style={styles.select} value={hireMonth} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${String(+e.target.value).padStart(2, "0")}-${hireDate.slice(8, 10)}`)}>
+                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
+                      </select>
+                      <select style={styles.select} value={hireDay} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${hireDate.slice(5, 7)}-${String(+e.target.value).padStart(2, "0")}`)}>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
+                      </select>
+                      <select style={styles.select} value={hireYear} onChange={e => setHireDate(`${e.target.value}-${hireDate.slice(5, 7)}-${hireDate.slice(8, 10)}`)}>
+                        {Array.from({ length: 2026 - 1980 + 1 }, (_, i) => 2026 - i).map(y => (<option key={y} value={y}>{y}</option>))}
+                      </select>
+                    </div>
+                    <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>{yearsOfService.toFixed(1)} yrs at retirement</span>
+                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>Medical Tier {medicalTier}</span>
+                      <span style={{ fontSize: "11px", color: COLORS.textMuted }}>
+                        {medicalTier === "1" ? "Pre-2004 · $1,200 base" :
+                          medicalTier === "2" ? "2004–2011 · $1,200 base + vesting" :
+                            medicalTier === "3" ? "2012–2014 · $720 base + vesting" :
+                              "2015+ · RHS account"}
+                      </span>
+                    </div>
+                  </div>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Date of Birth <span style={{ color: COLORS.green, fontSize: "10px" }}>· sets your exact age for CalPERS factors</span></label>
                     <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
@@ -1344,13 +1373,6 @@ export default function RFFRetirementCalculator() {
                     {retirementDateOverride
                       ? <> · exact date set <button onClick={() => setRetirementDateOverride("")} style={{ background: "none", border: "none", color: COLORS.accent, cursor: "pointer", fontSize: "11px", padding: 0, textDecoration: "underline" }}>reset to age</button></>
                       : <> · set from age {retirementAge}</>}
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Airtime / purchased service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· years, if you bought CalPERS service credit</span></label>
-                    <input style={styles.input} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0" onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
-                    {airtimeYears > 0 && (
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Adds {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} of service credit toward your pension % (CalPERS max 5).</div>
-                    )}
                   </div>
                   </>)}
                 </div>
@@ -1448,46 +1470,18 @@ export default function RFFRetirementCalculator() {
                       </div>
                     )}
                   </div>
-                  </>)}
-                </div>
-                {/* Box 3 — Roseville hire date */}
-                <div style={styles.card}>
-                  {sectionHeader("hiredate", "3 · Roseville hire date")}
-                  {openSections.hiredate !== false && (<>
-                  {/* Hire Date — drives Pension Type, Medical Tier, Longevity vs Service Term Bonus */}
                   <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Hire Date <span style={{ color: COLORS.green, fontSize: "10px" }}>· drives everything below</span></label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
-                      <select style={styles.select} value={hireMonth} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${String(+e.target.value).padStart(2, "0")}-${hireDate.slice(8, 10)}`)}>
-                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
-                      </select>
-                      <select style={styles.select} value={hireDay} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${hireDate.slice(5, 7)}-${String(+e.target.value).padStart(2, "0")}`)}>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
-                      </select>
-                      <select style={styles.select} value={hireYear} onChange={e => setHireDate(`${e.target.value}-${hireDate.slice(5, 7)}-${hireDate.slice(8, 10)}`)}>
-                        {Array.from({ length: 2026 - 1980 + 1 }, (_, i) => 2026 - i).map(y => (<option key={y} value={y}>{y}</option>))}
-                      </select>
-                    </div>
-                    <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>
-                        {yearsOfService.toFixed(1)} yrs at retirement
-                      </span>
-                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>
-                        Medical Tier {medicalTier}
-                      </span>
-                      <span style={{ fontSize: "11px", color: COLORS.textMuted }}>
-                        {medicalTier === "1" ? "Pre-2004 · $1,200 base" :
-                          medicalTier === "2" ? "2004–2011 · $1,200 base + vesting" :
-                            medicalTier === "3" ? "2012–2014 · $720 base + vesting" :
-                              "2015+ · RHS account"}
-                      </span>
-                    </div>
+                    <label style={styles.label}>Airtime / purchased service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· years, if you bought CalPERS service credit</span></label>
+                    <input style={styles.input} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0" onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
+                    {airtimeYears > 0 && (
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Adds {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} of service credit toward your pension % (CalPERS max 5).</div>
+                    )}
                   </div>
                   </>)}
                 </div>
-                {/* Box 4 — Rank */}
+                {/* Box 3 — Rank */}
                 <div style={styles.card}>
-                  {sectionHeader("rank", "4 · Rank")}
+                  {sectionHeader("rank", "3 · Rank")}
                   {openSections.rank !== false && (<>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Classification</label>
@@ -1499,7 +1493,7 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {/* Box 5 — Pay scale step */}
                 <div style={styles.card}>
-                  {sectionHeader("paystep", "5 · Pay scale step")}
+                  {sectionHeader("paystep", "4 · Pay scale step")}
                   {openSections.paystep !== false && (<>
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
@@ -1518,7 +1512,7 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {/* Box 6 — Incentive & certification pays */}
                 <div style={styles.card}>
-                  {sectionHeader("incentives", "6 · Incentive & certification pays")}
+                  {sectionHeader("incentives", "5 · Incentive & certification pays")}
                   {openSections.incentives && (<>
                   {/* Longevity (pre-2017 hires) OR Service Term Bonus (2017+ hires) */}
                   {showLongevity && (
@@ -1685,7 +1679,7 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {/* Box 7 — Sick leave at retirement */}
                 <div style={styles.card}>
-                  {sectionHeader("sickleave", "7 · Sick leave at retirement")}
+                  {sectionHeader("sickleave", "6 · Sick leave at retirement")}
                   {openSections.sickleave && (<>
                   <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "0" }}>
                     ⚠ Service credit from sick leave generally applies only if you retire within ~120 days of leaving City service, and it can't be used to reach the 5-year vesting or minimum retirement age.
@@ -1787,7 +1781,7 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {/* Box 8 — Projected raises */}
                 <div style={styles.card}>
-                  {sectionHeader("raises", "8 · Projected raises (2027 → retirement)")}
+                  {sectionHeader("raises", "7 · Projected raises (2027 → retirement)")}
                   {openSections.raises && (<>
                   <div style={{ marginBottom: "12px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
                     Raises compound and apply based on your planned retirement year. MOU values (through 12/31/2029) are pre-filled. Every year from 2030 on uses the "After contract" assumption below.
@@ -2889,7 +2883,7 @@ export default function RFFRetirementCalculator() {
               <div style={styles.card}>
                 <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>Income timeline</div>
                 <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: "1.6" }}>
-                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows with the {pct(colaRate)} COLA; medical out-of-pocket drops to $0 at 65 (Medicare).
+                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows by the realized COLA — the lesser of your {pct(colaRate)} cap and CPI ({pct(cpiRate)}), so <strong>{pct(effectiveColaRate)}/yr</strong> here. Medical out-of-pocket drops to $0 at 65 (Medicare).
                 </div>
                 {(() => {
                   // Build the age set: retirement → 90 in 5-yr steps, plus 65 and the 457 draw-start age
@@ -2903,7 +2897,7 @@ export default function RFFRetirementCalculator() {
                   let depletedMarked = false;
                   const rows = ageList.map(A => {
                     const yrsSinceRetire = A - retirementAge;
-                    const pensionNominal = monthlyPension * Math.pow(1 + colaRate, yrsSinceRetire);
+                    const pensionNominal = monthlyPension * Math.pow(1 + effectiveColaRate, yrsSinceRetire);
                     const medOOP = (A >= 65) ? 0 : retireeMedicalOOP; // Medicare at 65 → City covers supplement
                     const pensionTakeHomeM = pensionNominal * (1 - retEffRate) - medOOP;
                     const drawing = (A >= effectiveDrawStartAge) && (A < depletionAge);
@@ -2943,7 +2937,7 @@ export default function RFFRetirementCalculator() {
                   );
                 })()}
                 <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "16px", lineHeight: "1.6" }}>
-                  Estimates only — not a benefit statement or financial advice. Figures assume the COLA caps every year, a steady 457 draw, and your chosen return/inflation assumptions. Actual results will vary. Confirm official numbers with CalPERS and your 457 provider.
+                  Estimates only — not a benefit statement or financial advice. COLA is the lesser of your contracted cap and your CPI assumption (banking of unused inflation is not modeled), the 457 draw is steady, and returns/inflation are your assumptions. Actual results will vary. Confirm official numbers with CalPERS and your 457 provider.
                 </div>
               </div>
             )}
