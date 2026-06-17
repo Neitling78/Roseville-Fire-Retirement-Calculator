@@ -1240,6 +1240,12 @@ export default function RFFRetirementCalculator() {
           <p style={{ margin: 0, fontSize: isMobile ? "12px" : "14px", color: COLORS.textMuted }}>Your CalPERS pension, mapped to the day you hang up the helmet.</p>
         </div>
       </div>
+      <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 16px" : "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <span style={{ fontSize: isMobile ? "10px" : "12px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly take-home</span>
+          <span style={{ fontSize: isMobile ? "22px" : "30px", fontWeight: "800", color: COLORS.green, lineHeight: 1 }}>{fmt(totalMonthlyTakeHome)}/mo</span>
+        </div>
+      </div>
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
         {datesInvalid && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
