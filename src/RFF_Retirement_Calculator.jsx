@@ -555,6 +555,7 @@ export default function RFFRetirementCalculator() {
   const [annual457Contrib, setAnnual457Contrib] = useState(SAVED.annual457Contrib ?? 6000);
   const [hasEmployerMatch, setHasEmployerMatch] = useState(SAVED.hasEmployerMatch ?? false);
   const [returnRate, setReturnRate] = useState(SAVED.returnRate ?? 8);
+  const [retireDrawRate, setRetireDrawRate] = useState(SAVED.retireDrawRate ?? 4);
   // Current overtime worked, hours per month — for the "salary with OT" comparison.
   const [currentOTHours, setCurrentOTHours] = useState(SAVED.currentOTHours ?? 0);
   // Sick leave — user enters CURRENT hours; we project forward to retirement
@@ -694,7 +695,7 @@ export default function RFFRetirementCalculator() {
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-      current457, annual457Contrib, hasEmployerMatch, returnRate, currentOTHours,
+      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, currentOTHours,
       currentSickLeaveHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -707,7 +708,7 @@ export default function RFFRetirementCalculator() {
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-    current457, annual457Contrib, hasEmployerMatch, returnRate, currentOTHours,
+    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, currentOTHours,
     currentSickLeaveHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -1009,8 +1010,9 @@ export default function RFFRetirementCalculator() {
   // member will actually be vested — not the whole projection (prior bug counted it from day one
   // whenever they'd hit 5 years by retirement).
   const yearsUntilMatchVesting = Math.max(0, CITY_MATCH_MIN_YEARS - currentServiceYears);
-  const matchedYears = hasEmployerMatch ? Math.max(0, yearsToRetirement - yearsUntilMatchVesting) : 0;
-  const cityMatchAnnual = hasEmployerMatch ? avgMatchBase * 12 * CITY_MATCH_PCT : 0;
+  const matchedYears = Math.max(0, yearsToRetirement - yearsUntilMatchVesting);
+  const cityMatchAnnual = avgMatchBase * 12 * CITY_MATCH_PCT; // City 3% — automatic once vested (5+ yrs of service)
+  const cityMatchCurrentAnnual = currentServiceYears >= CITY_MATCH_MIN_YEARS ? baseSalary * 12 * CITY_MATCH_PCT : 0;
   // 457(b) COMBINED-LIMIT GUARD: in a 457(b) the City's 3% counts toward the SAME IRS annual limit
   // (NOT on top, unlike a 401k). So the member's own room = limit − City match. Cap the projection.
   const memberMax457 = Math.max(0, MAX_457_ANNUAL - cityMatchAnnual);
@@ -1021,7 +1023,7 @@ export default function RFFRetirementCalculator() {
   // runs only over the vested (matched) years.
   const value457 = future457Value(current457, effectiveMember457, 0, yearsToRetirement, rate457)
     + future457Value(0, 0, cityMatchAnnual, matchedYears, rate457);
-  const monthly457 = value457 * 0.04 / 12;
+  const monthly457 = value457 * (Math.max(0, parseFloat(retireDrawRate) || 0) / 100) / 12;
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
   // Pension boost from sick leave credit (monthly)
@@ -2431,88 +2433,50 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "income" && (
               <div style={styles.card}>
-                {sectionHeader("def457", "457 deferred compensation")}
-                {openSections.def457 !== false && (<>
-                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: "1.6" }}>
-                  Set your 457 balance, contribution and match above. Drag the return below to compare scenarios.
-                </div>
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>Expected Annual Return: {returnRate}%</label>
-                  <input type="range" min={4} max={12} step={0.5} value={returnRate}
-                    onChange={e => setReturnRate(+e.target.value)}
-                    style={{ width: "100%", accentColor: COLORS.accent }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim }}>
-                    <span>4% Conservative</span><span>8% Moderate</span><span>12% Aggressive</span>
-                  </div>
-                </div>
-                <div style={{ textAlign: "center", padding: "24px", background: "rgba(255,255,255,0.08)", borderRadius: "10px", marginBottom: "20px" }}>
-                  <div style={styles.metricLabel}>Projected 457 Balance at {retirementAge}</div>
-                  <div style={styles.bigNumberGreen}>{fmt(value457)}</div>
-                  <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "8px" }}>
-                    {yearsToRetirement.toFixed(1)} years of growth at {returnRate}%
-                  </div>
-                </div>
-                {(() => {
-                  const yrs = Math.max(1, yearsToRetirement), N = 7;
-                  const pts = Array.from({ length: N }, (_, i) => future457Value(current457, effectiveMember457, cityMatchAnnual, yrs * i / (N - 1), rate457));
-                  const mx = Math.max(...pts), mn = Math.min(...pts), W = 300, H = 60, P = 6;
-                  const coords = pts.map((v, i) => `${(P + i * (W - 2 * P) / (N - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" ");
-                  return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="60" style={{ marginBottom: "16px" }} aria-hidden="true"><polyline points={coords} fill="none" stroke={COLORS.green} strokeWidth="2" /></svg>;
-                })()}
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Your contributions ({yearsToRetirement.toFixed(1)} yrs)</span>
-                  <span style={styles.tableVal}>{fmt(effectiveMember457 * yearsToRetirement)}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>City match contributions</span>
-                  <span style={styles.tableVal}>{fmt(cityMatchAnnual * matchedYears)}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Starting balance growth</span>
-                  <span style={styles.tableVal}>{fmt(current457 * Math.pow(1 + rate457, yearsToRetirement) - current457)}</span>
-                </div>
-                <div style={styles.tableRowLast}>
-                  <span style={styles.tableKey}>Monthly Income (4% withdrawal)</span>
-                  <span style={styles.tableValGreen}>{fmt(monthly457)}/mo</span>
-                </div>
-                <div style={{ marginTop: "20px" }}>
-                  <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px" }}>Return Scenarios</p>
-                  {[6, 8, 10].map(r => {
-                    const v = future457Value(current457, effectiveMember457, cityMatchAnnual, yearsToRetirement, r / 100);
-                    return (
-                      <div key={r} style={styles.tableRow}>
-                        <span style={styles.tableKey}>{r}% Return</span>
-                        <span style={{ ...styles.tableVal, color: r === 8 ? COLORS.gold : COLORS.text }}>
-                          {fmt(v)} → {fmt(v * 0.04 / 12)}/mo
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                </>)}
-              </div>
-            )}
-            {tab === "income" && (
-              <div style={styles.card}>
-                {sectionHeader("sav457", "Your 457 inputs")}
+                {sectionHeader("sav457", "457 deferred compensation")}
                 {openSections.sav457 !== false && (<>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Current 457 balance</label>
-                      <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Current 457 balance</label>
+                    <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Your annual contribution: {fmt(effectiveMember457)}</label>
+                    <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Your contribution</span>
+                      <span style={styles.tableVal}>{fmt(effectiveMember457)}/yr</span>
                     </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Annual contribution: {fmt(annual457Contrib)}</label>
-                      <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>City 3% match {currentServiceYears >= CITY_MATCH_MIN_YEARS ? "(vested)" : `(starts in ${Math.max(0, CITY_MATCH_MIN_YEARS - currentServiceYears).toFixed(1)} yrs)`}</span>
+                      <span style={styles.tableValGreen}>{fmt(cityMatchCurrentAnnual)}/yr</span>
+                    </div>
+                    <div style={styles.tableRowLast}>
+                      <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Total going in each year</span>
+                      <span style={{ ...styles.tableValGreen, fontWeight: "700" }}>{fmt(effectiveMember457 + cityMatchCurrentAnnual)}/yr</span>
                     </div>
                   </div>
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasEmployerMatch} onChange={e => setHasEmployerMatch(e.target.checked)} />
-                    <span style={styles.checkLabel}>City 3% match (after 5 yrs of service)</span>
-                  </label>
                   <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Expected annual return: {returnRate}%</label>
+                    <label style={styles.label}>Return while working: {returnRate}%</label>
                     <input type="range" min={4} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim }}>
+                      <span>4% conservative</span><span>8% moderate</span><span>12% aggressive</span>
+                    </div>
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Annual draw in retirement: {retireDrawRate}%</label>
+                    <input type="range" min={2} max={10} step={0.5} value={retireDrawRate} onChange={e => setRetireDrawRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim }}>
+                      <span>2%</span><span>4% rule of thumb</span><span>10%</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", padding: "16px", background: "rgba(16,185,129,0.06)", borderRadius: "10px" }}>
+                    <div style={styles.metricLabel}>Projected 457 balance at {retirementAge}</div>
+                    <div style={styles.bigNumberGreen}>{fmt(value457)}</div>
+                    <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "6px" }}>
+                      ≈ {fmt(monthly457)}/mo income at {retireDrawRate}% draw · {yearsToRetirement.toFixed(1)} yrs growth at {returnRate}%
+                    </div>
                   </div>
                 </>)}
               </div>
