@@ -1375,174 +1375,9 @@ export default function RFFRetirementCalculator() {
                   </div>
                   </>)}
                 </div>
-                <div style={styles.card}>
-                  {sectionHeader("sav457", "Step 2 · 457, overtime & survivor")}
-                  {openSections.sav457 !== false && (<>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Current 457 balance</label>
-                      <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Annual contribution: {fmt(annual457Contrib)}</label>
-                      <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
-                    </div>
-                  </div>
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasEmployerMatch} onChange={e => setHasEmployerMatch(e.target.checked)} />
-                    <span style={styles.checkLabel}>City 3% match (after 5 yrs of service)</span>
-                  </label>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Expected annual return: {returnRate}%</label>
-                    <input type="range" min={4} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
-                      <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Beneficiary age <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· survivor</span></label>
-                      <input style={styles.input} type="number" value={beneficiaryAge || ""} onChange={e => setBeneficiaryAge(+e.target.value || 0)} min={18} max={100} placeholder={`${retirementAge}`} />
-                    </div>
-                  </div>
-                  </>)}
-                </div>
-                <div style={styles.card}>
-                  {sectionHeader("taxinputs", "Step 3 · Taxes")}
-                  {openSections.taxinputs !== false && (<>
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "6px" }}>While working</div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Filing status</label>
-                      <select style={styles.select} value={filingStatus} onChange={e => setFilingStatus(e.target.value)}>
-                        <option value="single">Single</option>
-                        <option value="mfj">Married filing jointly</option>
-                        <option value="hoh">Head of household</option>
-                      </select>
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Dependents</label>
-                      <input style={styles.input} type="number" min={0} max={10} value={dependents || ""} placeholder="0" onChange={e => setDependents(+e.target.value || 0)} />
-                    </div>
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Other / spouse income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
-                    <input style={styles.input} type="number" min={0} value={otherIncome || ""} placeholder="0" onChange={e => setOtherIncome(+e.target.value || 0)} />
-                  </div>
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "12px 0 6px" }}>In retirement</div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Filing status</label>
-                      <select style={styles.select} value={filingStatusRet} onChange={e => setFilingStatusRet(e.target.value)}>
-                        <option value="single">Single</option>
-                        <option value="mfj">Married filing jointly</option>
-                        <option value="hoh">Head of household</option>
-                      </select>
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Dependents</label>
-                      <input style={styles.input} type="number" min={0} max={10} value={dependentsRet || ""} placeholder="0" onChange={e => setDependentsRet(+e.target.value || 0)} />
-                    </div>
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Other / spouse income in retirement <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
-                    <input style={styles.input} type="number" min={0} value={otherIncomeRet || ""} placeholder="0" onChange={e => setOtherIncomeRet(+e.target.value || 0)} />
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Retirement state <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· compare any state</span></label>
-                    <select style={styles.select} value={retirementState} onChange={e => { const code = e.target.value; setRetirementState(code); const st = STATES_LIST.find(s => s.code === code); if (code !== "CA") setOtherStateRate(st && st.rate != null ? st.rate : 0); }}>
-                      {STATES_LIST.map(s => <option key={s.code} value={s.code}>{s.name}{s.rate === 0 ? " — no retirement tax" : ""}</option>)}
-                    </select>
-                  </div>
-                  {!["CA", "SC", "MT", "HI"].includes(retirementState) && (
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>{stateName} tax rate: {otherStateRate}% <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· approx — adjust if needed</span></label>
-                      <input type="range" min={0} max={13} step={0.1} value={otherStateRate} onChange={e => setOtherStateRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
-                    </div>
-                  )}
-                  {["SC", "MT", "HI"].includes(retirementState) && (
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px" }}>
-                      {stateName} computed with its actual brackets — {retirementState === "HI" ? "pension is exempt; only your 457 is taxed" : retirementState === "SC" ? "retirement-income deduction applied" : "$5,500 retirement deduction applied"}.
-                    </div>
-                  )}
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", lineHeight: "1.6" }}>
-                    You work in California; pick where you'll retire to compare. Breakdown is on the Income tab. Estimate only — not tax advice.
-                  </div>
-                  </>)}
-                </div>
-                {/* Projected Raises 2027–2029 + post-contract */}
-                <div style={styles.card}>
-                  {sectionHeader("raises", "Step 4 · Projected raises (2027 → retirement)")}
-                  {openSections.raises && (<>
-                  <div style={{ marginBottom: "12px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                    Raises compound and apply based on your planned retirement year. MOU values (through 12/31/2029) are pre-filled. Every year from 2030 on uses the "After contract" assumption below.
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        2027 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 0% (MOU)</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2027 || ""}
-                        placeholder="0"
-                        onChange={e => setRaise2027(parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        2028 <span style={{ color: COLORS.textDim, fontSize: "10px" }}>· 3% (est.)</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2028 || ""}
-                        placeholder="0"
-                        onChange={e => setRaise2028(parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        2029 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 1.75% (MOU)</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2029 || ""}
-                        onChange={e => setRaise2029(parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        After contract (2030+) <span style={{ color: COLORS.gold, fontSize: "10px" }}>· est.</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raiseAfterContract || ""}
-                        placeholder="3.0"
-                        onChange={e => setRaiseAfterContract(parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                  <div style={{ ...styles.certNote, marginLeft: "0" }}>
-                    The MOU runs through 12/31/2029. Every year from 2030 until you retire uses the "After contract" rate — historically ~3%/yr has been steady. Set to 0 for none.
-                  </div>
-                  {retirementYear >= 2027 && (
-                    <div style={{ marginTop: "10px", padding: "12px", background: "rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "12px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span style={{ color: COLORS.textMuted }}>Projected base at retirement ({retirementYear})</span>
-                        <span style={{ color: COLORS.gold, fontWeight: "700", fontSize: "15px" }}>{fmt(projectedBaseSalary)}/mo</span>
-                      </div>
-                      <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "2px" }}>
-                        Today's base: {fmt(baseSalary)}/mo · Change: {projectedBaseSalary > baseSalary ? "+" : ""}{fmt(projectedBaseSalary - baseSalary)}/mo
-                      </div>
-                      {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                        <div style={{ marginTop: "6px", color: COLORS.blue, fontSize: "11px", lineHeight: "1.5" }}>
-                          ⓘ MOU rank sep applied: {retirementYear >= 2028 ? "10%" : "7.5%"} above FF Para II
-                          {classification === "Fire Captain" && " + 10% Captain premium"}
-                          {" "}(effective {retirementYear >= 2028 ? "2028" : "2027"})
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  </>)}
-                </div>
                 {/* Incentive Pays */}
                 <div style={styles.card}>
-                  {sectionHeader("incentives", "Step 5 · Incentive & certification pays")}
+                  {sectionHeader("incentives", "Step 2 · Incentive & certification pays")}
                   {openSections.incentives && (<>
                   {/* Longevity (pre-2017 hires) OR Service Term Bonus (2017+ hires) */}
                   {showLongevity && (
@@ -1705,6 +1540,171 @@ export default function RFFRetirementCalculator() {
                   <div style={{ marginTop: "12px", padding: "10px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", fontSize: "12px", color: COLORS.textMuted }}>
                     ⓘ Education + CSFM cert pay combined cap: <strong style={{ color: COLORS.blue }}>15% max</strong> per MOU Art VI.B
                   </div>
+                  </>)}
+                </div>
+                <div style={styles.card}>
+                  {sectionHeader("sav457", "Step 3 · 457, overtime & survivor")}
+                  {openSections.sav457 !== false && (<>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Current 457 balance</label>
+                      <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Annual contribution: {fmt(annual457Contrib)}</label>
+                      <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    </div>
+                  </div>
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasEmployerMatch} onChange={e => setHasEmployerMatch(e.target.checked)} />
+                    <span style={styles.checkLabel}>City 3% match (after 5 yrs of service)</span>
+                  </label>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Expected annual return: {returnRate}%</label>
+                    <input type="range" min={4} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                  </div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
+                      <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Beneficiary age <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· survivor</span></label>
+                      <input style={styles.input} type="number" value={beneficiaryAge || ""} onChange={e => setBeneficiaryAge(+e.target.value || 0)} min={18} max={100} placeholder={`${retirementAge}`} />
+                    </div>
+                  </div>
+                  </>)}
+                </div>
+                <div style={styles.card}>
+                  {sectionHeader("taxinputs", "Step 4 · Taxes")}
+                  {openSections.taxinputs !== false && (<>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "6px" }}>While working</div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Filing status</label>
+                      <select style={styles.select} value={filingStatus} onChange={e => setFilingStatus(e.target.value)}>
+                        <option value="single">Single</option>
+                        <option value="mfj">Married filing jointly</option>
+                        <option value="hoh">Head of household</option>
+                      </select>
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Dependents</label>
+                      <input style={styles.input} type="number" min={0} max={10} value={dependents || ""} placeholder="0" onChange={e => setDependents(+e.target.value || 0)} />
+                    </div>
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Other / spouse income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
+                    <input style={styles.input} type="number" min={0} value={otherIncome || ""} placeholder="0" onChange={e => setOtherIncome(+e.target.value || 0)} />
+                  </div>
+                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "12px 0 6px" }}>In retirement</div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Filing status</label>
+                      <select style={styles.select} value={filingStatusRet} onChange={e => setFilingStatusRet(e.target.value)}>
+                        <option value="single">Single</option>
+                        <option value="mfj">Married filing jointly</option>
+                        <option value="hoh">Head of household</option>
+                      </select>
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Dependents</label>
+                      <input style={styles.input} type="number" min={0} max={10} value={dependentsRet || ""} placeholder="0" onChange={e => setDependentsRet(+e.target.value || 0)} />
+                    </div>
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Other / spouse income in retirement <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
+                    <input style={styles.input} type="number" min={0} value={otherIncomeRet || ""} placeholder="0" onChange={e => setOtherIncomeRet(+e.target.value || 0)} />
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Retirement state <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· compare any state</span></label>
+                    <select style={styles.select} value={retirementState} onChange={e => { const code = e.target.value; setRetirementState(code); const st = STATES_LIST.find(s => s.code === code); if (code !== "CA") setOtherStateRate(st && st.rate != null ? st.rate : 0); }}>
+                      {STATES_LIST.map(s => <option key={s.code} value={s.code}>{s.name}{s.rate === 0 ? " — no retirement tax" : ""}</option>)}
+                    </select>
+                  </div>
+                  {!["CA", "SC", "MT", "HI"].includes(retirementState) && (
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>{stateName} tax rate: {otherStateRate}% <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· approx — adjust if needed</span></label>
+                      <input type="range" min={0} max={13} step={0.1} value={otherStateRate} onChange={e => setOtherStateRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    </div>
+                  )}
+                  {["SC", "MT", "HI"].includes(retirementState) && (
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px" }}>
+                      {stateName} computed with its actual brackets — {retirementState === "HI" ? "pension is exempt; only your 457 is taxed" : retirementState === "SC" ? "retirement-income deduction applied" : "$5,500 retirement deduction applied"}.
+                    </div>
+                  )}
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", lineHeight: "1.6" }}>
+                    You work in California; pick where you'll retire to compare. Breakdown is on the Income tab. Estimate only — not tax advice.
+                  </div>
+                  </>)}
+                </div>
+                {/* Projected Raises 2027–2029 + post-contract */}
+                <div style={styles.card}>
+                  {sectionHeader("raises", "Step 5 · Projected raises (2027 → retirement)")}
+                  {openSections.raises && (<>
+                  <div style={{ marginBottom: "12px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
+                    Raises compound and apply based on your planned retirement year. MOU values (through 12/31/2029) are pre-filled. Every year from 2030 on uses the "After contract" assumption below.
+                  </div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>
+                        2027 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 0% (MOU)</span>
+                      </label>
+                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
+                        value={raise2027 || ""}
+                        placeholder="0"
+                        onChange={e => setRaise2027(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>
+                        2028 <span style={{ color: COLORS.textDim, fontSize: "10px" }}>· 3% (est.)</span>
+                      </label>
+                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
+                        value={raise2028 || ""}
+                        placeholder="0"
+                        onChange={e => setRaise2028(parseFloat(e.target.value) || 0)} />
+                    </div>
+                  </div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>
+                        2029 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 1.75% (MOU)</span>
+                      </label>
+                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
+                        value={raise2029 || ""}
+                        onChange={e => setRaise2029(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>
+                        After contract (2030+) <span style={{ color: COLORS.gold, fontSize: "10px" }}>· est.</span>
+                      </label>
+                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
+                        value={raiseAfterContract || ""}
+                        placeholder="3.0"
+                        onChange={e => setRaiseAfterContract(parseFloat(e.target.value) || 0)} />
+                    </div>
+                  </div>
+                  <div style={{ ...styles.certNote, marginLeft: "0" }}>
+                    The MOU runs through 12/31/2029. Every year from 2030 until you retire uses the "After contract" rate — historically ~3%/yr has been steady. Set to 0 for none.
+                  </div>
+                  {retirementYear >= 2027 && (
+                    <div style={{ marginTop: "10px", padding: "12px", background: "rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ color: COLORS.textMuted }}>Projected base at retirement ({retirementYear})</span>
+                        <span style={{ color: COLORS.gold, fontWeight: "700", fontSize: "15px" }}>{fmt(projectedBaseSalary)}/mo</span>
+                      </div>
+                      <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "2px" }}>
+                        Today's base: {fmt(baseSalary)}/mo · Change: {projectedBaseSalary > baseSalary ? "+" : ""}{fmt(projectedBaseSalary - baseSalary)}/mo
+                      </div>
+                      {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                        <div style={{ marginTop: "6px", color: COLORS.blue, fontSize: "11px", lineHeight: "1.5" }}>
+                          ⓘ MOU rank sep applied: {retirementYear >= 2028 ? "10%" : "7.5%"} above FF Para II
+                          {classification === "Fire Captain" && " + 10% Captain premium"}
+                          {" "}(effective {retirementYear >= 2028 ? "2028" : "2027"})
+                        </div>
+                      )}
+                    </div>
+                  )}
                   </>)}
                 </div>
                 {/* Sick Leave */}
