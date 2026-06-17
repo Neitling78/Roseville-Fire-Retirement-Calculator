@@ -235,9 +235,16 @@ function priorYearFactor(formula, manualFactorPct, retireAge) {
   }
   if (retireAge < 50) return 0; // safety minimum retirement age
   const ages = Object.keys(def.factors).map(Number);
-  const maxAge = Math.max(...ages);
-  const a = Math.min(Math.floor(retireAge), maxAge);
-  return def.factors[a] ?? def.factors[maxAge];
+  const minAge = Math.min(...ages), maxAge = Math.max(...ages);
+  if (retireAge >= maxAge) return def.factors[maxAge];
+  if (retireAge <= minAge) return def.factors[minAge];
+  // CalPERS steps by completed quarter-year; quarter values are evenly spaced
+  // between consecutive whole-year benefit factors (linear interpolation).
+  const lo = Math.floor(retireAge);
+  const q = Math.floor((retireAge - lo) * 4) / 4;
+  const fLo = def.factors[lo];
+  const fHi = def.factors[lo + 1] ?? def.factors[maxAge];
+  return fLo + (fHi - fLo) * q;
 }
 function calcRetireeMedical(tier, hireYear, retirementYear, cityYOS, totalCalpersYears) {
   const yearsFromBase = retirementYear - RETIREE_MEDICAL_BASE_YEAR;
@@ -492,7 +499,7 @@ export default function RFFRetirementCalculator() {
   // Profile (all defaults pull from saved localStorage state when present)
   const [classification, setClassification] = useState(SAVED.classification ?? "Firefighter Paramedic I");
   const [salaryStep, setSalaryStep] = useState(SAVED.salaryStep ?? "A");
-  const [currentAge, setCurrentAge] = useState(SAVED.currentAge ?? 22);
+  const [dob, setDob] = useState(SAVED.dob ?? (SAVED.currentAge ? `${new Date().getFullYear() - SAVED.currentAge}-01-01` : "1990-01-01"));
   const [retirementAge, setRetirementAge] = useState(SAVED.retirementAge ?? 57);
   // Exact retirement date override ("YYYY-MM-DD"). Empty = derive Jan 1 of the age-based year.
   const [retirementDateOverride, setRetirementDateOverride] = useState(SAVED.retirementDateOverride ?? "");
@@ -580,11 +587,18 @@ export default function RFFRetirementCalculator() {
   const activeSchedule = SALARY_SCHEDULE;
   const baseSalary = activeSchedule[classification]?.steps[salaryStep] || 0;
   const NOW = new Date();
+  const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
+  // Date of birth drives exact age (to the quarter-year) for CalPERS benefit factors.
+  const dobValid = /^\d{4}-\d{2}-\d{2}$/.test(dob || "");
+  const dobDate = dobValid ? new Date(parseInt(dob.slice(0, 4), 10), parseInt(dob.slice(5, 7), 10) - 1, parseInt(dob.slice(8, 10), 10)) : null;
+  const currentAge = dobDate ? Math.max(0, Math.floor((NOW - dobDate) / MS_PER_YEAR)) : 40;
   const integerYearsToRetirement = Math.max(0, retirementAge - currentAge);
   const derivedRetirementYear = NOW.getFullYear() + integerYearsToRetirement;
-  // Retirement timing: default to Jan 1 of the age-derived year; the member can override the
-  // exact date in the date field. The date is the single source of truth for year + month + day.
-  const defaultRetDateStr = `${derivedRetirementYear}-01-01`;
+  // Retirement timing: default to the date the member reaches the chosen retirement age
+  // (their birthday that year). The member can override the exact date in the date field.
+  const defaultRetDateStr = dobDate
+    ? `${dobDate.getFullYear() + retirementAge}-${String(dobDate.getMonth() + 1).padStart(2, "0")}-${String(dobDate.getDate()).padStart(2, "0")}`
+    : `${derivedRetirementYear}-01-01`;
   const effectiveRetDateStr = /^\d{4}-\d{2}-\d{2}$/.test(retirementDateOverride || "")
     ? retirementDateOverride : defaultRetDateStr;
   const retirementYear = parseInt(effectiveRetDateStr.slice(0, 4), 10) || derivedRetirementYear;
@@ -592,7 +606,9 @@ export default function RFFRetirementCalculator() {
   const retDayNum = parseInt(effectiveRetDateStr.slice(8, 10), 10) || 1;
   const retirementDate = new Date(retirementYear, retMonthNum - 1, retDayNum);
   const hireDateObj = new Date(hireYear, hireMonth - 1, hireDay);
-  const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
+  // Exact age at retirement, snapped down to the completed quarter-year (CalPERS method).
+  const exactRetireAge = dobDate ? (retirementDate - dobDate) / MS_PER_YEAR : retirementAge;
+  const retireAgeQ = dobDate ? Math.max(0, Math.floor(exactRetireAge * 4) / 4) : retirementAge;
   // Invalid combo (retirement on/before hire) — surfaced as an inline error, not a fake result.
   const datesInvalid = retirementDate <= hireDateObj;
   // Fractional years of service from actual hire date to the actual retirement month.
@@ -667,7 +683,7 @@ export default function RFFRetirementCalculator() {
   // Auto-save every state change. Nothing leaves the browser.
   useEffect(() => {
     saveState({
-      classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
+      classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
       memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
@@ -854,7 +870,7 @@ export default function RFFRetirementCalculator() {
   // Roseville per-year factor (Classic multiplier or PEPRA age factor).
   const rosevilleFactor = memberType === "classic"
     ? CLASSIC_MULTIPLIER
-    : Math.min(retirementAge >= 57 ? 0.027 : 0.020 + (retirementAge - 50) * (0.007 / 7), 0.027);
+    : Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
   // CalPERS service is grouped BY FORMULA. Service under the SAME formula as Roseville consolidates
   // into one bucket under a single 90% cap. Service under a DIFFERENT CalPERS formula (e.g., CalFire
   // 3%@55) is its own bucket with its own cap, on the SAME final comp, and STACKS on top — so the
@@ -862,13 +878,13 @@ export default function RFFRetirementCalculator() {
   const rosevilleFormulaKey = memberType === "classic" ? "3@50" : "2.7@57";
   const sameFormulaPriorPct = priorService.reduce((s, r) =>
     (isCalpersFormula(r.formula) && r.formula === rosevilleFormulaKey)
-      ? s + Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retirementAge) : s, 0);
+      ? s + Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retireAgeQ) : s, 0);
   // Roseville bucket %, capped at 90% (this is what the 90% cap visuals track).
   const pensionPct = Math.min(yearsOfServiceForPension * rosevilleFactor + sameFormulaPriorPct, 0.90);
   // Other-CalPERS-formula buckets — each capped at 90% on its own, then summed (rarely binds).
   const otherCalpersFormulaPct = priorService.reduce((s, r) =>
     (isCalpersFormula(r.formula) && r.formula !== rosevilleFormulaKey)
-      ? s + Math.min(Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retirementAge), 0.90) : s, 0);
+      ? s + Math.min(Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retireAgeQ), 0.90) : s, 0);
   // Total CalPERS % paid as ONE allowance (Roseville bucket + other-formula buckets stacked).
   const calpersTotalPct = pensionPct + otherCalpersFormulaPct;
   // Itemized CalPERS service components contributing toward the 90% cap (for display).
@@ -880,7 +896,7 @@ export default function RFFRetirementCalculator() {
       label: (r.agencyName && r.agencyName.trim()) ? r.agencyName.trim() : ((PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "CalPERS service"),
       formulaLabel: (PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label,
       yrs: Math.max(0, parseFloat(r.years) || 0),
-      factor: priorYearFactor(r.formula, r.manualFactor, retirementAge),
+      factor: priorYearFactor(r.formula, r.manualFactor, retireAgeQ),
     })),
   ].map(c => ({ ...c, pct: c.yrs * c.factor }));
   const calpersRawPct = calpersComponents.reduce((s, c) => s + c.pct, 0);
@@ -1000,7 +1016,7 @@ export default function RFFRetirementCalculator() {
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
   // Pension boost from sick leave credit (monthly)
   const sickLeaveCreditMultiplier = memberType === "classic" ? CLASSIC_MULTIPLIER :
-    Math.min(retirementAge >= 57 ? 0.027 : 0.020 + (retirementAge - 50) * (0.007 / 7), 0.027);
+    Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
   // Marginal value of the sick-leave credit, respecting the 90% cap (zero once already capped).
   const pensionPctNoCredit = Math.min(yearsOfService * sickLeaveCreditMultiplier, memberType === "classic" ? CLASSIC_MAX_PCT : 0.90);
   const sickLeavePensionBoostMonthly = pensionableForPension * Math.max(0, pensionPct - pensionPctNoCredit);
@@ -1023,7 +1039,7 @@ export default function RFFRetirementCalculator() {
     const sameFormula = calpers && r.formula === rosevilleFormulaKey;
     const otherCalpers = calpers && !sameFormula;
     const yrs = Math.max(0, parseFloat(r.years) || 0);
-    const factor = priorYearFactor(r.formula, r.manualFactor, retirementAge);
+    const factor = priorYearFactor(r.formula, r.manualFactor, retireAgeQ);
     const compMonthly = calpers ? pensionableForPension
       : (r.useRosevilleComp !== false ? totalPensionableMonthly : (parseFloat(r.customComp) || 0));
     const pct = sameFormula ? yrs * factor : Math.min(yrs * factor, CLASSIC_MAX_PCT);
@@ -1339,9 +1355,21 @@ export default function RFFRetirementCalculator() {
                     </div>
                   </div>
                   <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Current Age</label>
-                    <input style={styles.input} type="number" value={currentAge || ""}
-                      onChange={e => setCurrentAge(+e.target.value || 0)} min={20} max={65} />
+                    <label style={styles.label}>Date of Birth <span style={{ color: COLORS.green, fontSize: "10px" }}>· sets your exact age for CalPERS factors</span></label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
+                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(5, 7), 10) : 1} onChange={e => setDob(`${dobValid ? dob.slice(0, 4) : "1990"}-${String(+e.target.value).padStart(2, "0")}-${dobValid ? dob.slice(8, 10) : "01"}`)}>
+                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
+                      </select>
+                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(8, 10), 10) : 1} onChange={e => setDob(`${dobValid ? dob.slice(0, 4) : "1990"}-${dobValid ? dob.slice(5, 7) : "01"}-${String(+e.target.value).padStart(2, "0")}`)}>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
+                      </select>
+                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(0, 4), 10) : 1990} onChange={e => setDob(`${e.target.value}-${dobValid ? dob.slice(5, 7) : "01"}-${dobValid ? dob.slice(8, 10) : "01"}`)}>
+                        {Array.from({ length: (NOW.getFullYear() - 17) - 1945 + 1 }, (_, i) => (NOW.getFullYear() - 17) - i).map(y => (<option key={y} value={y}>{y}</option>))}
+                      </select>
+                    </div>
+                    <div style={{ marginTop: "6px", fontSize: "11px", color: COLORS.textMuted }}>
+                      Current age: <strong style={{ color: COLORS.gold }}>{currentAge}</strong> · At retirement: <strong style={{ color: COLORS.gold }}>{Math.floor(exactRetireAge)} yr {Math.round((exactRetireAge - Math.floor(exactRetireAge)) * 12)} mo</strong> → benefit-factor age {retireAgeQ}
+                    </div>
                   </div>
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
@@ -1972,7 +2000,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                 )}
                 {(() => {
-                  const factor = memberType === "classic" ? 0.03 : Math.min(retirementAge >= 57 ? 0.027 : 0.020 + (retirementAge - 50) * (0.007 / 7), 0.027);
+                  const factor = memberType === "classic" ? 0.03 : Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
                   const fillPct = Math.min(100, (pensionPct / 0.90) * 100);
                   const yearsToCap = factor > 0 ? Math.max(0, (0.90 - pensionPct) / factor) : 0;
                   return (
