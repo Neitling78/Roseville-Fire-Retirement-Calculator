@@ -1939,7 +1939,7 @@ export default function RFFRetirementCalculator() {
                 </div>
               </>
             )}
-            {tab !== "inputs" && tab !== "medical" && (
+            {tab === "pension" && (
               <div style={styles.card}>
                 {sectionHeader("yourprofile", "Your profile")}
                 {openSections.yourprofile && (<>
@@ -2192,8 +2192,12 @@ export default function RFFRetirementCalculator() {
                       <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.survivor ? "▾" : "▸ tap to open"}</span>
                     </p>
                     {openSections.survivor && (<>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Beneficiary age <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· leave 0 to use your retirement age</span></label>
+                      <input style={styles.input} type="number" value={beneficiaryAge || ""} onChange={e => setBeneficiaryAge(+e.target.value || 0)} min={18} max={100} placeholder={`${retirementAge}`} />
+                    </div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px" }}>
-                      Based on beneficiary age {effectiveBeneficiaryAge} (set on Start here).
+                      Based on beneficiary age {effectiveBeneficiaryAge}.
                     </div>
                     <table style={styles.colaTable}>
                       <thead>
@@ -2593,17 +2597,12 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "income" && (
               <div style={styles.card}>
-                {sectionHeader("otsurv", "Overtime & survivor")}
+                {sectionHeader("otsurv", "Overtime")}
                 {openSections.otsurv !== false && (<>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
-                      <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Beneficiary age <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· survivor</span></label>
-                      <input style={styles.input} type="number" value={beneficiaryAge || ""} onChange={e => setBeneficiaryAge(+e.target.value || 0)} min={18} max={100} placeholder={`${retirementAge}`} />
-                    </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
+                    <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>Adds to your working take-home — not pensionable, and gone in retirement.</div>
                   </div>
                 </>)}
               </div>
