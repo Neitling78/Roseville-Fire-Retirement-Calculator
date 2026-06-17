@@ -975,6 +975,10 @@ export default function RFFRetirementCalculator() {
   const selectedPremium = selectedPlanObj[medicalCoverage] || selectedPlanObj.ee;
   const retireePlanObj = MEDICAL_PLANS_2026.find(p => p.name === retireeMedicalPlan) || MEDICAL_PLANS_2026[0];
   const retireePremium = retireePlanObj[retireeCoverage] || retireePlanObj.ee;
+  // Roseville split-payment: City pays the PEMHCA minimum straight to CalPERS, so CalPERS deducts only
+  // the remaining premium from the pension check (City reimburses the rest separately).
+  const PEMHCA_MIN_MONTHLY = 162; // 2026 statutory minimum employer contribution paid to CalPERS
+  const calpersMedicalDeduction = Math.max(0, retireePremium - PEMHCA_MIN_MONTHLY);
   // City medical share per MOU Ch.4 Art.I §C: up to a % of the Kaiser premium for the tier, plus
   // $180 toward dental/vision. Unused amounts are NOT paid out (§C.5) — the member pays only the overage.
   const dentalObj = DENTAL_PLANS_2026.find(p => p.name === dentalPlan) || DENTAL_PLANS_2026[0];
@@ -1106,7 +1110,10 @@ export default function RFFRetirementCalculator() {
   const retGrossTax = (combinedPensionMonthly + monthly457) * 12 + otherIncomeR;
   const ret457AndOther = monthly457 * 12 + otherIncomeR;
   const age65 = retirementAge >= 65;
-  const retFedTax = fedTaxAmt(retGrossTax, 0, fedBrR, fedStdR, depCreditR);
+  // HELPS Act (IRC §402(l)): a retired public-safety officer may exclude up to $3,000/yr of pension used
+  // for health-insurance premiums deducted from the pension check. Reduces FEDERAL taxable income.
+  const helpsExclusion = Math.min(3000, calpersMedicalDeduction * 12);
+  const retFedTax = fedTaxAmt(Math.max(0, retGrossTax - helpsExclusion), 0, fedBrR, fedStdR, depCreditR);
   const retStateTax =
     retirementState === "CA" ? calcBracketTax(Math.max(0, retGrossTax - caStdR), caBrR) :
       retirementState === "SC" ? calcBracketTax(Math.max(0, retGrossTax - (age65 ? 10000 : 3000)), SC_BRACKETS) :
@@ -1123,11 +1130,6 @@ export default function RFFRetirementCalculator() {
   // Retiree out-of-pocket medical (net premium after the City allowance) — member pays only the overage.
   const cityAllowance = medical.monthly; // City retiree-medical allowance from the existing hire-date tier model
   const retireeMedicalOOP = Math.max(0, retireePremium - cityAllowance);
-  // Roseville split-payment process: the City pays the statutory PEMHCA minimum directly to CalPERS, so
-  // CalPERS deducts only the REMAINING premium from the pension check; the City reimburses the rest of
-  // its allowance (capped at the actual premium) as a SEPARATE monthly deposit. PEMHCA min is set yearly.
-  const PEMHCA_MIN_MONTHLY = 162; // 2026 statutory minimum employer contribution paid to CalPERS
-  const calpersMedicalDeduction = Math.max(0, retireePremium - PEMHCA_MIN_MONTHLY);
   const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - calpersMedicalDeduction);
   // Separate City reimbursement check = the City's allowance (up to the premium) minus the $162 it already sent CalPERS.
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
@@ -2664,9 +2666,12 @@ export default function RFFRetirementCalculator() {
                   {retirementState !== "CA" && (
                     <div style={styles.tableRow}><span style={styles.tableKey}>{stateName} vs. California</span><span style={{ ...styles.tableVal, color: stateVsCa >= 0 ? COLORS.green : COLORS.accent }}>{stateVsCa >= 0 ? `saves ${fmt(stateVsCa)}/yr` : `${fmt(Math.abs(stateVsCa))}/yr more`}</span></div>
                   )}
+                  {helpsExclusion > 0 && (
+                    <div style={styles.tableRow}><span style={styles.tableKey}>HELPS Act exclusion <span style={{ fontSize: "10px", color: COLORS.textDim }}>· retired safety officer, federal</span></span><span style={styles.tableValGreen}>−{fmt(helpsExclusion)}/yr taxable</span></div>
+                  )}
                   <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>After-tax retirement income</strong></span><span style={styles.tableValGreen}>{fmt(totalMonthly - retTaxAnnual / 12)}/mo</span></div>
                   <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: "1.6" }}>
-                    ⚠ Rough estimate — 2026 federal &amp; 2025 CA brackets, standard deduction, {(parseInt(dependents, 10) || 0)} dependent credit, plus your other/spouse income. "Net" = gross − income tax (working columns also subtract 1.45% Medicare). Pension &amp; 457 are taxable; medical subsidy isn't. Not tax advice — confirm with a professional.
+                    ⚠ Rough estimate — 2026 federal &amp; 2025 CA brackets, standard deduction, {(parseInt(dependents, 10) || 0)} dependent credit, plus your other/spouse income. Federal tax reflects the HELPS Act exclusion (up to $3,000/yr of pension used for health premiums, retired safety officers). "Net" = gross − income tax (working columns also subtract 1.45% Medicare). Pension &amp; 457 are taxable; medical subsidy isn't. Not tax advice — confirm with a professional.
                   </div>
                 </div>
                 <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.06)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: "1.8" }}>
