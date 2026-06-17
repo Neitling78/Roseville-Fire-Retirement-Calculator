@@ -529,6 +529,7 @@ export default function RFFRetirementCalculator() {
   const [retBusiness, setRetBusiness] = useState(SAVED.retBusiness ?? 0);
   // When true, extra retirement income folds into the page-one take-home & decision.
   const [foldExtraIncome, setFoldExtraIncome] = useState(SAVED.foldExtraIncome ?? false);
+  const [include457InTakeHome, setInclude457InTakeHome] = useState(SAVED.include457InTakeHome ?? false);
   // Prior-agency service rows (reciprocity) — each prior system pays its own check.
   const [priorService, setPriorService] = useState(Array.isArray(SAVED.priorService) ? SAVED.priorService : []);
   const addPriorRow = () => setPriorService(rows => [...rows, { id: Date.now(), agencyName: "", formula: "3@50", manualFactor: "", years: "", useRosevilleComp: true, customComp: "" }]);
@@ -696,7 +697,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -709,7 +710,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1186,7 +1187,7 @@ export default function RFFRetirementCalculator() {
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
   // check + (only when folded in) the net of any extra household income.
-  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly;
+  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly + (include457InTakeHome ? monthly457 * (1 - retEffRate) : 0);
   // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
   const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck; // City's total toward premium (PEMHCA min + separate check)
   const ledgerExtraIncome = foldExtraIncome ? extraIncomeAnnual / 12 : 0;
@@ -2513,6 +2514,13 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "14px", color: COLORS.gold, fontWeight: "700", marginTop: "10px" }}>
                       {years457Lasts === Infinity ? "Lasts indefinitely — your draw is covered by growth" : `At ${fmt(monthly457)}/mo and ${retireReturnRate}% return, lasts about ${years457Lasts.toFixed(0)} years`}
                     </div>
+                  </div>
+                  <label style={{ ...styles.checkRow, marginTop: "14px" }}>
+                    <input style={styles.checkbox} type="checkbox" checked={include457InTakeHome} onChange={e => setInclude457InTakeHome(e.target.checked)} />
+                    <span style={styles.checkLabel}>Include 457 income in my Monthly Take-Home (top bar &amp; decision)</span>
+                  </label>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginLeft: "28px", marginTop: "-2px", lineHeight: 1.5 }}>
+                    Off by default so the top number stays your pension take-home. On adds your after-tax 457 draw (~{fmt(monthly457 * (1 - retEffRate))}/mo) to the headline.
                   </div>
                 </>)}
               </div>
