@@ -1121,7 +1121,7 @@ export default function RFFRetirementCalculator() {
   const workEffRate = taxSalary.gross > 0 ? taxSalary.tax / taxSalary.gross : 0;
   const retEffRate = taxRetire.gross > 0 ? taxRetire.tax / taxRetire.gross : 0;
   // Retiree out-of-pocket medical (net premium after the City allowance) — member pays only the overage.
-  const cityAllowance = medical.monthly; // City retiree-medical allowance for this tier (see $1,615 Safety-cap note)
+  const cityAllowance = medical.monthly; // City retiree-medical allowance from the existing hire-date tier model
   const retireeMedicalOOP = Math.max(0, retireePremium - cityAllowance);
   // Roseville split-payment process: the City pays the statutory PEMHCA minimum directly to CalPERS, so
   // CalPERS deducts only the REMAINING premium from the pension check; the City reimburses the rest of
