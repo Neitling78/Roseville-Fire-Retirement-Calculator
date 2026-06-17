@@ -2530,10 +2530,6 @@ export default function RFFRetirementCalculator() {
                       <input style={styles.input} type="number" min={0} max={10} value={dependents || ""} placeholder="0" onChange={e => setDependents(+e.target.value || 0)} />
                     </div>
                   </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Other / spouse income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
-                    <input style={styles.input} type="number" min={0} value={otherIncome || ""} placeholder="0" onChange={e => setOtherIncome(+e.target.value || 0)} />
-                  </div>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "12px 0 6px" }}>In retirement</div>
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
