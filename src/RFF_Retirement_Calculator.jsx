@@ -1134,7 +1134,7 @@ export default function RFFRetirementCalculator() {
           style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", height: isMobile ? "210px" : "320px", opacity: 0.1, pointerEvents: "none", zIndex: 0 }} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <p style={{ ...styles.headerSub, fontSize: isMobile ? "10px" : "12px", marginBottom: "4px" }}>Roseville Firefighters · IAFF Local 1592</p>
-          <h1 style={{ ...styles.headerTitle, fontSize: isMobile ? "30px" : "46px", margin: "0 0 6px", textShadow: "0 0 14px rgba(210,31,51,0.8), 0 0 34px rgba(210,31,51,0.5)" }}>Know What You've Earned</h1>
+          <h1 style={{ ...styles.headerTitle, fontSize: isMobile ? "30px" : "46px", margin: "0 0 6px", textShadow: "0 0 14px rgba(210,31,51,0.8), 0 0 34px rgba(210,31,51,0.5)" }}>Roseville Fire Fighters Retirement Calculator</h1>
           <p style={{ margin: 0, fontSize: isMobile ? "12px" : "14px", color: COLORS.textMuted }}>Your CalPERS pension, mapped to the day you hang up the helmet.</p>
         </div>
       </div>
