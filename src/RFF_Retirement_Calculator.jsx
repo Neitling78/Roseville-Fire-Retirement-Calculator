@@ -1120,13 +1120,17 @@ export default function RFFRetirementCalculator() {
   const workTaxAnnual = taxSalary.tax;
   const workEffRate = taxSalary.gross > 0 ? taxSalary.tax / taxSalary.gross : 0;
   const retEffRate = taxRetire.gross > 0 ? taxRetire.tax / taxRetire.gross : 0;
-  // Retiree out-of-pocket medical (net premium after the City share) — kept for the Medical tab / summary.
-  const retireeMedicalOOP = Math.max(0, retireePremium - medical.monthly);
-  // CalPERS deducts the FULL medical premium from the pension before direct deposit; the City pays its
-  // share back as a SEPARATE check. So the PERS direct deposit subtracts the full premium.
-  const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - retireePremium);
-  // Separate City retiree-medical reimbursement check (city-specific benefit; never exceeds the premium).
-  const cityMedicalCheck = Math.min(retireePremium, medical.monthly);
+  // Retiree out-of-pocket medical (net premium after the City allowance) — member pays only the overage.
+  const cityAllowance = medical.monthly; // City retiree-medical allowance for this tier (see $1,615 Safety-cap note)
+  const retireeMedicalOOP = Math.max(0, retireePremium - cityAllowance);
+  // Roseville split-payment process: the City pays the statutory PEMHCA minimum directly to CalPERS, so
+  // CalPERS deducts only the REMAINING premium from the pension check; the City reimburses the rest of
+  // its allowance (capped at the actual premium) as a SEPARATE monthly deposit. PEMHCA min is set yearly.
+  const PEMHCA_MIN_MONTHLY = 162; // 2026 statutory minimum employer contribution paid to CalPERS
+  const calpersMedicalDeduction = Math.max(0, retireePremium - PEMHCA_MIN_MONTHLY);
+  const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - calpersMedicalDeduction);
+  // Separate City reimbursement check = the City's allowance (up to the premium) minus the $162 it already sent CalPERS.
+  const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1211,11 +1215,11 @@ export default function RFFRetirementCalculator() {
                     <div style={{ ...styles.metricLabel, fontSize: isMobile ? "11px" : "12px" }}>Your PERS direct deposit <span style={{ textTransform: "none", letterSpacing: 0 }}>· after taxes &amp; medical</span></div>
                     <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "30px" : "48px" }}>{fmt(pensionTakeHome)}</div>
                     <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>
-                      −{pct(retEffRate)} est. tax · −{fmt(retireePremium)}/mo medical premium
+                      −{pct(retEffRate)} est. tax · −{fmt(calpersMedicalDeduction)}/mo medical (premium minus ${PEMHCA_MIN_MONTHLY} PEMHCA paid by City)
                     </div>
                     {cityMedicalCheck > 0 && (
                       <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "6px", lineHeight: 1.5 }}>
-                        Plus a separate City medical reimbursement check (~{fmt(cityMedicalCheck)}/mo) — city benefit, shown in the summary below.
+                        Plus a separate City medical reimbursement check (~{fmt(cityMedicalCheck)}/mo) deposited on the 1st — city benefit, shown in the summary below.
                       </div>
                     )}
                   </div>
