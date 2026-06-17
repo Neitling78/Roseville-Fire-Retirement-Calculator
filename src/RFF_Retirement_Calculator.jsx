@@ -1120,10 +1120,13 @@ export default function RFFRetirementCalculator() {
   const workTaxAnnual = taxSalary.tax;
   const workEffRate = taxSalary.gross > 0 ? taxSalary.tax / taxSalary.gross : 0;
   const retEffRate = taxRetire.gross > 0 ? taxRetire.tax / taxRetire.gross : 0;
-  // Retiree out-of-pocket medical = net premium after the City's tier subsidy (matches Medical tab "net retiree premium").
+  // Retiree out-of-pocket medical (net premium after the City share) — kept for the Medical tab / summary.
   const retireeMedicalOOP = Math.max(0, retireePremium - medical.monthly);
-  // Member take-home: monthly PERS benefit after retirement taxes (blended effective rate) and out-of-pocket medical.
-  const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - retireeMedicalOOP);
+  // CalPERS deducts the FULL medical premium from the pension before direct deposit; the City pays its
+  // share back as a SEPARATE check. So the PERS direct deposit subtracts the full premium.
+  const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - retireePremium);
+  // Separate City retiree-medical reimbursement check (city-specific benefit; never exceeds the premium).
+  const cityMedicalCheck = Math.min(retireePremium, medical.monthly);
   // 401k equivalents
   const equiv401k_4pct = annualPension / 0.04;
   const equivFull_4pct = totalAnnual / 0.04;
@@ -1205,11 +1208,16 @@ export default function RFFRetirementCalculator() {
                     {fmt(annualPension)} / year{priorPensionMonthly > 0 ? " · incl. prior service" : ""}
                   </div>
                   <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: `1px solid ${COLORS.border}` }}>
-                    <div style={{ ...styles.metricLabel, fontSize: isMobile ? "11px" : "12px" }}>Estimated take-home <span style={{ textTransform: "none", letterSpacing: 0 }}>· after taxes &amp; out-of-pocket medical</span></div>
+                    <div style={{ ...styles.metricLabel, fontSize: isMobile ? "11px" : "12px" }}>Your PERS direct deposit <span style={{ textTransform: "none", letterSpacing: 0 }}>· after taxes &amp; medical</span></div>
                     <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "30px" : "48px" }}>{fmt(pensionTakeHome)}</div>
                     <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>
-                      −{pct(retEffRate)} est. tax{retireeMedicalOOP > 0 ? ` · −${fmt(retireeMedicalOOP)}/mo medical` : " · no medical out-of-pocket"}
+                      −{pct(retEffRate)} est. tax · −{fmt(retireePremium)}/mo medical premium
                     </div>
+                    {cityMedicalCheck > 0 && (
+                      <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "6px", lineHeight: 1.5 }}>
+                        Plus a separate City medical reimbursement check (~{fmt(cityMedicalCheck)}/mo) — city benefit, shown in the summary below.
+                      </div>
+                    )}
                   </div>
                 </div>
                 {/* INPUT BOXES — responsive 2-column grid */}
@@ -1781,8 +1789,12 @@ export default function RFFRetirementCalculator() {
                     <span style={styles.tableValAccent}>{fmt(annualPension)}</span>
                   </div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Retiree Medical</span>
-                    <span style={styles.tableValGreen}>{medicalTier === "4" ? `${fmt(medical.rhsBalance)} (RHS acct)` : `${fmt(medical.monthly)}/mo`}</span>
+                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after taxes &amp; medical premium</span></span>
+                    <span style={styles.tableValGreen}>{fmt(pensionTakeHome)}/mo</span>
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>· separate from PERS, city benefit</span></span>
+                    <span style={styles.tableValGreen}>{medicalTier === "4" ? `${fmt(medical.rhsBalance)} (RHS acct)` : `${fmt(cityMedicalCheck)}/mo`}</span>
                   </div>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>457 at Retirement ({returnRate}%)</span>
