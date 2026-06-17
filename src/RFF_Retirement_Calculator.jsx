@@ -2447,6 +2447,11 @@ export default function RFFRetirementCalculator() {
                     <label style={styles.label}>Overtime worked <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· hrs/mo</span></label>
                     <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>Adds to your working take-home — not pensionable, and gone in retirement.</div>
+                    {otMonthly > 0 && (
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "8px", padding: "8px 10px", background: "rgba(255,255,255,0.05)", borderRadius: "6px", lineHeight: 1.6 }}>
+                        <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong> gross OT → <strong style={{ color: COLORS.green }}>{fmt(otMonthly - (taxSalaryOT.tax - workTaxAnnual) / 12)}/mo</strong> after tax, added to your working take-home.
+                      </div>
+                    )}
                   </div>
                 </>)}
               </div>
