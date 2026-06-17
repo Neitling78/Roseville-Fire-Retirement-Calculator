@@ -1155,20 +1155,6 @@ export default function RFFRetirementCalculator() {
         </div>
       </div>
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
-        <div style={{ ...styles.summaryBar, gridTemplateColumns: "repeat(3, 1fr)", gap: isMobile ? "8px" : "12px" }}>
-          <div style={{ ...styles.summaryCard, padding: isMobile ? "10px" : "14px 16px" }}>
-            <div style={{ ...styles.summaryLabel, fontSize: isMobile ? "10px" : "11px" }}>Monthly pension</div>
-            <div style={{ ...styles.summaryValue, fontSize: isMobile ? "18px" : "26px", color: COLORS.accent }}>{fmt(combinedPensionMonthly)}</div>
-          </div>
-          <div style={{ ...styles.summaryCard, padding: isMobile ? "10px" : "14px 16px" }}>
-            <div style={{ ...styles.summaryLabel, fontSize: isMobile ? "10px" : "11px" }}>Est. total/mo</div>
-            <div style={{ ...styles.summaryValue, fontSize: isMobile ? "18px" : "26px", color: COLORS.green }}>{fmt(totalMonthly)}</div>
-          </div>
-          <div style={{ ...styles.summaryCard, padding: isMobile ? "10px" : "14px 16px" }}>
-            <div style={{ ...styles.summaryLabel, fontSize: isMobile ? "10px" : "11px" }}>Of current pay</div>
-            <div style={{ ...styles.summaryValue, fontSize: isMobile ? "18px" : "26px" }}>{(retirementVsWorking * 100).toFixed(0)}%</div>
-          </div>
-        </div>
         {datesInvalid && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Start here — the numbers above aren't valid until then.
