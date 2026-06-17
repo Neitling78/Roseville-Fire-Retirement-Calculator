@@ -523,6 +523,12 @@ export default function RFFRetirementCalculator() {
   const [filingStatusRet, setFilingStatusRet] = useState(SAVED.filingStatusRet ?? "single");
   const [dependentsRet, setDependentsRet] = useState(SAVED.dependentsRet ?? 0);
   const [otherIncomeRet, setOtherIncomeRet] = useState(SAVED.otherIncomeRet ?? 0);
+  // Additional retirement income sources (annual gross). Off page-one decision by default.
+  const [retIra, setRetIra] = useState(SAVED.retIra ?? 0);
+  const [retRental, setRetRental] = useState(SAVED.retRental ?? 0);
+  const [retBusiness, setRetBusiness] = useState(SAVED.retBusiness ?? 0);
+  // When true, extra retirement income folds into the page-one take-home & decision.
+  const [foldExtraIncome, setFoldExtraIncome] = useState(SAVED.foldExtraIncome ?? false);
   // Prior-agency service rows (reciprocity) — each prior system pays its own check.
   const [priorService, setPriorService] = useState(Array.isArray(SAVED.priorService) ? SAVED.priorService : []);
   const addPriorRow = () => setPriorService(rows => [...rows, { id: Date.now(), agencyName: "", formula: "3@50", manualFactor: "", years: "", useRosevilleComp: true, customComp: "" }]);
@@ -684,7 +690,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -697,7 +703,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1106,9 +1112,13 @@ export default function RFFRetirementCalculator() {
   const workPreTax = effectiveMember457 + employeeCalPERSContrib * 12;
   const taxSalary = taxScenario(currentMonthlySalary * 12, workPreTax, true);
   const taxSalaryOT = taxScenario(salaryWithOT * 12, workPreTax, true);
+  // Additional retirement income (annual gross) — IRA/investment, rental, business, and spouse/other.
+  // By default this does NOT affect the page-one decision; it only folds in when foldExtraIncome is on.
+  const extraIncomeAnnual = (parseFloat(retIra) || 0) + (parseFloat(retRental) || 0) + (parseFloat(retBusiness) || 0) + (parseFloat(otherIncomeRet) || 0);
   // Retirement scenario: retirement household + chosen state. CA/SC/MT/HI use real brackets/exemptions.
-  const retGrossTax = (combinedPensionMonthly + monthly457) * 12 + otherIncomeR;
-  const ret457AndOther = monthly457 * 12 + otherIncomeR;
+  // PAGE-ONE base = pension + 457 only by default; extra income counts only when folded in.
+  const retGrossTax = (combinedPensionMonthly + monthly457) * 12 + (foldExtraIncome ? extraIncomeAnnual : 0);
+  const ret457AndOther = monthly457 * 12 + (foldExtraIncome ? extraIncomeAnnual : 0);
   const age65 = retirementAge >= 65;
   // HELPS Act (IRC §402(l)): a retired public-safety officer may exclude up to $3,000/yr of pension used
   // for health premiums — but it is claimed at TAX FILING, not withheld by CalPERS. So it does NOT reduce
@@ -1129,20 +1139,37 @@ export default function RFFRetirementCalculator() {
   const workTaxAnnual = taxSalary.tax;
   const workEffRate = taxSalary.gross > 0 ? taxSalary.tax / taxSalary.gross : 0;
   const retEffRate = taxRetire.gross > 0 ? taxRetire.tax / taxRetire.gross : 0;
+  // ── ALWAYS-FULL household income & tax (All Income & Tax tab) ──────────────
+  // Independent of foldExtraIncome — always counts every source. Does NOT feed page one.
+  const retGrossTaxAll = (combinedPensionMonthly + monthly457) * 12 + extraIncomeAnnual;
+  const ret457AndOtherAll = monthly457 * 12 + extraIncomeAnnual;
+  const retFedTaxAll = fedTaxAmt(retGrossTaxAll, 0, fedBrR, fedStdR, depCreditR);
+  const retStateTaxAll =
+    retirementState === "CA" ? calcBracketTax(Math.max(0, retGrossTaxAll - caStdR), caBrR) :
+      retirementState === "SC" ? calcBracketTax(Math.max(0, retGrossTaxAll - (age65 ? 10000 : 3000)), SC_BRACKETS) :
+        retirementState === "MT" ? calcBracketTax(Math.max(0, retGrossTaxAll - 5500), MT_BRACKETS) :
+          retirementState === "HI" ? calcBracketTax(Math.max(0, ret457AndOtherAll - 4400), HI_BRACKETS) :
+            retGrossTaxAll * (Math.max(0, parseFloat(otherStateRate) || 0) / 100);
+  const retTaxAnnualAll = retFedTaxAll + retStateTaxAll;
+  const retNetAll = retGrossTaxAll - retTaxAnnualAll;
+  // Extra income net per month, folded into page one only when the opt-in box is on.
+  const extraNetMonthly = foldExtraIncome ? extraIncomeAnnual * (1 - retEffRate) / 12 : 0;
   // Retiree out-of-pocket medical (net premium after the City allowance) — member pays only the overage.
   const cityAllowance = medical.monthly; // City retiree-medical allowance from the existing hire-date tier model
   const retireeMedicalOOP = Math.max(0, retireePremium - cityAllowance);
   const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - calpersMedicalDeduction);
   // Separate City reimbursement check = the City's allowance (up to the premium) minus the $162 it already sent CalPERS.
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
-  // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement check.
-  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck;
+  // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
+  // check + (only when folded in) the net of any extra household income.
+  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly;
   // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
   const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck; // City's total toward premium (PEMHCA min + separate check)
-  const ledgerTotalIncome = monthlyPension + cityMedicalContribution + monthly457;
+  const ledgerExtraIncome = foldExtraIncome ? extraIncomeAnnual / 12 : 0;
+  const ledgerTotalIncome = monthlyPension + cityMedicalContribution + monthly457 + ledgerExtraIncome;
   const ledger457TakeHome = monthly457 * (1 - retEffRate);
-  const ledgerTax = (monthlyPension + monthly457) * retEffRate;
-  const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - ledgerTax - retireePremium;
+  const ledgerTax = (monthlyPension + monthly457 + ledgerExtraIncome) * retEffRate;
+  const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - extraNetMonthly - ledgerTax - retireePremium;
   // True working take-home: base + incentives + your overtime, net of income tax (on salary+OT) and the
   // deductions already in currentTakeHome (PERS, 457, dues, medical). Overtime ends at retirement.
   const workingTakeHome = Math.max(0, currentTakeHome + otMonthly - taxSalaryOT.tax / 12);
@@ -1193,7 +1220,7 @@ export default function RFFRetirementCalculator() {
         <div style={{ ...styles.tabRow, flexWrap: "nowrap", gap: isMobile ? "8px" : "10px" }}>
           {["inputs", "pension", "medical", "savings", "income", "help"].map(t => (
             <button key={t} style={{ ...styles.tab(tab === t), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-              {{ inputs: isMobile ? "Start" : "1 · Start", pension: isMobile ? "Pension" : "2 · Pension", medical: isMobile ? "Med" : "3 · Medical", savings: isMobile ? "457" : "4 · 457", income: isMobile ? "Total" : "5 · Total", help: isMobile ? "Guide" : "Guide" }[t]}
+              {{ inputs: isMobile ? "Start" : "1 · Start", pension: isMobile ? "Pension" : "2 · Pension", medical: isMobile ? "Med" : "3 · Medical", savings: isMobile ? "457" : "4 · 457", income: isMobile ? "Income" : "5 · All Income & Tax", help: isMobile ? "Guide" : "Guide" }[t]}
             </button>
           ))}
         </div>
@@ -1816,7 +1843,7 @@ export default function RFFRetirementCalculator() {
                     <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(ledgerTotalIncome)}</span>
                   </div>
                   <div style={{ fontSize: "10px", color: COLORS.textDim, margin: "4px 0 12px", lineHeight: 1.5 }}>
-                    Gross PERS benefit {fmt(monthlyPension)} + City medical contribution {fmt(cityMedicalContribution)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}
+                    Gross PERS benefit {fmt(monthlyPension)} + City medical contribution {fmt(cityMedicalContribution)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}{foldExtraIncome && extraIncomeAnnual > 0 ? ` + extra income ${fmt(extraIncomeAnnual / 12)}` : ""}
                   </div>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.green, marginBottom: "4px" }}>Money you keep</div>
                   <div style={styles.tableRow}>
@@ -1833,6 +1860,12 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
                       <span style={styles.tableValGreen}>−{fmt(ledger457TakeHome)}</span>
+                    </div>
+                  )}
+                  {foldExtraIncome && extraIncomeAnnual > 0 && (
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Extra income (folded in) <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
+                      <span style={styles.tableValGreen}>−{fmt(extraNetMonthly)}</span>
                     </div>
                   )}
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.accent, margin: "12px 0 4px" }}>Money paid out</div>
@@ -2398,31 +2431,6 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "savings" && (
               <div style={styles.card}>
-                {sectionHeader("sav457", "Your 457 inputs")}
-                {openSections.sav457 !== false && (<>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Current 457 balance</label>
-                      <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Annual contribution: {fmt(annual457Contrib)}</label>
-                      <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
-                    </div>
-                  </div>
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasEmployerMatch} onChange={e => setHasEmployerMatch(e.target.checked)} />
-                    <span style={styles.checkLabel}>City 3% match (after 5 yrs of service)</span>
-                  </label>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Expected annual return: {returnRate}%</label>
-                    <input type="range" min={4} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
-                  </div>
-                </>)}
-              </div>
-            )}
-            {tab === "savings" && (
-              <div style={styles.card}>
                 {sectionHeader("def457", "457 deferred compensation")}
                 {openSections.def457 !== false && (<>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: "1.6" }}>
@@ -2486,6 +2494,61 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "income" && (
               <div style={styles.card}>
+                {sectionHeader("sav457", "Your 457 inputs")}
+                {openSections.sav457 !== false && (<>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Current 457 balance</label>
+                      <input style={styles.input} type="number" value={current457 || ""} onChange={e => setCurrent457(+e.target.value || 0)} placeholder="0" />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Annual contribution: {fmt(annual457Contrib)}</label>
+                      <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    </div>
+                  </div>
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasEmployerMatch} onChange={e => setHasEmployerMatch(e.target.checked)} />
+                    <span style={styles.checkLabel}>City 3% match (after 5 yrs of service)</span>
+                  </label>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Expected annual return: {returnRate}%</label>
+                    <input type="range" min={4} max={12} step={0.5} value={returnRate} onChange={e => setReturnRate(+e.target.value)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                  </div>
+                </>)}
+              </div>
+            )}
+            {tab === "income" && (
+              <div style={styles.card}>
+                {sectionHeader("otherincome", "Other retirement income")}
+                {openSections.otherincome !== false && (<>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "12px", lineHeight: "1.6" }}>
+                    Enter gross (before tax). These don't change the page-one decision unless you check the box below.
+                  </div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>IRA / investment income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr</span></label>
+                      <input style={styles.input} type="number" min={0} value={retIra || ""} placeholder="0" onChange={e => setRetIra(+e.target.value || 0)} />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Rental income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr</span></label>
+                      <input style={styles.input} type="number" min={0} value={retRental || ""} placeholder="0" onChange={e => setRetRental(+e.target.value || 0)} />
+                    </div>
+                  </div>
+                  <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Business income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr</span></label>
+                      <input style={styles.input} type="number" min={0} value={retBusiness || ""} placeholder="0" onChange={e => setRetBusiness(+e.target.value || 0)} />
+                    </div>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>Other / spouse income <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr</span></label>
+                      <input style={styles.input} type="number" min={0} value={otherIncomeRet || ""} placeholder="0" onChange={e => setOtherIncomeRet(+e.target.value || 0)} />
+                    </div>
+                  </div>
+                </>)}
+              </div>
+            )}
+            {tab === "income" && (
+              <div style={styles.card}>
                 {sectionHeader("taxinputs", "Taxes")}
                 {openSections.taxinputs !== false && (<>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "6px" }}>While working</div>
@@ -2522,9 +2585,8 @@ export default function RFFRetirementCalculator() {
                       <input style={styles.input} type="number" min={0} max={10} value={dependentsRet || ""} placeholder="0" onChange={e => setDependentsRet(+e.target.value || 0)} />
                     </div>
                   </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Other / spouse income in retirement <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· $/yr, optional</span></label>
-                    <input style={styles.input} type="number" min={0} value={otherIncomeRet || ""} placeholder="0" onChange={e => setOtherIncomeRet(+e.target.value || 0)} />
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "0 0 12px", lineHeight: "1.6" }}>
+                    Other / spouse and additional income are entered in the "Other retirement income" card above.
                   </div>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Retirement state <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· compare any state</span></label>
@@ -2705,6 +2767,52 @@ export default function RFFRetirementCalculator() {
                   CalPERS contribution ({fmt(employeeCalPERSContrib)}/mo) · 457 contributions ({fmt(effectiveMember457 / 12)}/mo) · Union dues (~$222/mo) · Active health premium
                 </div>
                 </>)}
+              </div>
+            )}
+            {tab === "income" && (
+              <div style={styles.card}>
+                {sectionHeader("hhincome", "Total household income & tax (retirement)")}
+                {openSections.hhincome !== false && (<>
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "12px", lineHeight: "1.6" }}>
+                  Your whole retirement picture — every gross source, total tax, and net. Estimate only — not tax advice.
+                </div>
+                <div style={styles.tableRow}><span style={styles.tableKey}>CalPERS pension</span><span style={styles.tableVal}>{fmt(combinedPensionMonthly * 12)}/yr</span></div>
+                <div style={styles.tableRow}><span style={styles.tableKey}>457 draw (4%)</span><span style={styles.tableVal}>{fmt(monthly457 * 12)}/yr</span></div>
+                {(parseFloat(retIra) || 0) > 0 && (<div style={styles.tableRow}><span style={styles.tableKey}>IRA / investment</span><span style={styles.tableVal}>{fmt(parseFloat(retIra) || 0)}/yr</span></div>)}
+                {(parseFloat(retRental) || 0) > 0 && (<div style={styles.tableRow}><span style={styles.tableKey}>Rental</span><span style={styles.tableVal}>{fmt(parseFloat(retRental) || 0)}/yr</span></div>)}
+                {(parseFloat(retBusiness) || 0) > 0 && (<div style={styles.tableRow}><span style={styles.tableKey}>Business</span><span style={styles.tableVal}>{fmt(parseFloat(retBusiness) || 0)}/yr</span></div>)}
+                {(parseFloat(otherIncomeRet) || 0) > 0 && (<div style={styles.tableRow}><span style={styles.tableKey}>Other / spouse</span><span style={styles.tableVal}>{fmt(parseFloat(otherIncomeRet) || 0)}/yr</span></div>)}
+                <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "8px" }}>
+                  <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Total gross</span>
+                  <span style={styles.tableValAccent}>{fmt(retGrossTaxAll)}/yr</span>
+                </div>
+                <div style={styles.tableRow}>
+                  <span style={styles.tableKey}>Estimated total tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· ~{retGrossTaxAll > 0 ? pct(retTaxAnnualAll / retGrossTaxAll) : "0%"}</span></span>
+                  <span style={styles.tableVal}>−{fmt(retTaxAnnualAll)}/yr</span>
+                </div>
+                <div style={styles.tableRowLast}>
+                  <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Total net</span>
+                  <span style={styles.tableValGreen}>{fmt(retNetAll)}/yr</span>
+                </div>
+                <div style={{ ...styles.tableRow, marginTop: "4px" }}>
+                  <span style={styles.tableKey}>Monthly net</span>
+                  <span style={styles.tableValGreen}>{fmt(retNetAll / 12)}/mo</span>
+                </div>
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: "1.6" }}>
+                  ⚠ Estimate only — uses your chosen filing status, dependents, and retirement state. Not tax advice.
+                </div>
+                </>)}
+              </div>
+            )}
+            {tab === "income" && (
+              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <label style={{ ...styles.checkRow, marginBottom: "8px" }}>
+                  <input style={styles.checkbox} type="checkbox" checked={foldExtraIncome} onChange={e => setFoldExtraIncome(e.target.checked)} />
+                  <span style={styles.checkLabel}>Include this extra income in the page-one take-home &amp; decision</span>
+                </label>
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginLeft: "28px", lineHeight: "1.6" }}>
+                  Off by default so the retire-from-the-fire-department decision stays pension-vs-working. Turn on to see your whole household picture on page one.
+                </div>
               </div>
             )}
             {tab === "savings" && (
