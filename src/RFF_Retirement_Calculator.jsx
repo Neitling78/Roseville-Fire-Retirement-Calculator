@@ -2653,6 +2653,8 @@ export default function RFFRetirementCalculator() {
                       <svg viewBox="0 0 110 110" width="120" height="120" aria-hidden="true">
                         <circle cx="55" cy="55" r="42" fill="none" stroke={COLORS.surface} strokeWidth="14" />
                         {parts.map((p, i) => { const len = C * (p.v / tot); const seg = <circle key={i} cx="55" cy="55" r="42" fill="none" stroke={p.c} strokeWidth="14" strokeDasharray={`${len.toFixed(1)} ${(C - len).toFixed(1)}`} strokeDashoffset={(-off).toFixed(1)} transform="rotate(-90 55 55)" />; off += len; return seg; })}
+                        <text x="55" y="51" textAnchor="middle" fontSize="8.5" fill={COLORS.textMuted}>total/mo</text>
+                        <text x="55" y="65" textAnchor="middle" fontSize="15" fontWeight="700" fill={COLORS.text}>{fmt(totalMonthly)}</text>
                       </svg>
                       <div style={{ fontSize: "13px", lineHeight: "1.9" }}>
                         {parts.map((p, i) => (<div key={i}><span style={{ display: "inline-block", width: "10px", height: "10px", background: p.c, borderRadius: "2px", marginRight: "6px" }} />{p.label} <strong>{fmt(p.v)}</strong>/mo</div>))}
@@ -2660,6 +2662,11 @@ export default function RFFRetirementCalculator() {
                     </div>
                   );
                 })()}
+                {medicalTier === "4" && (
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "-8px", marginBottom: "16px", lineHeight: "1.6" }}>
+                    Tier 4 medical is a one-time RHS account ({fmt(medical.rhsBalance)}), not a monthly subsidy — so it isn't shown in the donut above.
+                  </div>
+                )}
                 {(() => {
                   const ratio = Math.max(0, Math.min(1, retirementVsWorking));
                   const filled = (mounted ? ratio * 276.46 : 0).toFixed(1);
@@ -2697,45 +2704,11 @@ export default function RFFRetirementCalculator() {
                   <div style={{ background: "rgba(210,31,51,0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(210,31,51,0.2)` }}>
                     <div style={styles.metricLabel}>Retired at {retirementAge}</div>
                     <div style={{ fontSize: "22px", fontWeight: "800", color: COLORS.accent }}>{fmt(totalMonthly)}</div>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>total/month</div>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>Take-home ~{fmt(totalMonthly)}/mo</div>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>total/month gross</div>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>Take-home ~{fmt(totalMonthly - retTaxAnnual / 12)}/mo · <span style={{ color: COLORS.green }}>+{fmt(totalMonthly - currentMonthlySalary)} vs working</span></div>
                   </div>
                 </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>CalPERS Pension</span>
-                  <span style={styles.tableValAccent}>{fmt(monthlyPension)}/mo</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Retiree Medical (Tier {medicalTier})</span>
-                  <span style={styles.tableValGreen}>{medicalTier === "4" ? `${fmt(medical.rhsBalance)} (RHS acct)` : `${fmt(medical.monthly)}/mo`}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>457 Income (4% withdrawal)</span>
-                  <span style={styles.tableValGreen}>{fmt(monthly457)}/mo</span>
-                </div>
-                <div style={{ ...styles.tableRowLast, marginTop: "8px" }}>
-                  <span style={{ color: COLORS.text, fontWeight: "700" }}>Total Retirement Income</span>
-                  <span style={{ color: COLORS.green, fontSize: "18px" }}>{fmt(totalMonthly)}/mo</span>
-                </div>
-                <div style={styles.compareBox}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                    <div>
-                      <div style={styles.metricLabel}>vs. Gross Working Income</div>
-                      <div style={{ fontSize: "28px", fontWeight: "800", color: COLORS.green }}>
-                        {(retirementVsWorking * 100).toFixed(0)}%
-                      </div>
-                      <div style={{ fontSize: "12px", color: COLORS.textMuted }}>of current salary</div>
-                    </div>
-                    <div>
-                      <div style={styles.metricLabel}>Monthly Gain vs. Working</div>
-                      <div style={{ fontSize: "28px", fontWeight: "800", color: COLORS.green }}>
-                        {fmt(totalMonthly - currentMonthlySalary)}
-                      </div>
-                      <div style={{ fontSize: "12px", color: COLORS.textMuted }}>more per month</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ marginTop: "20px" }}>
+                <div style={{ marginTop: "4px" }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Gross vs. net after taxes</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                     {[
@@ -2823,29 +2796,23 @@ export default function RFFRetirementCalculator() {
               <div style={styles.card}>
                 {sectionHeader("eq401k", "Private-sector 401(k) equivalent")}
                 {openSections.eq401k !== false && (<>
-                <div style={{ marginBottom: "20px", padding: "16px", background: "rgba(210,31,51,0.06)", borderRadius: "8px", fontSize: "13px", color: COLORS.textMuted, lineHeight: "1.8" }}>
-                  How large a 401(k) would a private sector employee need to generate the same retirement income as your CalPERS pension?
+                <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(210,31,51,0.06)", borderRadius: "8px", fontSize: "13px", color: COLORS.textMuted, lineHeight: "1.8" }}>
+                  How large a 401(k) would a private-sector worker need to generate the same retirement income — with no pension to fall back on?
                 </div>
-                <div style={{ textAlign: "center", padding: "24px", background: "rgba(210,31,51,0.08)", borderRadius: "10px", marginBottom: "20px" }}>
-                  <div style={styles.metricLabel}>To Replace Pension Only ({fmt(annualPension)}/yr)</div>
-                  <div style={styles.bigNumber}>{fmt(equiv401k_4pct)}</div>
-                  <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "8px" }}>Required at 4% withdrawal rule</div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(210,31,51,0.08)", borderRadius: "10px" }}>
+                    <div style={styles.metricLabel}>Replace pension only</div>
+                    <div style={{ fontSize: "26px", fontWeight: "800", color: COLORS.accent }}>{fmt(equiv401k_4pct)}</div>
+                    <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>{fmt(annualPension)}/yr at 4% withdrawal</div>
+                  </div>
+                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(210,31,51,0.08)", borderRadius: "10px" }}>
+                    <div style={styles.metricLabel}>Replace full package</div>
+                    <div style={{ fontSize: "26px", fontWeight: "800", color: COLORS.gold }}>{fmt(equivFull_4pct)}</div>
+                    <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>incl. medical + 457 at 4%</div>
+                  </div>
                 </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Pension only — 4% withdrawal</span>
-                  <span style={styles.tableValAccent}>{fmt(equiv401k_4pct)}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Pension only — 3% withdrawal</span>
-                  <span style={styles.tableValAccent}>{fmt(equiv401k_3pct)}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Full package incl. medical + 457 — 4%</span>
-                  <span style={styles.tableValGold}>{fmt(equivFull_4pct)}</span>
-                </div>
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Full package — 3% withdrawal</span>
-                  <span style={styles.tableValGold}>{fmt(totalAnnual / 0.03)}</span>
+                <div style={{ fontSize: "12px", color: COLORS.textDim, marginBottom: "4px", lineHeight: "1.7" }}>
+                  At a more conservative 3% withdrawal rate: pension only <strong style={{ color: COLORS.text }}>{fmt(equiv401k_3pct)}</strong>, full package <strong style={{ color: COLORS.text }}>{fmt(totalAnnual / 0.03)}</strong>.
                 </div>
                 <div style={{ ...styles.compareBox, marginTop: "20px" }}>
                   <div style={styles.metricLabel}>The Bottom Line</div>
