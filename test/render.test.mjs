@@ -43,7 +43,7 @@ async function scenario(saved) {
 console.log("\n-- first visit: questions, not somebody else's numbers --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
-check("opens with prior service", () => has(A.member, "1 \u00b7 Before Roseville"));
+check("opens with prior service", () => has(A.member, "1 \u00b7 Prior service"));
 check("then Roseville", () => has(A.member, "2 \u00b7 Roseville"));
 check("then specialty pay", () => has(A.member, "3 \u00b7 Specialty pay and certificates"));
 // The overtime + gross-pay card only appears once the member has entered something.
@@ -278,10 +278,10 @@ check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date", () => has(FF.pension, "When do you plan to go?"));
 check("asks sick leave", () => has(FF.start, "Sick leave hours on the books today"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
-check("asks prior agency service", () => has(FF.member, "Before Roseville"));
-check("asks purchased service credit", () => has(FF.start, "Airtime / purchased service"));
+check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
+check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
 check("asks beneficiary age on Deductions", () => has(FF.deductions, "beneficiary’s age at your retirement"));
-check("offers the pension type override", () => has(FF.start, "CalPERS reciprocity"));
+check("offers the pension type override", () => has(FF.inputs, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
 check("no cash-out totals on Start here", () => lacks(FF.start, "Total cash at separation"));
 check("points at the next tabs", () => has(FF.now, "See what you get retired"));
@@ -318,7 +318,7 @@ check("asks whether purchased credit is included", () => has(CP.inputs, "already
 check("warns about double-counting airtime", () => has(CP.inputs, "count it twice"));
 check("gives a total to reconcile", () => has(CP.inputs, "Check yourself"));
 check("total matches myCalPERS (29.110)", () => has(CP.inputs, "29.110 years"));
-check("explains same vs different formula buckets", () => has(CP.member, "is its own bucket and stacks on top"));
+check("explains same vs different formula buckets", () => has(CP.inputs, "is its own bucket and stacks on top"));
 // no override supplied -> falls back to the hire date and says so
 const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
@@ -525,7 +525,7 @@ check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
 check("page one says OT is not pensionable", () => has(OT40.now, "not pensionable"));
 check("overtime is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
 check("the sections run in order down the page", () => {
-  const order = ["1 \u00b7 Before Roseville","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
+  const order = ["1 \u00b7 Prior service","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
   const at = order.map(x => OT40.member.indexOf(x));
   return at.every((v,i) => v >= 0 && (i === 0 || v > at[i-1])) || "sections out of order: " + at.join(",");
 });

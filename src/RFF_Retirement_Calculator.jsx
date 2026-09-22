@@ -265,6 +265,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v21)", items: [
+    "Section 1 is now just <strong>Prior service</strong>, and it is about a third of the size it was. Each agency is one tight row \u2014 agency, formula, years \u2014 instead of a card with six stacked fields. Air Time sits beside the Add-agency button.",
+    "Two paragraphs of explanation cut to one line: agencies before Roseville, oldest first, years and formula off your myCalPERS Service Credit History.",
+    "The controls almost nobody touches only appear when they apply. The benefit-factor box shows up only if you pick \u201cother system\u201d; the final-pay override only for systems that pay their own check.",
+    "Pension Type and its reciprocity override moved to More \u203a All inputs. It is set from your hire date automatically and is not something a member should have to read past on the first screen.",
+  ] },
   { date: "September 22, 2026 (v20)", items: [
     "Member details is now four sections, not six. <strong>1 \u00b7 Before Roseville</strong>, <strong>2 \u00b7 Roseville</strong>, <strong>3 \u00b7 Specialty pay and certificates</strong>, <strong>4 \u00b7 Overtime</strong>. That is it.",
     "Overtime is one box now. Type the hours you average in a month and you get your gross, your take-home and what the overtime is worth a year. The line-by-line ledger that used to sit under it is gone from that card \u2014 it is still on \u201cYour pay right now\u201d further down the page if you want it.",
@@ -1783,104 +1789,74 @@ export default function RFFRetirementCalculator() {
   const capYearRow = benefitIsCapped ? retireYearOptions.find(r => r.atCap) : null;
   // Prior-agency service, pension-type override and purchased service credit. Defined once
   // and rendered on both Working now and the advanced inputs tab, so the two never drift.
+  // Condensed prior-service editor. One tight row per agency; the rare controls
+  // (non-CalPERS benefit factor, other-system final comp) only appear when they apply.
   const priorServiceEditor = (<>
-                  {/* Pension Type (auto from hire date, manual override) */}
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
-                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
-                      value={memberType} disabled={!overridePensionType}
-                      onChange={e => setMemberType(e.target.value)}>
-                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
-                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
-                    </select>
-                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
-                      <input style={styles.checkbox} type="checkbox"
-                        checked={overridePensionType}
-                        onChange={e => setOverridePensionType(e.target.checked)} />
-                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
-                        Override (only if Classic via CalPERS reciprocity)
-                      </span>
-                    </label>
-                  </div>
-                  {/* Prior Agency Service — any prior agency (CalPERS or different system), each estimated by its own formula */}
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Prior Agency Service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· reciprocity (optional)</span></label>
-                    <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "0", marginBottom: "10px" }}>
-                      Worked at any agency before Roseville? Add one row per agency. Pick the formula it used — another CalPERS agency could be 3%@55, 3%@50, etc., or a different system entirely (LACERA, '37 Act counties, CalSTRS, FERS). We estimate each on its own formula, your years there, and (by default) your Roseville final pay (the highest-comp rule). Those years are calculated at that agency's formula — not merged into your Roseville years.
-                    </div>
                     {priorService.map((r, i) => {
                       const calc = priorServiceCalc[i] || {};
                       return (
-                        <div key={r.id} style={{ background: "#121214", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: COLORS.accent }}>Prior Agency #{i + 1}</span>
-                            <button onClick={() => removePriorRow(r.id)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontSize: "12px" }}>✕ remove</button>
-                          </div>
-                          <label style={styles.label}>Agency name <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· e.g. CalFire, LACERA</span></label>
-                          <input style={{ ...styles.input, marginBottom: "10px" }} type="text" value={r.agencyName || ""} placeholder="Agency name" onChange={e => updatePriorRow(r.id, { agencyName: e.target.value })} />
-                          <label style={styles.label}>Retirement formula</label>
-                          <select style={styles.select} value={r.formula} onChange={e => updatePriorRow(r.id, { formula: e.target.value, ...(e.target.value === "manual" ? { useRosevilleComp: false } : {}) })}>
-                            {PRIOR_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                          </select>
-                          {r.formula === "manual" && (
-                            <div style={{ marginTop: "10px" }}>
-                              <label style={styles.label}>Benefit factor per year of service (%)</label>
-                              <input style={styles.input} type="number" step="0.001" value={r.manualFactor} placeholder="e.g. 2.0"
-                                onChange={e => updatePriorRow(r.id, { manualFactor: e.target.value })} />
-                              <div style={{ ...styles.certNote, marginLeft: "0" }}>
-                                ⚠ For non-CalPERS systems (LACERA &amp; other '37 Act counties, CalSTRS, FERS) — read this per-year % off YOUR statement from that system.
-                              </div>
-                            </div>
-                          )}
-                          <div style={{ ...styles.row, marginTop: "10px" }}>
+                        <div key={r.id} style={{ background: "#121214", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "10px", marginBottom: "8px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1.4fr 1.4fr 0.7fr auto", gap: "8px", alignItems: "end" }}>
                             <div>
-                              <label style={styles.label}>Years of service there</label>
-                              <input style={styles.input} type="number" step="0.1" value={r.years} placeholder="e.g. 3"
+                              <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Agency</label>
+                              <input style={{ ...styles.input, margin: 0 }} type="text" value={r.agencyName || ""} placeholder="CDF, Lake Tahoe…"
+                                onChange={e => updatePriorRow(r.id, { agencyName: e.target.value })} />
+                            </div>
+                            <div>
+                              <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Formula</label>
+                              <select style={{ ...styles.select, margin: 0 }} value={r.formula}
+                                onChange={e => updatePriorRow(r.id, { formula: e.target.value, ...(e.target.value === "manual" ? { useRosevilleComp: false } : {}) })}>
+                                {PRIOR_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Years</label>
+                              <input style={{ ...styles.input, margin: 0 }} type="number" step="0.001" value={r.years} placeholder="0"
                                 onChange={e => updatePriorRow(r.id, { years: e.target.value })} />
                             </div>
-                            <div>
-                              <label style={styles.label}>Est. from this system</label>
-                              <div style={{ ...styles.input, display: "flex", alignItems: "center", color: COLORS.green, fontWeight: "700" }}>{fmt(calc.monthly || 0)}/mo</div>
-                            </div>
+                            <button onClick={() => removePriorRow(r.id)} title="Remove"
+                              style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontSize: "14px", padding: "8px 4px" }}>✕</button>
                           </div>
-                          <label style={{ ...styles.checkRow, marginTop: "10px", marginBottom: "0" }}>
-                            <input style={styles.checkbox} type="checkbox" checked={r.useRosevilleComp !== false}
-                              onChange={e => updatePriorRow(r.id, { useRosevilleComp: e.target.checked })} />
-                            <span style={{ ...styles.checkLabel, fontSize: "12px" }}>Use my Roseville final pay (reciprocity highest-comp rule)</span>
-                          </label>
-                          {r.useRosevilleComp === false && (
+                          <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px" }}>
+                            {calc.calpers
+                              ? <>Same CalPERS allowance — adds to your percentage.</>
+                              : <>Paid separately by that system · <strong style={{ color: COLORS.green }}>{fmt(calc.monthly || 0)}/mo</strong></>}
+                          </div>
+                          {r.formula === "manual" && (
                             <div style={{ marginTop: "8px" }}>
-                              <label style={styles.label}>That system's final monthly comp</label>
-                              <input style={styles.input} type="number" value={r.customComp} placeholder="0"
-                                onChange={e => updatePriorRow(r.id, { customComp: e.target.value })} />
+                              <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Benefit factor per year (%) <span style={{ color: COLORS.textDim }}>· off your statement from that system</span></label>
+                              <input style={{ ...styles.input, margin: 0 }} type="number" step="0.001" value={r.manualFactor} placeholder="e.g. 2.0"
+                                onChange={e => updatePriorRow(r.id, { manualFactor: e.target.value })} />
                             </div>
+                          )}
+                          {!calc.calpers && (
+                            <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: 0 }}>
+                              <input style={styles.checkbox} type="checkbox" checked={r.useRosevilleComp !== false}
+                                onChange={e => updatePriorRow(r.id, { useRosevilleComp: e.target.checked })} />
+                              <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>Figure it on my Roseville final pay</span>
+                            </label>
+                          )}
+                          {r.useRosevilleComp === false && (
+                            <input style={{ ...styles.input, marginTop: "6px" }} type="number" value={r.customComp} placeholder="That system's final monthly comp"
+                              onChange={e => updatePriorRow(r.id, { customComp: e.target.value })} />
                           )}
                         </div>
                       );
                     })}
-                    <button onClick={addPriorRow} style={{ width: "100%", background: "rgba(255,255,255,0.12)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add prior agency</button>
-                    {priorTotalYears > 0 && (
-                      <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(255,255,255,0.08)", border: `1px solid rgba(255,255,255,0.2)`, borderRadius: "8px", fontSize: "12px", color: COLORS.text, lineHeight: "1.7" }}>
-                        <strong style={{ color: COLORS.green }}>Your total time:</strong> {yearsOfService.toFixed(1)} yrs Roseville + {priorTotalYears} yrs prior = <strong>{(yearsOfService + priorTotalYears).toFixed(1)} years</strong>
-                        {priorPctOnRoseComp > 0 && (
-                          <> · combined ≈ <strong style={{ color: COLORS.gold }}>{pct(combinedPensionPct)}</strong> across systems (each system caps at 90% individually; reciprocal systems pay separately, so a combined total above 90% is possible)</>
-                        )}
-                        {" "}· prior service adds <strong style={{ color: COLORS.green }}>{fmt(priorPensionMonthly)}/mo</strong>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px", alignItems: "end" }}>
+                      <button onClick={addPriorRow} style={{ background: "rgba(255,255,255,0.12)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add agency</button>
+                      <div>
+                        <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Air Time purchased <span style={{ color: COLORS.textDim }}>· years, max 5</span></label>
+                        <input style={{ ...styles.input, margin: 0 }} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0"
+                          onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
+                      </div>
+                    </div>
+                    {(priorTotalYears > 0 || airtimeYears > 0) && (
+                      <div style={{ marginTop: "10px", padding: "8px 10px", background: "rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "11px", color: COLORS.text, lineHeight: 1.6 }}>
+                        {yearsOfService.toFixed(1)} yrs Roseville + {priorTotalYears} prior{airtimeYears > 0 ? ` + ${airtimeYears} Air Time` : ""} = <strong>{(yearsOfService + priorTotalYears + airtimeYears).toFixed(1)} years</strong>
+                        {priorPensionMonthly > 0 && <> · other systems pay <strong style={{ color: COLORS.green }}>{fmt(priorPensionMonthly)}/mo</strong> separately</>}
                       </div>
                     )}
-                    {priorService.length > 0 && (
-                      <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "10px" }}>
-                        ⚠ Estimates only. Each prior system calculates and pays your benefit independently — confirm exact amounts with that system. Reciprocity requires you established it on time and retire from all systems on the same day.
-                      </div>
-                    )}
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Airtime / purchased service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· years, if you bought CalPERS service credit</span></label>
-                    <input style={styles.input} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0" onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
-                    {airtimeYears > 0 && (
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Adds {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} of service credit toward your pension % (CalPERS max 5).</div>
-                    )}
-                  </div>
   </>);
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
@@ -1957,20 +1933,12 @@ export default function RFFRetirementCalculator() {
             {tab === "member" && (
               <>
                 <div style={styles.card}>
-                  {sectionHeaderValue("startprior", "1 · Before Roseville",
+                  {sectionHeaderValue("startprior", "1 · Prior service",
                     (priorTotalYears + airtimeYears) > 0 ? `+${(priorTotalYears + airtimeYears).toFixed(1)} yrs` : "none")}
                   {openSections.startprior !== false && (<>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.6 }}>
-                      Start at the beginning. Every agency you worked before Roseville, oldest first — CDF,
-                      another city, a county — then any CalPERS service credit you bought (Air Time). All of it
-                      changes your pension percentage. Skip this card if Roseville is the only place you have worked.
-                      <div style={{ marginTop: "6px", color: COLORS.textDim }}>
-                        The Service Credit History table on myCalPERS lists these for you — one row per employer,
-                        each with its own retirement formula. Copy the years and pick the matching formula. Agencies
-                        on the <strong style={{ color: COLORS.text }}>same</strong> formula as Roseville merge into one
-                        bucket under a single 90% cap; a <strong style={{ color: COLORS.text }}>different</strong> CalPERS
-                        formula is its own bucket and stacks on top.
-                      </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: 1.5 }}>
+                      Agencies before Roseville, oldest first. Years and formula are on your myCalPERS
+                      Service Credit History. Skip it if Roseville is all you have.
                     </div>
                     {priorServiceEditor}
                   </>)}
@@ -3225,6 +3193,28 @@ export default function RFFRetirementCalculator() {
                     </div>
                   </>)}
                 </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
+                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
+                      value={memberType} disabled={!overridePensionType}
+                      onChange={e => setMemberType(e.target.value)}>
+                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
+                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
+                    </select>
+                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
+                      <input style={styles.checkbox} type="checkbox"
+                        checked={overridePensionType}
+                        onChange={e => setOverridePensionType(e.target.checked)} />
+                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
+                        Override (only if Classic via CalPERS reciprocity)
+                      </span>
+                    </label>
+                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
+                      Agencies on the <strong style={{ color: COLORS.textMuted }}>same</strong> formula as Roseville merge into
+                      one bucket under a single 90% cap; a <strong style={{ color: COLORS.textMuted }}>different</strong> CalPERS
+                      formula is its own bucket and stacks on top.
+                    </div>
+                  </div>
                   {sectionHeader("rank", "3 · Rank")}
                   {openSections.rank !== false && (<>
                   <div style={styles.fieldGroup}>
