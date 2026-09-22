@@ -243,6 +243,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v10)", items: [
+    "\u201cWhat if I wait\u201d is now in today\u2019s dollars only. The future-dollar figure is gone. A pension paid in 2035 arrives in 2035 dollars that buy less, and showing that number as the headline made waiting look better than it is.",
+    "New switch, on by default: only count raises that are actually in the contract. The 2027 and 2029 increases are in the signed MOU. The 2028 compensation study has no number yet and there is no contract past 12/31/2029, so those are no longer credited to you unless you ask for them.",
+    "The switch applies everywhere, including the hourly-rate year picker \u2014 so a 2028 rate is the contract rate, not a rate built on an assumed study.",
+    "Being honest about the honesty: counting zero raises while still discounting for inflation assumes your pay falls behind every year forever. That is a floor, not a forecast, and the tool now says so and shows you how to model pay keeping pace instead.",
+  ] },
   { date: "September 22, 2026 (v9)", items: [
     "\u201cWhat if I wait\u201d now has a today\u2019s-dollars column, and the \u201cvs. earliest\u201d gain is measured on it. The take-home column was in each future year\u2019s own dollars, so it climbed whether or not you were actually better off.",
     "Fixed an age bug. Age was computed as milliseconds divided by 365.25 days, which drifts over decades \u2014 someone exactly 53 could read as 52.9993 and get floored to 52.75. For PEPRA members that quarter reaches the benefit factor, so it cost real money. Age is now worked out by the calendar.",
@@ -752,6 +758,10 @@ export default function RFFRetirementCalculator() {
   const [currentSickLeaveHours, setCurrentSickLeaveHours] = useState(SAVED.currentSickLeaveHours ?? 0);
   // Which calendar year the hourly-rate card is showing.
   const [rateYear, setRateYear] = useState(SAVED.rateYear ?? new Date().getFullYear());
+  // The 2027 and 2029 increases are in the signed MOU. The 2028 compensation study has no
+  // number yet, and everything past 12/31/2029 has no contract at all. On by default so the
+  // tool does not quietly credit you with raises nobody has agreed to.
+  const [ignoreSpeculativeRaises, setIgnoreSpeculativeRaises] = useState(SAVED.ignoreSpeculativeRaises ?? true);
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
   // Service credit exactly as myCalPERS reports it, which is the authoritative number.
   // CalPERS service credit is earned on reported hours, so it does not have to equal calendar
@@ -864,10 +874,10 @@ export default function RFFRetirementCalculator() {
     // 2027 and 2029 are set by the MOU and differ by class, so they are not user inputs.
     if (y >= 2027) f *= (1 + mouGwiFor(2027, classification));
     // 2028 is the Total Compensation Study — no number exists yet, so it stays an assumption.
-    if (y >= 2028) f *= (1 + (parseFloat(raise2028) || 0) / 100);
+    if (y >= 2028) f *= (1 + (ignoreSpeculativeRaises ? 0 : (parseFloat(raise2028) || 0)) / 100);
     if (y >= 2029) f *= (1 + mouGwiFor(2029, classification));
     // Contract ends 12/31/2029 — every year from 2030 on uses the post-contract assumption.
-    if (y >= 2030) f *= Math.pow(1 + (parseFloat(raiseAfterContract) || 0) / 100, y - 2029);
+    if (y >= 2030) f *= Math.pow(1 + (ignoreSpeculativeRaises ? 0 : (parseFloat(raiseAfterContract) || 0)) / 100, y - 2029);
     return f;
   };
   // Rank separation per MOU Ch.2 Art.I.A (Engineer and Captain only, 2027+)
@@ -922,7 +932,8 @@ export default function RFFRetirementCalculator() {
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
       currentSickLeaveHours, rateYear, airtime,
-      calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
+      calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
+      ignoreSpeculativeRaises, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
@@ -936,7 +947,7 @@ export default function RFFRetirementCalculator() {
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
     currentSickLeaveHours, rateYear, calpersCreditRoseville,
-    calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
+    calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, ignoreSpeculativeRaises, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
@@ -2516,6 +2527,44 @@ export default function RFFRetirementCalculator() {
                 )}
                 {setupDone && retireYearOptions.length > 0 && (
                   <>
+                    <div style={{ marginBottom: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                      <label style={{ ...styles.checkRow, marginBottom: "6px" }}>
+                        <input style={styles.checkbox} type="checkbox" checked={ignoreSpeculativeRaises}
+                          onChange={e => setIgnoreSpeculativeRaises(e.target.checked)} />
+                        <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
+                          Only count raises that are actually in the contract
+                        </span>
+                      </label>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                        {ignoreSpeculativeRaises
+                          ? <>On. Using the signed MOU increases for 2027 and 2029 and nothing else — no figure
+                            for the 2028 compensation study, and no raises after the contract ends 12/31/2029.
+                            Turn it off to model assumptions instead.</>
+                          : <>Off. Also crediting you with {raise2028 || 0}% in 2028 and {raiseAfterContract || 0}%/yr
+                            from 2030 — neither of which has been agreed. That makes later years look better than
+                            the contract guarantees.</>}
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "11px", color: COLORS.textMuted }}>Inflation used to convert to today's dollars:</span>
+                        <input type="number" step="0.1" min={0} max={10} value={inflationRate || ""}
+                          onChange={e => setInflationRate(+e.target.value || 0)}
+                          style={{ ...styles.input, width: "70px", padding: "5px 8px", fontSize: "12px", margin: 0 }} />
+                        <span style={{ fontSize: "11px", color: COLORS.textMuted }}>%</span>
+                      </div>
+                      {ignoreSpeculativeRaises && (parseFloat(inflationRate) || 0) > 0 && (
+                        <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "10px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                          Be careful reading this as the truth. Counting zero raises after 2029 while still
+                          discounting by {inflationRate}% a year assumes your pay falls behind inflation every
+                          year forever, which is its own guess — just a pessimistic one. It is the floor, not
+                          the forecast.
+                          <div style={{ marginTop: "6px", color: COLORS.textMuted }}>
+                            If you think pay roughly keeps pace with inflation, untick the box and set the
+                            post-contract raise to {inflationRate}% under Everything else. The rows then show
+                            what waiting is worth on service and formula alone, with pay held flat in real terms.
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <div style={{ overflowX: "auto" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "13px" }}>
                         <thead>
@@ -2524,8 +2573,7 @@ export default function RFFRetirementCalculator() {
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Age</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Yrs</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>%</th>
-                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home</th>
-                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>In today's $</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home <span style={{ fontWeight: 400, fontSize: "10px" }}>· today's $</span></th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest</th>
                           </tr>
                         </thead>
@@ -2547,9 +2595,8 @@ export default function RFFRetirementCalculator() {
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{Math.floor(r.age)}</td>
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.yos.toFixed(1)}</td>
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{pct(r.pensionPct)}</td>
-                                <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.takeHome)}</td>
-                                <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{fmt(r.takeHomeToday)}</td>
-                                <td style={{ padding: "9px 4px", color: deltaToday > 0 ? COLORS.green : COLORS.textDim }}>
+                                <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.takeHomeToday)}</td>
+                                <td style={{ padding: "9px 4px", color: deltaToday > 0 ? COLORS.green : (deltaToday < -1 ? COLORS.gold : COLORS.textDim) }}>
                                   {deltaToday > 0 ? "+" : ""}{Math.abs(deltaToday) < 1 ? "—" : fmt(deltaToday)}
                                 </td>
                               </tr>
@@ -2565,11 +2612,9 @@ export default function RFFRetirementCalculator() {
                       out-of-pocket. The tax rate is the one computed for your selected year, applied
                       across all rows — good enough to rank the years, not a tax return.
                       <div style={{ marginTop: "8px", color: COLORS.textMuted }}>
-                        <strong style={{ color: COLORS.text }}>Read the "today's $" column, not the take-home column.</strong>
-                        {" "}Take-home is in the dollars of that future year, so it climbs whether or not you
-                        are better off — a later year buys less per dollar. The third column strips
-                        {" "}{inflationRate}% a year back out so the rows are comparable, and "vs. earliest"
-                        is measured on it. Change the inflation assumption under Everything else.
+                        Every figure here is in <strong style={{ color: COLORS.text }}>today's dollars</strong>, so the
+                        rows are comparable. A pension paid in 2035 arrives in 2035 dollars, which buy less — showing
+                        those raw numbers would make waiting look better than it is, so this table does not.
                       </div>
                     </div>
                   </>

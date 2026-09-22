@@ -74,7 +74,7 @@ console.log("\n-- 'what if I wait' with real numbers --");
 check("table header present", () => has(B.wait, "Go in"));
 check("lists candidate years", () => has(B.wait, "2028"));
 check("explains the tax approximation", () => has(B.wait, "rank the years"));
-check("warns later dollars buy less", () => has(B.wait, "a later year buys less per dollar"));
+check("warns later dollars buy less", () => has(B.wait, "which buy less"));
 
 console.log("\n-- sick leave decision screen --");
 check("frames the decision", () => has(B.sickleave, "Cash or credit?"));
@@ -198,7 +198,7 @@ check("no cease warning when it does not apply", () => lacks(G.pay, "it ends 1/9
 console.log("\n-- hourly rates by year --");
 const mkCapt = (rateYear) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear, raise2028:3,
+  retirementDateOverride:"2030-06-01", rateYear, raise2028:3, ignoreSpeculativeRaises:false,
   openSections:{ starthourly:true } });
 const H26 = await scenario(mkCapt(2026));
 const H27 = await scenario(mkCapt(2027));
@@ -206,7 +206,12 @@ const H28 = await scenario(mkCapt(2028));
 check("year picker is present", () => has(H26.pay, "Show rates for"));
 check("2026 shows the published base", () => has(H26.pay, "$12,295"));
 check("2027 shows the rank-separated base", () => has(H27.pay, "$13,013"));
-check("2028 shows base after the study", () => has(H28.pay, "$13,715"));
+check("2028 shows base after the assumed study", () => has(H28.pay, "$13,715"));
+const H28c = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2030-06-01", rateYear:2028, ignoreSpeculativeRaises:true,
+  openSections:{ starthourly:true } });
+check("contract-only 2028 drops the assumed study", () => has(H28c.pay, "$13,316"));
 check("2026 base hourly to the cent", () => has(H26.pay, "$50.67/hr"));
 check("2027 base hourly to the cent", () => has(H27.pay, "$53.63/hr"));
 check("picking a future year explains what moved", () => has(H27.pay, "What moved between"));
@@ -354,9 +359,9 @@ const WW = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-
   retirementDateOverride:"2028-09-28",
   calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
   priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }] });
-check("has a today's-dollars column", () => has(WW.wait, "In today's $"));
-check("tells you which column to read", () => has(WW.wait, "Read the \"today's $\" column"));
-check("explains that later dollars buy less", () => has(WW.wait, "a later year buys less per dollar"));
+check("take-home is stated in today's dollars", () => has(WW.wait, "today's $"));
+check("says every figure is in today's dollars", () => has(WW.wait, "Every figure here is in"));
+check("explains that later dollars buy less", () => has(WW.wait, "which buy less"));
 check("age is right on the birthday year", () => /2031\s*\u25aa?\s*53/.test(WW.wait) || has(WW.wait, "53"));
 check("cap note says the percentage stops moving", () => has(WW.wait, "the percentage stops moving"));
 check("cap note says what still raises it", () => has(WW.wait, "your pay growing"));
@@ -367,6 +372,30 @@ const YOUNG = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-
 check("young member gets rows, not an empty table", () => lacks(YOUNG.wait, "No eligible years"));
 check("first row is the year they turn 50", () => has(YOUNG.wait, "2040"));
 check("range reaches their chosen retirement year", () => has(YOUNG.wait, "2047"));
+
+// ── Today's dollars only, and the speculative-raise switch ────────────────
+console.log("\n-- what if I wait: no future-dollar headline --");
+const WD = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-09-28", ignoreSpeculativeRaises:true,
+  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+  priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }] });
+check("take-home column is labelled today's dollars", () => has(WD.wait, "Take-home"));
+check("says every figure is in today's dollars", () => has(WD.wait, "Every figure here is in"));
+check("explains why raw future numbers are not shown", () => has(WD.wait, "would make waiting look better than it is"));
+check("offers the contract-only switch", () => has(WD.wait, "Only count raises that are actually in the contract"));
+check("switch is on by default", () => has(WD.wait, "Using the signed MOU increases for 2027 and 2029"));
+check("inflation rate is editable on the tab", () => has(WD.wait, "Inflation used to convert"));
+check("warns zero raises is itself a guess", () => has(WD.wait, "It is the floor, not"));
+check("tells you how to model flat real pay", () => has(WD.wait, "roughly keeps pace with inflation"));
+// switched off, it says what it is crediting you with
+const WDoff = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-09-28", ignoreSpeculativeRaises:false, raise2028:3, raiseAfterContract:3,
+  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21" });
+check("off state names the unagreed raises", () => has(WDoff.wait, "neither of which has been agreed"));
+check("off state warns it flatters later years", () => has(WDoff.wait, "look better than the contract guarantees"));
+check("no floor warning when assumptions are on", () => lacks(WDoff.wait, "It is the floor, not"));
 
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
