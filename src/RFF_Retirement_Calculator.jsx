@@ -266,6 +266,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v33)", items: [
+    "Audited \u201cStay or go?\u201d properly after a member reported the numbers not matching. Four things were wrong, all of them mine.",
+    "<strong>The card disagreed with the banner.</strong> With CPI above zero the banner showed your retirement take-home in the dollars you would actually be handed and the card right below it showed today\u2019s dollars \u2014 $10,904 against $10,195, same label, same screen. The card is month one, so it now uses the banner\u2019s figures, and says plainly that the tables below work in today\u2019s dollars and will not match.",
+    "<strong>Working longer read as costing nothing when it actually pays you.</strong> If your paycheck beats your pension, a year spent working is money in your pocket \u2014 but the cost was clamped at zero, so the column showed a dash. It now shows the gain: for a Captain with 40 hours of overtime, <strong>+$5,865 a year</strong>.",
+    "<strong>The break-even column collapsed four cases into two.</strong> It now separates them: it repays after N years · ahead from day one · ahead N years, then behind · never. That third one was reading as \u201calready ahead\u201d while the same row showed a net loss at twenty years.",
+    "<strong>The summary line overclaimed.</strong> It said \u201cyou are ahead from day one\u201d even where the later pension is smaller in real terms. It now reads the rows it is summarising.",
+    "Also labelled the two tables: the year table compares <em>gross</em> allowances, the cost table compares <em>take-home</em>. Same comparison, different bases \u2014 which is why 2029 showed as +$271/mo in one and +$2,453/yr in the other.",
+    "Fourteen new tests read the banner and the card off the same rendered page and fail if they disagree, in three different scenarios.",
+  ] },
   { date: "September 22, 2026 (v32)", items: [
     "Confirmed and kept: your <strong>457 contribution still comes out of the working take-home</strong> in the banner, because it comes out of your check. Put in $24,500 a year and working take-home drops by about $1,360 a month, exactly as it should.",
     "Fixed the other half of it. After the 457 draw was taken out of the retirement figure, it was still being counted when the tool worked out your retirement tax rate \u2014 so changing your 457 <em>contribution</em> quietly moved your retirement <em>take-home</em>, by about $20 a month. It was taxing income it had stopped showing you.",
@@ -2809,14 +2818,21 @@ export default function RFFRetirementCalculator() {
             {/* The headline answer: what the paycheck-to-pension change actually is, in one line.
                 Overtime drives most of it for most members and is called out by name. */}
             {tab === "stayorgo" && setupDone && (() => {
-              const cut = workingTakeHome - retireTakeHomeToday;   // + = retiring is a pay cut
+              // Month one, in the dollars you would actually be handed — the same figures as the
+              // banner above. The tables further down compare ACROSS years and so are in today's
+              // dollars; mixing the two bases on one screen is what made this tab disagree with itself.
+              const cut = workingTakeHome - totalMonthlyTakeHome;   // + = retiring is a pay cut
               const otShare = cut > 0 && otMonthly > 0 ? Math.min(1, otMonthly / cut) : 0;
               return (
                 <div style={{ ...styles.card, border: `1px solid ${cut > 0 ? COLORS.gold : COLORS.green}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>The day you hang it up</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                    Take-home against take-home, both in today&rsquo;s dollars. This is the change to the money
-                    that actually reaches your account.
+                    Take-home against take-home, the same two figures as the banner above. This is the change
+                    to the money that actually reaches your account in month one.
+                    {(parseFloat(inflationRate) || 0) > 0 && (
+                      <> The two tables below compare <em>across</em> years, so those are in today&rsquo;s dollars
+                      at your {inflationRate}% CPI — they will not match these.</>
+                    )}
                   </div>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>Working now <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {otMonthly > 0 ? `includes ${fmt(otMonthly)} of overtime` : "no overtime entered"}</span></span>
@@ -2824,7 +2840,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>Retired in {retirementYear} <span style={{ fontSize: "10px", color: COLORS.textDim }}>· pension after tax and medical</span></span>
-                    <span style={styles.tableVal}>{fmt(retireTakeHomeToday)}/mo</span>
+                    <span style={styles.tableVal}>{fmt(totalMonthlyTakeHome)}/mo</span>
                   </div>
                   <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${cut > 0 ? COLORS.gold : COLORS.green}`, marginTop: "10px", paddingTop: "12px" }}>
                     <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>
@@ -2959,7 +2975,7 @@ export default function RFFRetirementCalculator() {
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Yrs</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>%</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension / mo <span style={{ fontWeight: 400, fontSize: "10px" }}>· gross, today's $</span></th>
-                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest<br /><span style={{ fontWeight: 400, fontSize: "10px" }}>gross</span></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2993,7 +3009,8 @@ export default function RFFRetirementCalculator() {
                       {benefitIsCapped && capYearRow && <>▪ marks the year you reach the {pct(benefitMaxPct)} cap. From {capYearRow.year} on, the percentage stops moving — what still raises the number is your pay growing, and any service under a different CalPERS formula. Extra years in the capped bucket add nothing.<br /></>}
                       {!benefitIsCapped && <>Your formula has no cap, so every row keeps climbing.<br /></>}
                       This is your <strong style={{ color: COLORS.text }}>gross monthly allowance</strong> — the
-                      same figure myCalPERS shows you. Income tax and your retiree medical premium come off
+                      same figure myCalPERS shows you. The section below works in <strong style={{ color: COLORS.text }}>take-home</strong>,
+                      so its gains are smaller than the gross ones here by roughly your tax rate. Income tax and your retiree medical premium come off
                       the warrant afterward; CalPERS does not net them out of an estimate, and neither does this.
                       <div style={{ marginTop: "8px", color: COLORS.textMuted }}>
                         Every figure here is in <strong style={{ color: COLORS.text }}>today's dollars</strong> at the CPI
@@ -3011,17 +3028,33 @@ export default function RFFRetirementCalculator() {
                       const E = earliestRow;
                       // Net cost of one year spent working instead of drawing the earliest pension,
                       // in today's dollars. Positive => the pension out-earns the paycheck.
+                      // Positive => the pension out-earns the paycheck, so a year spent working costs you
+                      // that much. NEGATIVE => the paycheck out-earns the pension and a year spent working
+                      // PAYS you. Clamping that to zero threw away the strongest argument for waiting.
                       const perYearForgone = 12 * (E.takeHomeToday - workingTakeHome);
+                      const earnsMoreWorking = perYearForgone < 0;
                       const rows = retireYearOptions.slice(1).map(r => {
                         const extraYears = r.year - E.year;
-                        const givenUp = Math.max(0, perYearForgone) * extraYears;
+                        const givenUp = perYearForgone * extraYears;   // signed
                         const gainPerYear = 12 * (r.takeHomeToday - E.takeHomeToday);
-                        const breakEven = gainPerYear > 0 ? givenUp / gainPerYear : null;
+                        // Four real cases, and the tab used to collapse them into two:
+                        //   cost to wait + bigger pension  -> it repays after N years
+                        //   cost to wait + no bigger pension -> never repays
+                        //   paid to wait + bigger pension  -> ahead from day one, forever
+                        //   paid to wait + SMALLER pension -> ahead now, behind after N years
+                        const crossover = gainPerYear > 0
+                          ? (givenUp > 0 ? givenUp / gainPerYear : 0)
+                          : (givenUp < 0 && gainPerYear < 0 ? Math.abs(givenUp) / Math.abs(gainPerYear) : null);
+                        const verdict = gainPerYear > 0
+                          ? (givenUp > 0 ? "repays" : "always")
+                          : (givenUp < 0 ? "fades" : "never");
+                        const breakEven = crossover;
                         const net20 = gainPerYear * 20 - givenUp;
-                        return { ...r, extraYears, givenUp, gainPerYear, breakEven, net20,
+                        return { ...r, extraYears, givenUp, gainPerYear, breakEven, net20, verdict,
                                  breakEvenAge: breakEven === null ? null : r.age + breakEven };
                       });
                       const freeToWait = perYearForgone <= 0;
+                      const anyFades = rows.some(r => r.verdict === "fades");
                       return (
                         <div style={{ ...styles.card, marginTop: "18px" }}>
                           <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What waiting actually costs</p>
@@ -3029,8 +3062,12 @@ export default function RFFRetirementCalculator() {
                             You can go in <strong style={{ color: COLORS.text }}>{E.year}</strong>. Every year you work past
                             that, you give up a year of pension checks to buy a permanently larger pension. This is that trade.
                             {freeToWait ? (
-                              <> Right now your paycheck out-earns your pension, so waiting costs you nothing in the
-                              meantime — every later year is simply better.</>
+                              <> Right now your paycheck out-earns your pension by <strong style={{ color: COLORS.green }}>{fmt(Math.abs(perYearForgone))}</strong> a
+                              year, so working longer does not cost you anything in the meantime — it pays you.
+                              {anyFades
+                                ? <> But at {inflationRate}% CPI the pension you end up with is <em>smaller</em> in today&rsquo;s
+                                  dollars, so that head start runs out. The table says how long it lasts.</>
+                                : <> And the pension is bigger at the end of it, so you are ahead from day one.</>}</>
                             ) : (
                               <> Working a year nets you <strong style={{ color: COLORS.text }}>{fmt(workingTakeHome)}</strong>/mo
                               take-home; your {E.year} pension would pay <strong style={{ color: COLORS.text }}>{fmt(E.takeHomeToday)}</strong>/mo.
@@ -3044,8 +3081,8 @@ export default function RFFRetirementCalculator() {
                                 <tr style={{ color: COLORS.textMuted, textAlign: "right" }}>
                                   <th style={{ textAlign: "left", padding: "6px 4px", fontWeight: 600 }}>Go in</th>
                                   <th style={{ padding: "6px 4px", fontWeight: 600 }}>Extra yrs<br />worked</th>
-                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension you<br />skip getting there</th>
-                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension gain<br />per year, for life</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Cash you gain or give<br />up getting there</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home gain<br />per year, for life</th>
                                   <th style={{ padding: "6px 4px", fontWeight: 600 }}>Breaks even</th>
                                   <th style={{ padding: "6px 4px", fontWeight: 600 }}>Net after<br />20 yrs retired</th>
                                 </tr>
@@ -3057,13 +3094,16 @@ export default function RFFRetirementCalculator() {
                                     <td style={{ textAlign: "left", padding: "9px 4px", fontWeight: r.year === retirementYear ? 800 : 600,
                                       color: r.year === retirementYear ? COLORS.accent : COLORS.text }}>{r.year}</td>
                                     <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.extraYears}</td>
-                                    <td style={{ padding: "9px 4px", color: COLORS.gold }}>{r.givenUp > 0 ? "−" + fmt(r.givenUp) : "—"}</td>
+                                    <td style={{ padding: "9px 4px", color: r.givenUp > 0 ? COLORS.gold : COLORS.green }}>
+                                      {r.givenUp > 0 ? "−" + fmt(r.givenUp) : "+" + fmt(Math.abs(r.givenUp))}
+                                    </td>
                                     <td style={{ padding: "9px 4px", color: r.gainPerYear > 0 ? COLORS.green : COLORS.gold }}>
                                       {r.gainPerYear > 0 ? "+" : ""}{Math.abs(r.gainPerYear) < 1 ? "—" : fmt(r.gainPerYear)}
                                     </td>
                                     <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>
-                                      {r.givenUp <= 0 ? "immediately"
-                                        : r.breakEven === null ? "never"
+                                      {r.verdict === "always" ? "ahead from day one"
+                                        : r.verdict === "never" ? "never"
+                                        : r.verdict === "fades" ? `ahead ${r.breakEven.toFixed(1)} yrs, then behind`
                                         : `${r.breakEven.toFixed(1)} yrs · age ${Math.round(r.breakEvenAge)}`}
                                     </td>
                                     <td style={{ padding: "9px 4px", fontWeight: 700, color: r.net20 >= 0 ? COLORS.green : COLORS.gold }}>
@@ -3077,8 +3117,12 @@ export default function RFFRetirementCalculator() {
                           <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
                             <strong style={{ color: COLORS.textMuted }}>Read it like this:</strong> &ldquo;Breaks even&rdquo; is how many
                             years into retirement the bigger pension finally repays the checks you skipped to get it — and how old you
-                            are when it does. <strong style={{ color: COLORS.textMuted }}>Never</strong> means the later pension is no
-                            larger, so waiting is never repaid.
+                            are when it does. <strong style={{ color: COLORS.textMuted }}>Ahead from day one</strong> means your
+                            paycheck already beats your pension <em>and</em> the later pension is bigger — waiting wins on both counts.
+                            <strong style={{ color: COLORS.textMuted }}> Ahead N yrs, then behind</strong> means you gain now but the
+                            later pension is smaller in today&rsquo;s dollars, so the early gain runs out.
+                            <strong style={{ color: COLORS.textMuted }}> Never</strong> means the later pension is no larger and
+                            nothing repays the checks you skipped.
                             <div style={{ marginTop: "8px" }}>
                               Take-home, not gross, because the 9% CalPERS member contribution, union dues and the active medical
                               premium stop when you retire — comparing a paycheck to a pension on gross would flatter working.

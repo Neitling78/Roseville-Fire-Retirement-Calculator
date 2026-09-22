@@ -510,7 +510,7 @@ check("a later year can be a net loss", () => has(CW.wait, "$2,937"));
 // When pay only keeps pace with CPI the later pension is no bigger in real terms,
 // so there is nothing to repay the skipped checks and the answer must say so.
 check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
-check("explains what 'never' means", () => has(CW.wait, "waiting is never repaid"));
+check("explains what 'never' means", () => has(CW.wait, "nothing repays the checks you skipped"));
 check("says why it uses take-home", () => has(CW.wait, "stop when you retire"));
 check("admits what it leaves out", () => has(CW.wait, "not only about numbers"));
 check("the section is hidden before setup", () => lacks(A.wait, "What waiting actually costs"));
@@ -789,6 +789,50 @@ check("contributing more lowers working take-home", () =>
 check("the retirement figure ignores the 457 entirely", () =>
   (Z.ret === M.ret && M.ret === X.ret)
   || `457 is leaking into the retirement take-home: ${Z.ret} / ${M.ret} / ${X.ret}`);
+
+
+// ── Stay or go must agree with itself and with the banner ──────────────────
+// Three things were wrong here at once: the card was in today's dollars while the
+// banner was nominal, a negative cost was clamped to zero so working longer read as
+// "costs nothing" instead of "pays you", and the break-even column collapsed four
+// real cases into two.
+console.log("\n-- stay or go: internal consistency --");
+const money = (x) => x == null ? null : +String(x).replace(/[^0-9.\-]/g, "");
+const sgRead = (t) => {
+  const h = t.match(/While working Gross \$[\d,]+ Take home (\$[\d,]+) today.*?While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
+  const c = t.match(/Retired in \d+ · pension after tax and medical (\$[\d,]+)\/mo/);
+  const v = t.match(/(The cut|You come out ahead) [−+-]?(\$[\d,]+)\/mo/);
+  return { hdrWork: money(h && h[1]), hdrRet: money(h && h[2]), cardRet: money(c && c[1]), delta: money(v && v[2]) };
+};
+const mkSG = (extra) => ({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...extra });
+for (const [label, extra] of [["CPI 0", {}], ["CPI 3", { inflationRate: 3 }], ["no OT", { currentOTHours: 0 }]]) {
+  const S = await scenario(mkSG(extra));
+  const r = sgRead(S.stayorgo);
+  check(`${label}: card retired figure matches the banner`, () =>
+    (r.hdrRet != null && r.hdrRet === r.cardRet) || `banner ${r.hdrRet} vs card ${r.cardRet}`);
+  check(`${label}: the stated change is the difference of the two`, () =>
+    (r.delta != null && Math.abs(r.delta - Math.abs(r.hdrRet - r.hdrWork)) <= 1)
+    || `${r.delta} != |${r.hdrRet} - ${r.hdrWork}|`);
+}
+// A paycheck that beats the pension means working longer PAYS — it must not read as zero.
+const SGpay = await scenario(mkSG({}));
+check("a paycheck that beats the pension reads as a gain", () => has(SGpay.stayorgo, "out-earns your pension by"));
+check("and never as 'costs you nothing'", () => lacks(SGpay.stayorgo, "waiting costs you nothing"));
+check("that case breaks even from day one", () => has(SGpay.stayorgo, "ahead from day one"));
+// Gain up front, smaller pension later — there is a crossover, and it has to be named.
+const SGfade = await scenario(mkSG({ inflationRate: 3 }));
+check("a fading gain is called out, not called 'ahead'", () => has(SGfade.stayorgo, "then behind"));
+check("and it is not claimed as ahead from day one", () => {
+  const hits = (SGfade.stayorgo.match(/ahead from day one/gi) || []).length;
+  return hits <= 1 || `${hits} mentions — a row is claiming it, not just the legend`;
+});
+// The ordinary case still works.
+const SGcost = await scenario(mkSG({ currentOTHours: 0 }));
+check("a real cost still shows a break-even age", () => has(SGcost.stayorgo, "· age "));
+check("and states the yearly cost", () => has(SGcost.stayorgo, "each year you stay costs you"));
+// The two tables use different bases; the page has to say so.
+check("the year table is labelled gross", () => has(SGcost.stayorgo, "gross"));
+check("the cost table is labelled take-home", () => has(SGcost.stayorgo, "Take-home gain"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
