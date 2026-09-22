@@ -243,6 +243,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v7)", items: [
+    "The \u201cyou are past the cap\u201d warning is now on the main pension screen, not buried on the detail tab. It tells you how many years of credit are paying you nothing \u2014 and if sick-leave conversion is part of that surplus, it says so and tells you to take the cash.",
+    "The sick-leave screen now says the credit is worth $0 in plain dollars when you are already at the cap, alongside what the cash is worth.",
+    "Fixed: the cash-versus-credit comparison was ignoring prior agency service on the same formula. A member with prior CalPERS time under 3% @ 50 could be told sick-leave credit was valuable when their bucket was already over 30 years and it was worth nothing.",
+    "If your myCalPERS figure already includes purchased credit, the tool now says outright that your purchased-service entry is not being added again, and gives you a one-line way to check.",
+  ] },
   { date: "September 22, 2026 (v6)", items: [
     "Added the \u201cLast reported\u201d date from your myCalPERS Account Summary. Employers report on a lag, so service still to be earned is now counted from that date rather than from today.",
     "Optional: enter your CalPERS account balance and the pension screen shows what it actually is \u2014 a refund figure you would only see if you quit and gave up the pension \u2014 next to what a private saver would need to draw the same income. The two get confused and the gap is worth seeing once.",
@@ -1183,6 +1189,8 @@ export default function RFFRetirementCalculator() {
   ].map(c => ({ ...c, pct: c.yrs * c.factor }));
   const calpersRawPct = calpersComponents.reduce((s, c) => s + c.pct, 0);
   const calpersOverCap = benefitIsCapped && calpersRawPct > benefitMaxPct + 1e-9;
+  const surplusYearsOverCap = calpersOverCap && rosevilleFactor > 0
+    ? (calpersRawPct - benefitMaxPct) / rosevilleFactor : 0;
   // PEPRA caps the pensionable compensation the pension is figured on; Classic is not capped this way.
   const pensionableForPension = memberType === "pepra" ? Math.min(finalCompMonthly, peraCapMonthly) : finalCompMonthly;
   const peraCapApplies = memberType === "pepra" && finalCompMonthly > peraCapMonthly;
@@ -1332,12 +1340,16 @@ export default function RFFRetirementCalculator() {
   const sickLeaveCreditMultiplier = memberType === "classic" ? CLASSIC_MULTIPLIER :
     Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
   // Marginal value of the sick-leave credit, respecting the 90% cap (zero once already capped).
-  const pensionPctNoCredit = Math.min((rosevilleServiceForPension + airtimeCountedSeparately) * sickLeaveCreditMultiplier, benefitMaxPct);
+  const pensionPctNoCredit = Math.min(
+    (rosevilleServiceForPension + airtimeCountedSeparately) * sickLeaveCreditMultiplier + sameFormulaPriorPct,
+    benefitMaxPct);
   const sickLeavePensionBoostMonthly = pensionableForPension * Math.max(0, pensionPct - pensionPctNoCredit);
   // Alternate values shown side-by-side for member comparison
   const altCashIfAllCash = calcSickLeavePayoff(sickLeaveHours, sickLeaveHourlyRate);
   // "All credit" comparison — marginal pension % gain over base service, respecting the 90% cap.
-  const altPctAllCredit = Math.min((rosevilleServiceForPension + airtimeCountedSeparately + sickLeaveMaxCreditYears) * sickLeaveCreditMultiplier, benefitMaxPct);
+  const altPctAllCredit = Math.min(
+    (rosevilleServiceForPension + airtimeCountedSeparately + sickLeaveMaxCreditYears) * sickLeaveCreditMultiplier + sameFormulaPriorPct,
+    benefitMaxPct);
   const altCreditIfAllCredit = Math.max(0, altPctAllCredit - pensionPctNoCredit);
   const altCreditMonthlyIfAllCredit = pensionableForPension * altCreditIfAllCredit;
   // Prior agency pension(s) from reciprocity — each prior system pays its own check.
@@ -1930,6 +1942,16 @@ export default function RFFRetirementCalculator() {
                         myCalPERS folds purchased credit into the employer lines and says so under the Total.
                         Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
                         top, which would count it twice.
+                        {calpersCreditIncludesPurchased && airtimeYears > 0 && (
+                          <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                            Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
+                            <strong> not</strong> being added separately — it is already inside the figure above.
+                          </div>
+                        )}
+                        <div style={{ marginTop: "6px" }}>
+                          Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
+                          already in them. If the Total is higher than the rows, it is not.
+                        </div>
                       </div>
                       <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
                         <div style={styles.tableRow}>
@@ -2203,6 +2225,21 @@ export default function RFFRetirementCalculator() {
                     <div style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
                       <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
                       <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                        {calpersOverCap && (
+                          <div style={{ marginBottom: "10px", padding: "10px 12px", background: "rgba(180,83,9,0.12)", border: `1px solid rgba(180,83,9,0.35)`, borderRadius: "8px", color: COLORS.gold, lineHeight: 1.7 }}>
+                            ⚠ <strong>You are past the cap.</strong> Your service adds up to {pct(calpersRawPct)},
+                            but the benefit stops at {pct(benefitMaxPct)} — so about
+                            {" "}<strong>{surplusYearsOverCap.toFixed(2)} years</strong> of credit pays you nothing.
+                            {sickLeaveCreditYears > 0 && <> That includes the {sickLeaveCreditYears.toFixed(2)} years
+                            you are converting from sick leave, which in this position is worth
+                            {" "}<strong>$0</strong> as credit — take it as cash instead.</>}
+                            {airtimeCountedSeparately > 0 && <> It also includes purchased service credit.</>}
+                            <div style={{ marginTop: "6px", color: COLORS.textMuted, fontSize: "11px" }}>
+                              Working longer still raises the pension, but only through pay increases and any
+                              service under a different CalPERS formula — not through more years in this bucket.
+                            </div>
+                          </div>
+                        )}
                         {benefitIsCapped ? (
                           <div style={{ marginBottom: "8px" }}>
                             ▸ Your formula caps at <strong style={{ color: COLORS.text }}>90% of final compensation</strong>, reached at 30 years.
@@ -2569,9 +2606,10 @@ export default function RFFRetirementCalculator() {
                       <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>
                         +{sickLeaveMaxCreditYears.toFixed(2)} years of service, for life, with COLA.
                         {benefitIsCapped && altCreditMonthlyIfAllCredit <= 0 && (
-                          <div style={{ color: COLORS.gold, marginTop: "6px" }}>
-                            ⚠ You are already at the 90% cap — extra service credit adds nothing.
-                            Cash is the better choice.
+                          <div style={{ color: COLORS.gold, marginTop: "6px", lineHeight: 1.7 }}>
+                            ⚠ <strong>Worth $0 to you.</strong> You are already at the {pct(benefitMaxPct)} cap without
+                            converting a single hour, so every hour you convert produces no extra pension.
+                            {altCashIfAllCash > 0 && <> Taking it as cash is worth <strong>{fmt(altCashIfAllCash)}</strong> instead.</>}
                           </div>
                         )}
                       </div>

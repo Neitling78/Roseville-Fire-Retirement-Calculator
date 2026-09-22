@@ -316,6 +316,35 @@ const NOBAL = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1978-
   retirementDateOverride:"2028-10-01", calpersCreditRoseville:23.390 });
 check("no balance panel when none entered", () => lacks(NOBAL.pension, "Your account balance is not your pension"));
 
+// ── Past the cap: surplus service and worthless sick-leave credit ──────────
+console.log("\n-- a member past the 90% cap --");
+// Roseville 23.390 + South Lake Tahoe 4.682 = 28.072 in the 3%@50 bucket, plus ~2.1 more
+// years worked and sick leave converted -> well past 30 years.
+const CAP = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-09-28",
+  calpersCreditRoseville:23.390, calpersCreditIncludesPurchased:true,
+  calpersCreditAsOf:"2026-08-21", airtime:3,
+  currentSickLeaveHours:2600, sickLeaveDisposition:"credit",
+  priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }],
+  openSections:{ startcalpers:true } });
+check("every screen renders", () => Object.values(CAP).every(h => h.length > 200) || "a screen came back empty");
+check("warns you are past the cap", () => has(CAP.pension, "You are past the cap"));
+check("quantifies the wasted years", () => /years<\/strong> of credit pays you nothing|of credit pays you nothing/.test(CAP.pension)
+  || "no surplus-years figure");
+check("names sick leave as part of the surplus", () => has(CAP.pension, "worth"));
+check("explains what still raises the pension", () => has(CAP.pension, "only through pay increases"));
+check("sick leave screen says worth $0", () => has(CAP.sickleave, "Worth $0 to you"));
+check("sick leave screen gives the cash alternative", () => has(CAP.sickleave, "Taking it as cash is worth"));
+check("airtime is not double-counted", () => has(CAP.start, "not") === true
+  && has(CAP.start, "already inside the figure above") === true);
+check("offers the rows-vs-total sanity check", () => has(CAP.start, "if the employer rows on myCalPERS add up to the Total"));
+// a member well under the cap sees none of it
+const UNDER = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-01-01",
+  memberType:"pepra", medicalTier:"3", classification:"Firefighter Paramedic II", salaryStep:"H",
+  retirementDateOverride:"2047-01-01", currentSickLeaveHours:500 });
+check("no cap warning when well under it", () => lacks(UNDER.pension, "You are past the cap"));
+
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
   .every(x => B.start.includes(x)) || "a primary tab is missing");
