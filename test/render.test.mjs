@@ -157,16 +157,16 @@ check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday h
 check("explains holiday is special comp, not a payout", () => has(Eo.sickleave, "Holiday hours are not a separate cash-out"));
 check("cites the special-comp reporting", () => has(Eo.sickleave, "reported to CalPERS as special compensation"));
 check("says it cannot be both", () => has(Eo.sickleave, "cannot be both reported to CalPERS and paid out again"));
-check("holiday pay still counts as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
+check("holiday pay still counts as pensionable", () => has(E.comp, "Holiday pay"));
 check("cash-out rate says base + longevity, no incentives", () => has(Eo.comp, "base + longevity, no incentives"));
 check("cash-out card spells out the exclusion", () => has(Eo.sickleave, "base hourly plus longevity only"));
 check("cash-out card excludes specialty pay explicitly", () => has(Eo.sickleave, "no education, certificate or specialty pay"));
 check("cash-out card distinguishes projected rate from today's", () => has(Eo.sickleave, "not today's"));
 check("shows what the pension is figured on", () => has(E.pension, "What the pension is figured on"));
-check("shows pensionable incentives in the build-up", () => has(E.pension, "Pensionable incentives"));
-check("Classic sees holiday pay as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
-check("Classic sees uniform allowance", () => has(E.pension, "Uniform allowance"));
-check("Classic sees FLSA OT special comp", () => has(E.pension, "regularly scheduled"));
+check("specialty pay is in the build-up", () => has(E.comp, "Specialty and certificate pay"));
+check("Classic sees holiday pay as pensionable", () => has(E.comp, "168 hrs at base"));
+check("Classic sees uniform allowance", () => has(E.comp, "Uniform allowance"));
+check("Classic sees FLSA OT special comp", () => has(E.comp, "FLSA scheduled overtime"));
 check("15% education+cert cap is applied", () => has(Eo.comp, "15% Education + Cert Cap Applied"));
 
 // ── Current pay vs pension projection must not be the same figure ───────────
@@ -644,6 +644,24 @@ check("2028 at zero LMA is flagged", () => has(Y28.comp, "the year nobody can pr
 check("and called a floor, not a forecast", () => has(Y28.comp, "floor, not a forecast"));
 check("no warning once an LMA is set", () => lacks(Y28L.comp, "the year nobody can price yet"));
 check("this year carries no assumption banner", () => lacks(Y26.comp, "What is in"));
+
+
+// ── The Pension tab shows no base rates ────────────────────────────────────
+// Base, incentives, holiday, uniform and FLSA overtime all live on Current
+// compensation with a year picker. Repeating them here confused members, because
+// the base rate sat next to a gross figure it did not match.
+console.log("\n-- pension tab starts at final compensation --");
+const PT = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+check("no base-rate line on the pension tab", () => lacks(PT.pension, "Projected base at 2028"));
+check("no base-today line either", () => lacks(PT.pension, "Base today"));
+check("it starts at final compensation", () => has(PT.pension, "Final compensation"));
+check("and goes straight to the allowance", () => has(PT.pension, "Gross CalPERS pension"));
+check("it points at where the build-up lives", () => has(PT.pension, "Current compensation"));
+// The two tabs must agree: pensionable pay in the retirement year IS final compensation.
+const PTC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2028 });
+check("final comp matches Current compensation for that year", () =>
+  (PTC.comp.includes("$15,597") && PTC.pension.includes("$15,597"))
+  || "the two tabs disagree on pensionable pay");
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

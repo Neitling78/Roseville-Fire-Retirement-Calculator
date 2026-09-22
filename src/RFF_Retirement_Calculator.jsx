@@ -266,6 +266,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v26)", items: [
+    "Took the base-rate numbers off the Pension tab. They appeared in two places there \u2014 in Future raises and again at the top of the pension build-up \u2014 and sat next to a gross figure they do not match, which read as an error even though both numbers were right.",
+    "The pension box now starts where it should: <strong>final compensation</strong>, then your percentage, then the allowance. The line-by-line build-up is on Current compensation, where the year picker already shows it for any year through 2029.",
+    "Checked that the two tabs agree, and added a test that fails if they ever stop: pensionable pay for your retirement year on Current compensation is <strong>exactly</strong> the final compensation the pension is figured on. For a Captain at step H retiring in 2028, both read $15,597/mo.",
+    "Future raises now points at the year picker instead of printing its own projected base.",
+  ] },
   { date: "September 22, 2026 (v25)", items: [
     "Year picker on the Current compensation card. Pick 2026, 2027, 2028 or 2029 and the whole table moves \u2014 base, specialty pay, longevity, holiday pay, FLSA overtime, your overtime, the hourly rates and the annual gross.",
     "It runs on the contract, not a guess: the January 2027 general wage increase, the rank separation (Engineer 7.5% above Paramedic in 2027, tightening to 10% in 2028; Captain 10% above Engineer), the 2028 Labor Market Adjustment you set, and the January 2029 increase \u2014 1.75% for suppression, 3.0% for prevention.",
@@ -2222,21 +2228,9 @@ export default function RFFRetirementCalculator() {
                       Applies to 2030 and later, after the MOU expires 12/31/2029. At 0 the tool credits you
                       with nothing beyond the signed contract. Same controls as on the "Stay or go?" tab.
                     </div>
-                    <div style={{ marginTop: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Base today</span>
-                        <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
-                      </div>
-                      <div style={styles.tableRowLast}>
-                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Projected base at retirement ({retirementYear})</span>
-                        <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{fmt(projectedBaseSalary)}/mo</span>
-                      </div>
-                      {(classification === "Fire Engineer" || classification === "Fire Captain") && retirementYear >= 2027 && (
-                        <div style={{ fontSize: "11px", color: COLORS.blue, marginTop: "8px", lineHeight: 1.6 }}>
-                          ⓘ Includes MOU rank separation: Engineer set {retirementYear >= 2028 ? "10%" : "7.5%"} above
-                          Firefighter Paramedic II{classification === "Fire Captain" && ", Captain 10% above Engineer"}.
-                        </div>
-                      )}
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.6 }}>
+                      What these do to your actual pay, year by year, is on
+                      <strong style={{ color: COLORS.textMuted }}> Current compensation</strong> — set the year picker there.
                     </div>
                   </>)}
                 </div>
@@ -2279,43 +2273,12 @@ export default function RFFRetirementCalculator() {
 
                       <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", marginBottom: "10px" }}>
                         <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>What the pension is figured on</div>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Projected base at {retirementYear}</span>
-                          <span style={styles.tableVal}>{fmt(projectedBaseSalary)}/mo</span>
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "8px", lineHeight: 1.6 }}>
+                          Your pensionable pay in {retirementYear} — base, specialty pay, longevity, holiday pay,
+                          uniform allowance and FLSA scheduled overtime. The line-by-line build-up is on
+                          <strong style={{ color: COLORS.textMuted }}> Current compensation</strong>, set to {retirementYear}.
+                          Overtime you volunteer for is not in it and never counts toward a pension.
                         </div>
-                        {incentives.pensionableAmt > 0 && (
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Pensionable incentives ({pct(incentives.pensionablePct)})</span>
-                            <span style={styles.tableValGold}>+{fmt(incentives.pensionableAmt)}/mo</span>
-                          </div>
-                        )}
-                        {memberType === "classic" && (<>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Holiday pay ({HOLIDAY_HOURS} hrs)</span>
-                            <span style={styles.tableValGold}>+{fmt(holidayPayMonthly)}/mo</span>
-                          </div>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Uniform allowance</span>
-                            <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
-                          </div>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>FLSA overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· regularly scheduled, {pct(FLSA_OT_PENSIONABLE_PCT)} of base</span></span>
-                            <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
-                          </div>
-                          <div style={{ fontSize: "10px", color: COLORS.textDim, lineHeight: 1.7, margin: "2px 0 8px", paddingLeft: "2px" }}>
-                            Not the overtime you volunteer for — this is the overtime built into the schedule.
-                            The MOU sets a {FLSA_WORK_PERIOD_DAYS}-day FLSA work period with a {FLSA_WORK_PERIOD_THRESHOLD_HOURS}-hour
-                            threshold, and 48/96 works {FLSA_HOURS_WORKED_PER_PERIOD} hours in that period — so you are
-                            {FLSA_HOURS_WORKED_PER_PERIOD - FLSA_WORK_PERIOD_THRESHOLD_HOURS} hours over, every cycle, {FLSA_OT_HOURS_PER_YEAR.toFixed(0)} hours a year.
-                            Your base already pays straight time for them, so what is left is the half-time premium:
-                            {(FLSA_OT_HOURS_PER_YEAR * 0.5).toFixed(0)} hours ÷ {FLSA_ANNUAL_SCHEDULE_HOURS.toFixed(0)} = {pct(FLSA_OT_PENSIONABLE_PCT)}.
-                            MOU Ch.3 Art.II.A reports it to CalPERS as special compensation under C.C.R §571.
-                            <div style={{ marginTop: "4px", color: COLORS.gold }}>
-                              Derived from the MOU, not checked against a pay stub. If your stub shows a different
-                              FLSA overtime figure, trust the stub and tell the Treasurer.
-                            </div>
-                          </div>
-                        </>)}
                         <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
                           <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
                             Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}</span>
