@@ -1,35 +1,39 @@
 import { useState, useEffect, useCallback } from "react";
 import logoUrl from "./assets/logo.png";
 // ─── CONSTANTS FROM 2026 RFF MOU & SALARY SCHEDULE ───────────────────────────
-// Official RFF salary schedule — Appendix A, effective 3/21/2026 (City of Roseville).
-// One schedule for all hires. Monthly base by classification × step. Top step is H — NO Step I.
-const SALARY_SCHEDULE = {
-  "Fire Captain": {
-    steps: {
-      A: 8737.70, B: 9174.62, C: 9633.43, D: 10115.03,
-      E: 10620.86, F: 11151.87, G: 11709.44, H: 12294.95
-    }
-  },
-  "Fire Engineer": {
-    steps: {
-      A: 8016.42, B: 8417.28, C: 8838.19, D: 9280.01,
-      E: 9744.01, F: 10231.21, G: 10742.78, H: 11280.17
-    }
-  },
-  "Firefighter Paramedic II": {
-    steps: {
-      A: 7820.73, B: 8211.79, C: 8622.41, D: 9053.48,
-      E: 9506.18, F: 9981.49, G: 10480.60, H: 11004.81
-    }
-  },
-  "Firefighter Paramedic I": {
-    steps: {
-      A: 7820.73, B: 8211.79, C: 8622.41, D: 9053.48,
-      E: 9506.18, F: 9981.49, G: 10480.60, H: 11004.81
-    }
-  }
+// Official City of Roseville salary schedules, BOTH effective 3/21/2026.
+//   Schedule A — 8 steps (A-H) — employees hired before 1/7/2017.
+//   Schedule B — 9 steps (A-I) — employees hired on/after 1/7/2017. Same TOP step as A,
+//     3% between steps, entry step 4.7% below the old step B (MOU Ch.2 Art.I.B & C).
+// Monthly figures are the 56-hr suppression grade codes (e.g. 3320A); the "Z" 8-hour grade
+// codes on the same schedule carry an identical monthly rate.
+// Firefighter Paramedic I and II share a step table on both schedules — that is what the
+// City publishes, not a typo.
+const SALARY_SCHEDULE_A = {
+  "Fire Captain":              { steps: { A: 8737.70, B: 9174.62, C: 9633.43, D: 10115.03, E: 10620.86, F: 11151.87, G: 11709.44, H: 12294.95 } },
+  "Fire Engineer":             { steps: { A: 8016.42, B: 8417.28, C: 8838.19, D: 9280.01, E: 9744.01, F: 10231.21, G: 10742.78, H: 11280.17 } },
+  "Firefighter Paramedic II":  { steps: { A: 7820.73, B: 8211.79, C: 8622.41, D: 9053.48, E: 9506.18, F: 9981.49, G: 10480.60, H: 11004.81 } },
+  "Firefighter Paramedic I":   { steps: { A: 7820.73, B: 8211.79, C: 8622.41, D: 9053.48, E: 9506.18, F: 9981.49, G: 10480.60, H: 11004.81 } },
+  "Firefighter EMT I":         { steps: { A: 6770.76, B: 7109.31, C: 7464.79, D: 7838.04, E: 8230.02, F: 8641.43, G: 9073.57, H: 9527.68 } },
+  "Fire & Environmental Inspection Supervisor": { steps: { A: 8120.74, B: 8526.75, C: 8953.08, D: 9400.75, E: 9870.80, F: 10364.33, G: 10882.54, H: 11426.71 } },
+  "Fire Plans Examiner":       { steps: { A: 7105.40, B: 7460.68, C: 7833.71, D: 8225.39, E: 8636.66, F: 9068.49, G: 9521.93, H: 9998.01 } },
+  "Fire & Environmental Safety Inspector II": { steps: { A: 6766.81, B: 7105.19, C: 7460.46, D: 7833.47, E: 8225.10, F: 8636.37, G: 9068.19, H: 9521.67 } },
+  "Fire & Environmental Safety Inspector I":  { steps: { A: 6151.67, B: 6459.32, C: 6782.26, D: 7121.37, E: 7477.44, F: 7851.34, G: 8243.85, H: 8656.09 } },
 };
-// One current salary schedule applies to all members (confirmed by Treasurer, 6/2026).
+const SALARY_SCHEDULE_B = {
+  "Fire Captain":              { steps: { A: 9548.06, B: 9996.80, C: 10296.71, D: 10605.60, E: 10923.76, F: 11251.51, G: 11589.03, H: 11936.70, I: 12294.95 } },
+  "Fire Engineer":             { steps: { A: 8760.10, B: 9171.78, C: 9446.96, D: 9730.40, E: 10022.25, F: 10322.94, G: 10632.63, H: 10951.62, I: 11280.17 } },
+  "Firefighter Paramedic II":  { steps: { A: 8546.26, B: 8947.92, C: 9216.36, D: 9492.85, E: 9777.62, F: 10070.93, G: 10373.08, H: 10684.30, I: 11004.81 } },
+  "Firefighter Paramedic I":   { steps: { A: 8546.26, B: 8947.92, C: 9216.36, D: 9492.85, E: 9777.62, F: 10070.93, G: 10373.08, H: 10684.30, I: 11004.81 } },
+  "Firefighter EMT I":         { steps: { A: 7819.84, B: 8015.38, C: 8215.72, D: 8421.14, E: 8631.63, F: 8847.46, G: 9068.60, H: 9295.35, I: 9527.68 } },
+  "Fire & Environmental Inspection Supervisor": { steps: { A: 8873.45, B: 9290.49, C: 9569.25, D: 9856.32, E: 10151.99, F: 10456.56, G: 10770.24, H: 11093.37, I: 11426.71 } },
+  "Fire Plans Examiner":       { steps: { A: 7764.38, B: 8129.30, C: 8373.18, D: 8624.37, E: 8883.09, F: 9149.61, G: 9424.08, H: 9706.81, I: 9998.01 } },
+  "Fire & Environmental Safety Inspector II": { steps: { A: 7394.64, B: 7742.18, C: 7974.46, D: 8213.69, E: 8460.09, F: 8713.90, G: 8975.30, H: 9244.59, I: 9521.93 } },
+  "Fire & Environmental Safety Inspector I":  { steps: { A: 6722.40, B: 7038.34, C: 7249.49, D: 7466.97, E: 7690.99, F: 7921.73, G: 8159.37, H: 8404.17, I: 8656.28 } },
+};
+// MOU Ch.2 Art.I.C — Schedule B applies to employees initially hired on/after 1/7/2017.
+const SCHEDULE_B_CUTOFF = new Date("2017-01-07");
+const scheduleForHire = (d) => (d < SCHEDULE_B_CUTOFF ? SALARY_SCHEDULE_A : SALARY_SCHEDULE_B);
 // Cutoff dates per MOU
 const CLASSIC_PEPRA_CUTOFF_YEAR = 2013;          // Hired before 1/1/2013 = Classic
 const LONGEVITY_CUTOFF_YEAR = 2017;              // Hired before 1/1/2017 = Longevity; on/after = Service Term Bonus
@@ -42,6 +46,12 @@ const RETIREE_MEDICAL_BASE = 1200;       // Tier 1 & Tier 2
 const TIER3_MEDICAL_BASE = 720;          // Tier 3 (hired 2012–2014)
 const RETIREE_MEDICAL_COLA = 0.02;
 const RETIREE_MEDICAL_BASE_YEAR = 2013;
+// Retiree pension COLA is set by DATE OF CALPERS MEMBERSHIP, not Classic/PEPRA status.
+// MOU Ch.5 Art.I.F: 3% for everyone hired before 12/16/2016, and for Classic hired on/after;
+// 2% only for PEPRA hired on/after. Roseville's CalPERS contract agrees: para 11.j elects
+// Sec 21335 (3% COLA) for local fire entering membership on or before 12/16/2016, and
+// para 11.m applies Sec 21329 (2% COLA) only to those entering after that date.
+const COLA_TIER_DATE = new Date("2016-12-16");
 const TIER4_RHS_CITY_MONTHLY = 100;      // Tier 4 City RHS deposit, flat (no escalator)
 const TIER4_RHS_VEST_AFTER_YEARS = 5;    // City deposits begin in year 6 of service
 const VESTING_SCHEDULE = {
@@ -64,6 +74,10 @@ const SERVICE_TERM_BONUS = (yos) => {
 // Sick leave payout tiers (24-hr shift)
 // Cash payout tiers (24-hr shift, per MOU Ch3 Art III table).
 // Top tier extended to Infinity — Roseville fire has no accrual cap, so hours above 1800 stay at 70%.
+// MOU Ch.3 Art.III.A.1: the 24-hour-shift payoff band is "1800 to 2400" under a column
+// headed "Max". Hours above 2400 are outside the table. The tool therefore pays out on at
+// most 2400 hours; anything above that is worth more as service credit anyway.
+const SICK_LEAVE_PAYOFF_MAX_HOURS = 2400;
 const SICK_LEAVE_TIERS = [
   { min: 1800, max: Infinity, pct: 0.70 },
   { min: 1434, max: 1799.99, pct: 0.60 },
@@ -92,9 +106,37 @@ const UNIFORM_ALLOWANCE_ANNUAL = 1300;  // pensionable uniform allowance, Classi
 // FLSA OT — "special compensation," pensionable for CLASSIC ONLY (~2% of base), NOT PEPRA.
 // Per CalPERS-confirmed MOU holiday language + CalPERS contract #3831513094 (Treasurer-confirmed).
 const FLSA_OT_PENSIONABLE_PCT = 0.02;
+// PEMHCA minimum employer contribution — set by CalPERS every year, NOT a fixed number.
+// 2026: $162 (Circular Letter 600-023-25). 2027: $167 (Circular Letter 600-026-26).
+// Add each new year here every January. Beyond the last known year the tool escalates at
+// PEMHCA_MIN_ASSUMED_COLA and says so.
+const PEMHCA_MIN_BY_YEAR = { 2026: 162, 2027: 167 };
+const PEMHCA_MIN_ASSUMED_COLA = 0.029;   // CalPERS used 2.9% to set the 2027 figure
+const PEMHCA_LAST_KNOWN_YEAR = 2027;
+function pemhcaMinFor(year) {
+  if (PEMHCA_MIN_BY_YEAR[year] != null) return PEMHCA_MIN_BY_YEAR[year];
+  if (year < 2026) return PEMHCA_MIN_BY_YEAR[2026];
+  const yrs = year - PEMHCA_LAST_KNOWN_YEAR;
+  return Math.round(PEMHCA_MIN_BY_YEAR[PEMHCA_LAST_KNOWN_YEAR] * Math.pow(1 + PEMHCA_MIN_ASSUMED_COLA, yrs));
+}
 const CITY_MATCH_PCT = 0.03;
 const CITY_MATCH_MIN_YEARS = 5;
-const MAX_457_ANNUAL = 24500;  // 2026 IRS 457(b) elective-deferral limit (was $23,500 in 2025) — update annually
+// 2026 IRS limits for governmental 457(b) plans (IRS Notice 2025-67). Update every year.
+const MAX_457_ANNUAL = 24500;            // elective deferral limit
+const CATCHUP_457_AGE50 = 8000;          // age 50+ catch-up  -> 32,500
+const CATCHUP_457_AGE60_63 = 11250;      // SECURE 2.0 "super" catch-up, ages 60-63 -> 35,750
+const MAX_457_SPECIAL_3YR = 49000;       // 457(b) special three-year pre-retirement catch-up
+// Which ceiling applies to a member of a given age in a given plan year.
+// The special three-year catch-up runs in the 3 years BEFORE normal retirement age and
+// cannot be combined with the age-based catch-up -- the member takes the greater.
+function max457For(age, normalRetAge, useSpecial3yr) {
+  const base = MAX_457_ANNUAL;
+  const ageBased = age >= 60 && age <= 63 ? base + CATCHUP_457_AGE60_63
+    : age >= 50 ? base + CATCHUP_457_AGE50
+    : base;
+  const eligible3yr = normalRetAge != null && age >= normalRetAge - 3 && age < normalRetAge;
+  return (useSpecial3yr && eligible3yr) ? Math.max(ageBased, MAX_457_SPECIAL_3YR) : ageBased;
+}
 // CalPERS PEPRA pensionable-compensation cap, non-Social-Security (safety) members, 2026: $191,679
 // (CalPERS Circular Letter 200-001-26). Indexed annually — escalated to the retirement year below.
 const PEPRA_COMP_CAP_2026 = 191679;
@@ -178,6 +220,27 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (evening)", items: [
+    "Rebuilt the front of the tool. It now opens on five questions \u2014 what you do, when you were born, when you were hired, when you plan to go, and your sick leave hours. Everything else is worked out from those.",
+    "It no longer shows you a number until you have answered. It used to open on a brand-new hire's retirement, which meant every number on screen belonged to somebody else until you corrected it field by field.",
+    "New 'What if I wait?' screen: the same calculation run for every year you could go, side by side, with the cost of waiting. Tap a year to make it your plan.",
+    "New 'Sick leave' screen: cash versus service credit, with the break-even age, because it is the one retirement decision you cannot undo.",
+    "Everything that used to be on the first five tabs is still here, under 'Everything else'. Nothing was deleted.",
+    "You can link straight to a screen now \u2014 add ?tab=sickleave to the address.",
+  ] },
+  { date: "September 22, 2026", items: [
+    "Audited the whole tool against the 2026\u201329 MOU, Roseville's CalPERS contract, and CalPERS's published rules. Everything below came out of that.",
+    "PEPRA members are no longer capped at 90%. The 90% ceiling belongs to the Classic formulas (3%@50, 3%@55). PEPRA 2.7%@57 has no maximum \u2014 CalPERS's own chart runs to 108% at 40 years. If you are PEPRA, every year past 33 is worth 2.7% more, for life.",
+    "Retiree COLA now follows your CalPERS membership date, not Classic/PEPRA. 3% if you entered before 12/16/2016; 2% only for PEPRA hired on or after. Every PEPRA member hired 2013\u20132016 was being shown 2% and is owed 3%.",
+    "PEPRA pensions are now figured on the 36-month average (Gov. Code \u00a77522.32), not your last year. Classic still uses one-year final comp \u2014 the City's CalPERS contract elects it for Classic members only.",
+    "Salary Schedule B is here. Members hired on/after 1/7/2017 are on the 9-step schedule (A\u2013I); earlier hires stay on the 8-step Schedule A. Both effective 3/21/2026.",
+    "Added Firefighter EMT I and all four prevention classes \u2014 Inspection Supervisor, Plans Examiner, and Safety Inspector I and II.",
+    "Sick-leave cash-out now stops at the MOU table's 2,400-hour maximum, and tells you how many hours fall outside it. Those hours are still worth service credit at 2,000 hrs = 1 year.",
+    "457 catch-up contributions added: $8,000 at 50+, $11,250 at 60\u201363, and the three-year pre-retirement catch-up up to $49,000.",
+    "PEMHCA minimum is now by year \u2014 $162 in 2026, $167 from 1/1/2027.",
+    "Tier 3 retiree medical now requires 10 years of Roseville service and normal retirement age, per MOU Ch.4 Art.II.D.",
+    "Medical is no longer counted as gross income \u2014 it shows as an out-of-pocket cost instead, with the detail on the Medical tab.",
+  ] },
   { date: "June 14, 2026", items: [
     "Accuracy: PEPRA pensions are now capped at the state pensionable-pay limit; the City 457 match now counts only after your 5-year vesting point (it was over-counting for newer members); cleaner layout with your key numbers pinned at the top.",
     "New Medical tab: choose your plan and coverage (single / +1 / family) to see your monthly premium and your net cost after the RFF flex credit, plus your hire-date retiree medical tier.",
@@ -207,6 +270,16 @@ const CHANGELOG = [
 ];
 const CLASSIC_MULTIPLIER = 0.03;
 const CLASSIC_MAX_PCT = 0.90;
+// Benefit maximum BY FORMULA. The 90% ceiling belongs to the Classic safety formulas --
+// CalPERS publishes "you can receive up to 90% of final compensation" for Local Safety
+// 3%@50 and 3%@55. PEPRA 2.7%@57 (Gov Code Sec 7522.25(d), which Roseville's CalPERS
+// contract para 10 elects) states NO maximum, and CalPERS's own benefit-factor chart for
+// it runs to 108% of final compensation at 40 years of service.
+const FORMULA_MAX_PCT = {
+  "3@50": 0.90, "3@55": 0.90, "2.5@55": 0.90, "2@50": 0.90, "2@55": 0.90,
+  "2.7@57": Infinity,
+};
+const formulaMaxPct = (key) => (FORMULA_MAX_PCT[key] !== undefined ? FORMULA_MAX_PCT[key] : 0.90);
 // ── PRIOR-AGENCY (RECIPROCITY) BENEFIT FACTORS ─────────────────────────────
 // Whole-year CalPERS LOCAL SAFETY age factors (decimal %/yr of service).
 // Source: CalPERS "Retirement Formulas and Benefit Factors" charts (rev 2021.2.1).
@@ -246,7 +319,7 @@ function priorYearFactor(formula, manualFactorPct, retireAge) {
   const fHi = def.factors[lo + 1] ?? def.factors[maxAge];
   return fLo + (fHi - fLo) * q;
 }
-function calcRetireeMedical(tier, hireYear, retirementYear, cityYOS, totalCalpersYears) {
+function calcRetireeMedical(tier, hireYear, retirementYear, cityYOS, totalCalpersYears, atNormalRetirementAge) {
   const yearsFromBase = retirementYear - RETIREE_MEDICAL_BASE_YEAR;
   // Tier 4 (hired 8/15/2015+): no lifetime monthly premium. City deposits a flat $100/mo into an
   // RHS account starting in year 6 of service until retirement (MOU Art II.F). Member draws the
@@ -264,8 +337,15 @@ function calcRetireeMedical(tier, hireYear, retirementYear, cityYOS, totalCalper
   // CalPERS-credited service; once the 5-yr Roseville minimum is met, the vesting % is based on
   // ALL CalPERS-credited service (Roseville + reciprocal/prior CalPERS), not just Roseville years.
   const totalYears = (totalCalpersYears != null ? totalCalpersYears : cityYOS);
-  const eligible = cityYOS >= 5 && totalYears >= 10;
-  const vestYears = Math.min(Math.floor(cityYOS >= 5 ? totalYears : cityYOS), 20);
+  // Tier 2 (MOU Art.II.C): 5 yrs at Roseville unlocks credit for ALL CalPERS-credited service,
+  //   and 10 yrs of CalPERS-credited service is the floor.
+  // Tier 3 (MOU Art.II.D): stricter — "must retire with a minimum of ten (10) years of
+  //   City of Roseville service", AND must have reached normal retirement age (CalPERS
+  //   contract para 1: age 50 classic local safety, age 57 new/PEPRA local safety).
+  const eligible = tier === "3"
+    ? (cityYOS >= 10 && atNormalRetirementAge)
+    : (cityYOS >= 5 && totalYears >= 10);
+  const vestYears = Math.min(Math.floor(tier === "3" ? cityYOS : (cityYOS >= 5 ? totalYears : cityYOS)), 20);
   const vestedPct = tier === "1" ? 1.0 : (eligible ? (VESTING_SCHEDULE[vestYears] || (vestYears >= 20 ? 1.0 : 0)) : 0);
   return { monthly: currentValue * vestedPct, vested: vestedPct, rhsBalance: 0, eligible };
 }
@@ -295,9 +375,12 @@ function calcTier4RHS({ hireYear, retirementYear, currentYear, baseAnnualNow, sa
   };
 }
 function calcSickLeavePayoff(hours, hourlyRate) {
+  // Payable hours are capped by the MOU table's maximum; the tier % is set by the
+  // accumulated balance, but only payable hours are actually paid.
+  const payableHours = Math.min(hours, SICK_LEAVE_PAYOFF_MAX_HOURS);
   const tier = SICK_LEAVE_TIERS.find(t => hours >= t.min && hours <= t.max);
   if (!tier || tier.pct === 0) return 0;
-  return hours * hourlyRate * tier.pct;
+  return payableHours * hourlyRate * tier.pct;
 }
 // ─── CalPERS RETIREMENT ALLOWANCE OPTIONS ────────────────────────────────
 // Approximation of CalPERS Option Factor tables based on age. Real factors come
@@ -473,7 +556,20 @@ function clearSavedState() {
 const SAVED = loadSavedState();
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────
 export default function RFFRetirementCalculator() {
-  const [tab, setTab] = useState("inputs");
+  // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
+  // text message can point at the part that matters. Also what the render test drives.
+  const VALID_TABS = ["start", "wait", "sickleave", "medical", "inputs", "pension", "income", "timeline", "help"];
+  const initialTab = (() => {
+    try {
+      const q = typeof window !== "undefined" && window.location
+        ? new URLSearchParams(window.location.search).get("tab") : null;
+      return VALID_TABS.includes(q) ? q : "start";
+    } catch { return "start"; }
+  })();
+  const [tab, setTab] = useState(initialTab);
+  // The tool used to open on a brand-new hire's numbers. It now shows nothing until the
+  // member has answered the five questions that make the answer theirs.
+  const [setupDone, setSetupDone] = useState(SAVED.setupDone ?? (SAVED.hireDate ? true : false));
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -552,6 +648,9 @@ export default function RFFRetirementCalculator() {
   const [hasEngineBoss, setHasEngineBoss] = useState(SAVED.hasEngineBoss ?? false);
   const [hasFFII, setHasFFII] = useState(SAVED.hasFFII ?? false);
   // 457
+  // 457(b) special three-year pre-retirement catch-up: a one-time election available in the
+  // three years before normal retirement age. Cannot be combined with the age-based catch-up.
+  const [useSpecial457Catchup, setUseSpecial457Catchup] = useState(SAVED.useSpecial457Catchup ?? false);
   const [current457, setCurrent457] = useState(SAVED.current457 ?? 0);
   const [annual457Contrib, setAnnual457Contrib] = useState(SAVED.annual457Contrib ?? 6000);
   const [hasEmployerMatch, setHasEmployerMatch] = useState(SAVED.hasEmployerMatch ?? false);
@@ -596,8 +695,9 @@ export default function RFFRetirementCalculator() {
   const hireYear = parseInt(hireDate.slice(0, 4), 10) || new Date().getFullYear();
   const hireMonth = parseInt(hireDate.slice(5, 7), 10) || 1;
   const hireDay = parseInt(hireDate.slice(8, 10), 10) || 1;
-  // Schedule A = hired before 2018 (8 steps A–H); Schedule B = 2018+ (9 steps A–I)
-  const activeSchedule = SALARY_SCHEDULE;
+  // Schedule A = hired before 1/7/2017 (8 steps A-H); Schedule B = on/after (9 steps A-I)
+  const activeSchedule = scheduleForHire(new Date(hireYear, hireMonth - 1, hireDay));
+  const scheduleLetter = activeSchedule === SALARY_SCHEDULE_A ? "A" : "B";
   const baseSalary = activeSchedule[classification]?.steps[salaryStep] || 0;
   const NOW = new Date();
   const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
@@ -622,6 +722,11 @@ export default function RFFRetirementCalculator() {
   // Exact age at retirement, snapped down to the completed quarter-year (CalPERS method).
   const exactRetireAge = dobDate ? (retirementDate - dobDate) / MS_PER_YEAR : retirementAge;
   const retireAgeQ = dobDate ? Math.max(0, Math.floor(exactRetireAge * 4) / 4) : retirementAge;
+  // "Normal retirement age" as Roseville's CalPERS contract defines it (para 1):
+  // age 50 for classic local safety, age 57 for new (PEPRA) local safety.
+  // Drives Tier 3 retiree medical (MOU Ch.4 Art.II.D) and the 457 three-year catch-up window.
+  const normalRetirementAge = memberType === "classic" ? 50 : 57;
+  const atNormalRetirementAge = retireAgeQ >= normalRetirementAge;
   // Invalid combo (retirement on/before hire) — surfaced as an inline error, not a fake result.
   const datesInvalid = retirementDate <= hireDateObj;
   // Fractional years of service from actual hire date to the actual retirement month.
@@ -639,32 +744,35 @@ export default function RFFRetirementCalculator() {
   // For Engineer and Captain retiring 2027+: salary is restructured relative to
   // FF Para II per MOU rank separation (2027: Eng=FF×1.075, Capt=Eng×1.10;
   // 2028+: Eng=FF×1.10, Capt=Eng×1.10).
-  const cumulativeRaiseFactor = (() => {
-    if (retirementYear < 2027) return 1.0;
-    let f = 1.0;
-    if (retirementYear >= 2027) f *= (1 + (parseFloat(raise2027) || 0) / 100);
-    if (retirementYear >= 2028) f *= (1 + (parseFloat(raise2028) || 0) / 100);
-    if (retirementYear >= 2029) f *= (1 + (parseFloat(raise2029) || 0) / 100);
-    // Contract ends 12/31/2029 — every year from 2030 on uses the post-contract assumption.
-    if (retirementYear >= 2030) f *= Math.pow(1 + (parseFloat(raiseAfterContract) || 0) / 100, retirementYear - 2029);
-    return f;
-  })();
   // FF Para II at the same step — anchor for rank separation math
   const ffParaIIAtStep = activeSchedule["Firefighter Paramedic II"]?.steps[salaryStep]
-    || activeSchedule["Firefighter Paramedic II"]?.steps["H"] || 0;
-  // Rank separation multiplier per MOU (Engineer and Captain only, 2027+)
-  const rankMultiplier = (() => {
-    if (retirementYear < 2027) return 1.0;
-    if (classification === "Fire Engineer") return retirementYear >= 2028 ? 1.10 : 1.075;
-    if (classification === "Fire Captain")  return retirementYear >= 2028 ? 1.10 * 1.10 : 1.075 * 1.10;
+    || activeSchedule["Firefighter Paramedic II"]?.steps[Object.keys(activeSchedule["Firefighter Paramedic II"]?.steps || {}).slice(-1)[0]] || 0;
+  // These are functions of a plan YEAR, not just the retirement year, because PEPRA final
+  // compensation is a 36-month average and needs the two years before retirement too.
+  const raiseFactorForYear = (y) => {
+    if (y < 2027) return 1.0;
+    let f = 1.0;
+    if (y >= 2027) f *= (1 + (parseFloat(raise2027) || 0) / 100);
+    if (y >= 2028) f *= (1 + (parseFloat(raise2028) || 0) / 100);
+    if (y >= 2029) f *= (1 + (parseFloat(raise2029) || 0) / 100);
+    // Contract ends 12/31/2029 — every year from 2030 on uses the post-contract assumption.
+    if (y >= 2030) f *= Math.pow(1 + (parseFloat(raiseAfterContract) || 0) / 100, y - 2029);
+    return f;
+  };
+  // Rank separation per MOU Ch.2 Art.I.A (Engineer and Captain only, 2027+)
+  const rankMultiplierForYear = (y) => {
+    if (y < 2027) return 1.0;
+    if (classification === "Fire Engineer") return y >= 2028 ? 1.10 : 1.075;
+    if (classification === "Fire Captain")  return y >= 2028 ? 1.10 * 1.10 : 1.075 * 1.10;
     return 1.0;
-  })();
-  // Projected base salary: for Engineer/Captain 2027+ use FF Para II × rank multiplier;
-  // for all others (or pre-2027) just apply raises to current base.
-  const projectedBaseSalary = (retirementYear >= 2027 &&
+  };
+  const projectedBaseForYear = (y) => ((y >= 2027 &&
     (classification === "Fire Engineer" || classification === "Fire Captain") && ffParaIIAtStep > 0)
-    ? ffParaIIAtStep * cumulativeRaiseFactor * rankMultiplier
-    : baseSalary * cumulativeRaiseFactor;
+    ? ffParaIIAtStep * raiseFactorForYear(y) * rankMultiplierForYear(y)
+    : baseSalary * raiseFactorForYear(y));
+  const cumulativeRaiseFactor = raiseFactorForYear(retirementYear);
+  const rankMultiplier = rankMultiplierForYear(retirementYear);
+  const projectedBaseSalary = projectedBaseForYear(retirementYear);
   // Hire-date driven flags
   const showLongevity = hireYear < LONGEVITY_CUTOFF_YEAR;          // Article VIII
   const showServiceTermBonus = hireYear >= LONGEVITY_CUTOFF_YEAR;  // Article IX
@@ -685,23 +793,23 @@ export default function RFFRetirementCalculator() {
   }, [hireYear, hireMonth, hireDay]);
   // Clamp any stale salary step (e.g. a removed "I") to the top valid step.
   useEffect(() => {
-    const steps = Object.keys(SALARY_SCHEDULE[classification]?.steps || {});
+    const steps = Object.keys(activeSchedule[classification]?.steps || {});
     if (steps.length && !steps.includes(salaryStep)) setSalaryStep(steps[steps.length - 1]);
-  }, [classification, salaryStep]);
+  }, [classification, salaryStep, activeSchedule]);
   useEffect(() => {
-    const steps = Object.keys(SALARY_SCHEDULE[promotionClassification]?.steps || {});
+    const steps = Object.keys(activeSchedule[promotionClassification]?.steps || {});
     if (steps.length && !steps.includes(promotionStep)) setPromotionStep(steps[steps.length - 1]);
-  }, [promotionClassification, promotionStep]);
+  }, [promotionClassification, promotionStep, activeSchedule]);
   // ── PERSIST INPUTS TO LOCAL STORAGE ─────────────────────────────────────
   // Auto-save every state change. Nothing leaves the browser.
   useEffect(() => {
     saveState({
-      classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
+      setupDone, classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
       memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-      current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
+      useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
       currentSickLeaveHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -709,12 +817,12 @@ export default function RFFRetirementCalculator() {
       raise2027, raise2028, raise2029, raiseAfterContract, rhsReturn, inflationRate, openSections,
     });
   }, [
-    classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
+    setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
     memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
-    current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
+    useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
     currentSickLeaveHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -866,6 +974,30 @@ export default function RFFRetirementCalculator() {
   // FLSA OT — special comp, pensionable for Classic only (~2% of base), NOT PEPRA
   const flsaOTPensionableMonthly = memberType === "classic" ? projectedBaseSalary * FLSA_OT_PENSIONABLE_PCT : 0;
   const totalPensionableMonthly = cashPensionable + holidayPayMonthly + uniformMonthly + flsaOTPensionableMonthly;
+  // ── FINAL COMPENSATION ───────────────────────────────────────────────────
+  // Classic: ONE-YEAR final compensation. Roseville's CalPERS contract para 11.h elects
+  //   Gov Code Sec 20042 (One-Year Final Compensation) "for classic members only".
+  // PEPRA: Gov Code Sec 7522.32 — "the highest average annual pensionable compensation
+  //   earned by the member during a period of at least 36 consecutive months". Not electable.
+  // The three-year average matters most right now: the MOU stacks large increases in
+  // 3/2026, 1/2027 and 1/2028, so a PEPRA member's last year sits well above their average.
+  const pensionableForYear = (y) => {
+    const b = projectedBaseForYear(y);
+    const yrsAtThatPoint = Math.max(0, yearsOfService - (retirementYear - y));
+    const dateThatYear = new Date(y, retMonthNum - 1, retDayNum);
+    const inc = calcIncentives(b, classification, memberType, yrsAtThatPoint, dateThatYear, hireYear);
+    const lon = (memberType === "classic" && showLongevity) ? LONGEVITY(yrsAtThatPoint) : 0;
+    const hol = memberType === "classic" ? (b / FLSA_56HR_MONTHLY_HOURS * (1 + lon)) * HOLIDAY_HOURS / 12 : 0;
+    const uni = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
+    const flsa = memberType === "classic" ? b * FLSA_OT_PENSIONABLE_PCT : 0;
+    return b + inc.pensionableAmt + hol + uni + flsa;
+  };
+  const FINAL_COMP_MONTHS_PEPRA = 36;
+  const finalCompMonthly = memberType === "classic"
+    ? totalPensionableMonthly
+    : (pensionableForYear(retirementYear) + pensionableForYear(retirementYear - 1) + pensionableForYear(retirementYear - 2)) / 3;
+  // How much the 36-month rule costs a PEPRA member versus using the final year alone.
+  const finalCompAveragingDrag = Math.max(0, totalPensionableMonthly - finalCompMonthly);
   // ── SICK LEAVE PROJECTION ────────────────────────────────────────────────
   // Project current hours forward at 144 hrs/yr (6 shifts × 24 hrs). No accrual cap.
   const sickLeaveHours = currentSickLeaveHours + SICK_LEAVE_ANNUAL_ACCRUAL_HOURS * yearsToRetirement;
@@ -892,12 +1024,14 @@ export default function RFFRetirementCalculator() {
   const sameFormulaPriorPct = priorService.reduce((s, r) =>
     (isCalpersFormula(r.formula) && r.formula === rosevilleFormulaKey)
       ? s + Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retireAgeQ) : s, 0);
-  // Roseville bucket %, capped at 90% (this is what the 90% cap visuals track).
-  const pensionPct = Math.min(yearsOfServiceForPension * rosevilleFactor + sameFormulaPriorPct, 0.90);
+  // Roseville bucket %, capped only if this FORMULA has a cap (Classic 90%; PEPRA none).
+  const benefitMaxPct = formulaMaxPct(rosevilleFormulaKey);
+  const benefitIsCapped = Number.isFinite(benefitMaxPct);
+  const pensionPct = Math.min(yearsOfServiceForPension * rosevilleFactor + sameFormulaPriorPct, benefitMaxPct);
   // Other-CalPERS-formula buckets — each capped at 90% on its own, then summed (rarely binds).
   const otherCalpersFormulaPct = priorService.reduce((s, r) =>
     (isCalpersFormula(r.formula) && r.formula !== rosevilleFormulaKey)
-      ? s + Math.min(Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retireAgeQ), 0.90) : s, 0);
+      ? s + Math.min(Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, retireAgeQ), formulaMaxPct(r.formula)) : s, 0);
   // Total CalPERS % paid as ONE allowance (Roseville bucket + other-formula buckets stacked).
   const calpersTotalPct = pensionPct + otherCalpersFormulaPct;
   // Itemized CalPERS service components contributing toward the 90% cap (for display).
@@ -913,10 +1047,10 @@ export default function RFFRetirementCalculator() {
     })),
   ].map(c => ({ ...c, pct: c.yrs * c.factor }));
   const calpersRawPct = calpersComponents.reduce((s, c) => s + c.pct, 0);
-  const calpersOverCap = calpersRawPct > 0.90 + 1e-9;
+  const calpersOverCap = benefitIsCapped && calpersRawPct > benefitMaxPct + 1e-9;
   // PEPRA caps the pensionable compensation the pension is figured on; Classic is not capped this way.
-  const pensionableForPension = memberType === "pepra" ? Math.min(totalPensionableMonthly, peraCapMonthly) : totalPensionableMonthly;
-  const peraCapApplies = memberType === "pepra" && totalPensionableMonthly > peraCapMonthly;
+  const pensionableForPension = memberType === "pepra" ? Math.min(finalCompMonthly, peraCapMonthly) : finalCompMonthly;
+  const peraCapApplies = memberType === "pepra" && finalCompMonthly > peraCapMonthly;
   const pension50Monthly = pensionableForPension * pensionPct;     // Roseville-formula bucket (capped at 90%)
   const monthlyPension = pensionableForPension * calpersTotalPct;   // full CalPERS allowance (other formulas stacked on top)
   const annualPension = monthlyPension * 12;
@@ -982,7 +1116,7 @@ export default function RFFRetirementCalculator() {
   const totalCalpersYears = cityYOS + sameCalpersPriorYears;
   const medical = medicalTier === "4"
     ? { monthly: 0, vested: 1.0, ...tier4RHS }
-    : calcRetireeMedical(medicalTier, hireYear, retirementYear, cityYOS, totalCalpersYears);
+    : calcRetireeMedical(medicalTier, hireYear, retirementYear, cityYOS, totalCalpersYears, atNormalRetirementAge);
   // Member-chosen plan cost breakdown (Medical tab)
   const selectedPlanObj = MEDICAL_PLANS_2026.find(p => p.name === selectedMedicalPlan) || MEDICAL_PLANS_2026[0];
   const selectedPremium = selectedPlanObj[medicalCoverage] || selectedPlanObj.ee;
@@ -990,7 +1124,7 @@ export default function RFFRetirementCalculator() {
   const retireePremium = retireePlanObj[retireeCoverage] || retireePlanObj.ee;
   // Roseville split-payment: City pays the PEMHCA minimum straight to CalPERS, so CalPERS deducts only
   // the remaining premium from the pension check (City reimburses the rest separately).
-  const PEMHCA_MIN_MONTHLY = 162; // 2026 statutory minimum employer contribution paid to CalPERS
+  const PEMHCA_MIN_MONTHLY = pemhcaMinFor(retirementYear); // CalPERS sets this annually; see PEMHCA_MIN_BY_YEAR
   const calpersMedicalDeduction = Math.max(0, retireePremium - PEMHCA_MIN_MONTHLY);
   // City medical share per MOU Ch.4 Art.I §C: up to a % of the Kaiser premium for the tier, plus
   // $180 toward dental/vision. Unused amounts are NOT paid out (§C.5) — the member pays only the overage.
@@ -1021,7 +1155,11 @@ export default function RFFRetirementCalculator() {
   const cityMatchCurrentAnnual = currentServiceYears >= CITY_MATCH_MIN_YEARS ? baseSalary * 12 * CITY_MATCH_PCT : 0;
   // 457(b) COMBINED-LIMIT GUARD: in a 457(b) the City's 3% counts toward the SAME IRS annual limit
   // (NOT on top, unlike a 401k). So the member's own room = limit − City match. Cap the projection.
-  const memberMax457 = Math.max(0, MAX_457_ANNUAL - cityMatchAnnual);
+  // Ceiling for THIS member this year, including catch-ups. Age is taken at retirement,
+  // which is the year a member near the end is actually planning for.
+  const limit457ThisYear = max457For(Math.floor(retireAgeQ), normalRetirementAge, useSpecial457Catchup);
+  const memberMax457 = Math.max(0, limit457ThisYear - cityMatchAnnual);
+  const catchup457Available = limit457ThisYear - MAX_457_ANNUAL;
   const effectiveMember457 = Math.min(annual457Contrib, memberMax457);
   const member457OverLimit = annual457Contrib > memberMax457;
   const rate457 = returnRate / 100;
@@ -1049,16 +1187,18 @@ export default function RFFRetirementCalculator() {
   const depletionAge = effectiveDrawStartAge + years457Lasts;
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
+  // Hours the member holds that the MOU payoff table does not reach (above 2400).
+  const sickLeaveHoursAbovePayCap = Math.max(0, sickLeaveHoursToCash - SICK_LEAVE_PAYOFF_MAX_HOURS);
   // Pension boost from sick leave credit (monthly)
   const sickLeaveCreditMultiplier = memberType === "classic" ? CLASSIC_MULTIPLIER :
     Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
   // Marginal value of the sick-leave credit, respecting the 90% cap (zero once already capped).
-  const pensionPctNoCredit = Math.min(yearsOfService * sickLeaveCreditMultiplier, memberType === "classic" ? CLASSIC_MAX_PCT : 0.90);
+  const pensionPctNoCredit = Math.min(yearsOfService * sickLeaveCreditMultiplier, benefitMaxPct);
   const sickLeavePensionBoostMonthly = pensionableForPension * Math.max(0, pensionPct - pensionPctNoCredit);
   // Alternate values shown side-by-side for member comparison
   const altCashIfAllCash = calcSickLeavePayoff(sickLeaveHours, sickLeaveHourlyRate);
   // "All credit" comparison — marginal pension % gain over base service, respecting the 90% cap.
-  const altPctAllCredit = Math.min((yearsOfService + sickLeaveMaxCreditYears) * sickLeaveCreditMultiplier, memberType === "classic" ? CLASSIC_MAX_PCT : 0.90);
+  const altPctAllCredit = Math.min((yearsOfService + sickLeaveMaxCreditYears) * sickLeaveCreditMultiplier, benefitMaxPct);
   const altCreditIfAllCredit = Math.max(0, altPctAllCredit - pensionPctNoCredit);
   const altCreditMonthlyIfAllCredit = pensionableForPension * altCreditIfAllCredit;
   // Prior agency pension(s) from reciprocity — each prior system pays its own check.
@@ -1077,7 +1217,7 @@ export default function RFFRetirementCalculator() {
     const factor = priorYearFactor(r.formula, r.manualFactor, retireAgeQ);
     const compMonthly = calpers ? pensionableForPension
       : (r.useRosevilleComp !== false ? totalPensionableMonthly : (parseFloat(r.customComp) || 0));
-    const pct = sameFormula ? yrs * factor : Math.min(yrs * factor, CLASSIC_MAX_PCT);
+    const pct = sameFormula ? yrs * factor : Math.min(yrs * factor, formulaMaxPct(r.formula));
     const monthly = sameFormula ? 0 : compMonthly * pct;
     return { ...r, calpers, sameFormula, otherCalpers, compMonthly, yrs, factor, pct, monthly };
   });
@@ -1093,7 +1233,9 @@ export default function RFFRetirementCalculator() {
     ? `${pct(calpersTotalPct)} CalPERS + ${pct(priorPctOnRoseComp)} reciprocal = ${pct(combinedPensionPct)}`
     : pct(calpersTotalPct);
   // Total retirement income
-  const totalMonthly = monthlyPension + medical.monthly + monthly457 + priorPensionMonthly;
+  // Total retirement income. The City's retiree-medical contribution is NOT income: it only exists if you
+  // enroll in CalPERS medical and it is paid straight to the premium. It appears as an out-of-pocket cost below.
+  const totalMonthly = monthlyPension + monthly457 + priorPensionMonthly;
   const totalAnnual = totalMonthly * 12;
   // vs current — use today's base salary (not projected) for the take-home comparison
   const currentMonthlySalary = baseSalary * (1 + incentives.totalIncentivePct);
@@ -1179,22 +1321,28 @@ export default function RFFRetirementCalculator() {
   const retNetAll = retGrossTaxAll - retTaxAnnualAll;
   // Extra income net per month, folded into page one only when the opt-in box is on.
   const extraNetMonthly = foldExtraIncome ? extraIncomeAnnual * (1 - retEffRate) / 12 : 0;
-  // Retiree out-of-pocket medical (net premium after the City allowance) — member pays only the overage.
   const cityAllowance = medical.monthly; // City retiree-medical allowance from the existing hire-date tier model
-  const retireeMedicalOOP = Math.max(0, retireePremium - cityAllowance);
   const pensionTakeHome = Math.max(0, monthlyPension * (1 - retEffRate) - calpersMedicalDeduction);
   // Separate City reimbursement check = the City's allowance (up to the premium) minus the $162 it already sent CalPERS.
   const cityMedicalCheck = Math.max(0, Math.min(cityAllowance, retireePremium) - PEMHCA_MIN_MONTHLY);
+  // City's TOTAL toward the premium = the PEMHCA minimum it pays CalPERS directly + the separate check.
+  // For Tier 4 (no allowance) or any tier whose allowance is under the $162 minimum, this is still $162 —
+  // which is why out-of-pocket must net against this, not against the raw tier allowance.
+  const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck;
+  // Retiree out-of-pocket medical — the member pays only what the City's contribution doesn't cover.
+  const retireeMedicalOOP = Math.max(0, retireePremium - cityMedicalContribution);
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
   // check + (only when folded in) the net of any extra household income.
   const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly + (include457InTakeHome ? monthly457 * (1 - retEffRate) : 0);
   // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
-  const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck; // City's total toward premium (PEMHCA min + separate check)
   const ledgerExtraIncome = foldExtraIncome ? extraIncomeAnnual / 12 : 0;
-  const ledgerTotalIncome = monthlyPension + cityMedicalContribution + monthly457 + ledgerExtraIncome;
+  const ledgerTotalIncome = monthlyPension + monthly457 + ledgerExtraIncome;
   const ledger457TakeHome = monthly457 * (1 - retEffRate);
   const ledgerTax = (monthlyPension + monthly457 + ledgerExtraIncome) * retEffRate;
-  const ledgerBalance = ledgerTotalIncome - pensionTakeHome - cityMedicalCheck - ledger457TakeHome - extraNetMonthly - ledgerTax - retireePremium;
+  // One deposit line = PERS check + the separate City medical reimbursement, already net of what CalPERS withholds
+  // for the premium. Paired with retireeMedicalOOP on the outflow side, the ledger still nets to $0.
+  const ledgerPensionDeposit = pensionTakeHome + cityMedicalCheck;
+  const ledgerBalance = ledgerTotalIncome - ledgerPensionDeposit - ledger457TakeHome - extraNetMonthly - ledgerTax - retireeMedicalOOP;
   // True working take-home: base + incentives + your overtime, net of income tax (on salary+OT) and the
   // deductions already in currentTakeHome (PERS, 457, dues, medical). Overtime ends at retirement.
   const workingTakeHome = Math.max(0, currentTakeHome + otMonthly - taxSalaryOT.tax / 12);
@@ -1207,13 +1355,75 @@ export default function RFFRetirementCalculator() {
   const equivFull_4pct = totalAnnual / 0.04;
   const equiv401k_3pct = annualPension / 0.03;
   // COLA
-  const colaRate = memberType === "classic" ? 0.03 : 0.02;
+  // 3% for anyone who entered CalPERS membership before 12/16/2016, and for Classic members
+  // hired on/after. 2% only for PEPRA members hired on/after. See COLA_TIER_DATE above.
+  const colaRate = (hireDateObj < COLA_TIER_DATE || memberType === "classic") ? 0.03 : 0.02;
   // Realized COLA = the LESSER of the contracted cap and actual CPI. CalPERS pays up to your cap but never
   // more than inflation (a 3% cap only delivers 3% if CPI ≥ 3%); a 2% cap is limited to 2%. The timeline
   // uses this realistic rate. (Banking of unused CPI in high-inflation years is not modeled.)
   const cpiRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
   const effectiveColaRate = Math.min(colaRate, cpiRate);
   const colaYears = [5, 10, 15, 20, 25, 30];
+  const ADVANCED_TABS = ["inputs", "pension", "income", "timeline", "help"];
+  const isAdvancedTab = ADVANCED_TABS.includes(tab);
+  // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
+  // Re-runs the pension chain for any candidate retirement year, reusing the same
+  // projections, factors, caps and final-comp rules as the headline number. Tax uses the
+  // effective rate computed for the selected year — close enough to rank the years, and
+  // labelled as an estimate wherever it is shown.
+  const projectForYear = (y) => {
+    const retDate = new Date(y, retMonthNum - 1, retDayNum);
+    const yos = (retDate - hireDateObj) / MS_PER_YEAR;
+    if (yos <= 0) return null;
+    const ageExact = dobDate ? (retDate - dobDate) / MS_PER_YEAR : retirementAge + (y - retirementYear);
+    const ageQ = Math.max(0, Math.floor(ageExact * 4) / 4);
+    if (ageQ < 50) return null;                 // CalPERS safety minimum retirement age
+    const yrsToRet = Math.max(0, (retDate - NOW) / MS_PER_YEAR);
+    const slHours = currentSickLeaveHours + SICK_LEAVE_ANNUAL_ACCRUAL_HOURS * yrsToRet;
+    const slMaxCredit = slHours / SICK_LEAVE_HOURS_PER_YEAR_CREDIT;
+    const slCreditYrs = sickLeaveDisposition === "cash" ? 0
+      : sickLeaveDisposition === "credit" ? slMaxCredit
+      : Math.min(Math.max(sickLeaveCustomCreditYears, 0), slMaxCredit);
+    const slHoursCash = Math.max(0, slHours - slCreditYrs * SICK_LEAVE_HOURS_PER_YEAR_CREDIT);
+    const factor = memberType === "classic" ? CLASSIC_MULTIPLIER
+      : Math.min(ageQ >= 57 ? 0.027 : 0.020 + (ageQ - 50) * (0.007 / 7), 0.027);
+    const priorSame = priorService.reduce((acc, r) =>
+      (isCalpersFormula(r.formula) && r.formula === rosevilleFormulaKey)
+        ? acc + Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, ageQ) : acc, 0);
+    const priorOther = priorService.reduce((acc, r) =>
+      (isCalpersFormula(r.formula) && r.formula !== rosevilleFormulaKey)
+        ? acc + Math.min(Math.max(0, parseFloat(r.years) || 0) * priorYearFactor(r.formula, r.manualFactor, ageQ), formulaMaxPct(r.formula)) : acc, 0);
+    const pPct = Math.min((yos + slCreditYrs + airtimeYears) * factor + priorSame, benefitMaxPct);
+    const fcRaw = memberType === "classic" ? pensionableForYear(y)
+      : (pensionableForYear(y) + pensionableForYear(y - 1) + pensionableForYear(y - 2)) / 3;
+    const capM = (PEPRA_COMP_CAP_2026 * Math.pow(1 + PEPRA_CAP_COLA, Math.max(0, y - 2026))) / 12;
+    const fc = memberType === "pepra" ? Math.min(fcRaw, capM) : fcRaw;
+    const pension = fc * (pPct + priorOther);
+    const slRate = (projectedBaseForYear(y) * (1 + (showLongevity ? LONGEVITY(yos) : 0))) / FLSA_56HR_MONTHLY_HOURS;
+    const sickCash = calcSickLeavePayoff(slHoursCash, slRate);
+    const med = medicalTier === "4"
+      ? { monthly: 0 }
+      : calcRetireeMedical(medicalTier, hireYear, y, Math.floor(yos), Math.floor(yos) + sameCalpersPriorYears, ageQ >= normalRetirementAge);
+    const pemhca = pemhcaMinFor(y);
+    const cityContrib = pemhca + Math.max(0, Math.min(med.monthly, retireePremium) - pemhca);
+    const medOOP = Math.max(0, retireePremium - cityContrib);
+    const tax = pension * retEffRate;
+    const takeHome = Math.max(0, pension - tax - medOOP);
+    return { year: y, age: ageQ, yos, pensionPct: pPct + priorOther, finalComp: fc,
+      pension, tax, medOOP, takeHome, sickCash, slCreditYrs, slHours, atCap: benefitIsCapped && pPct >= benefitMaxPct - 1e-9 };
+  };
+  const retireYearOptions = (() => {
+    const out = [];
+    for (let y = NOW.getFullYear(); y <= NOW.getFullYear() + 12; y++) {
+      const p = projectForYear(y);
+      if (p) out.push(p);
+    }
+    return out;
+  })();
+  const selectedYearRow = retireYearOptions.find(r => r.year === retirementYear) || null;
+  const earliestRow = retireYearOptions[0] || null;
+  // The year the Classic 90% cap first binds — after this, more service adds nothing.
+  const capYearRow = benefitIsCapped ? retireYearOptions.find(r => r.atCap) : null;
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={styles.app}>
@@ -1222,7 +1432,7 @@ export default function RFFRetirementCalculator() {
         {menuOpen && (
           <div style={{ position: "absolute", top: "42px", right: 0, background: "#17171b", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "6px", minWidth: "190px", boxShadow: "0 10px 30px rgba(0,0,0,0.55)" }}>
             <button onClick={() => { setMenuOpen(false); window.print(); }} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: COLORS.text, padding: "10px 12px", fontSize: "13px", cursor: "pointer", borderRadius: "6px" }}>Print / Save PDF</button>
-            <a href={`mailto:?subject=${encodeURIComponent("My RFF Retirement Estimate")}&body=${encodeURIComponent(`Estimated total monthly income: ${fmt(totalMonthly)}\nMonthly pension: ${fmt(combinedPensionMonthly)}\n457 at retirement: ${fmt(value457)}\nReplacement: ${(retirementVsWorking * 100).toFixed(0)}% of current pay\n\nFrom the RFF Retirement Calculator — https://1592treasurer.github.io/RFF-retirement-calculator/ (estimates only)`)}`} onClick={() => setMenuOpen(false)} style={{ display: "block", width: "100%", textAlign: "left", color: COLORS.text, padding: "10px 12px", fontSize: "13px", textDecoration: "none", borderRadius: "6px" }}>Email me this</a>
+            <a href={`mailto:?subject=${encodeURIComponent("My RFF Retirement Estimate")}&body=${encodeURIComponent(`Estimated total monthly income: ${fmt(totalMonthly)}\nMonthly pension: ${fmt(combinedPensionMonthly)}\n457 at retirement: ${fmt(value457)}\nReplacement: ${(retirementVsWorking * 100).toFixed(0)}% of current pay\n\nFrom the RFF Retirement Calculator — https://neitling78.github.io/Roseville-Fire-Retirement-Calculator/ (estimates only)`)}`} onClick={() => setMenuOpen(false)} style={{ display: "block", width: "100%", textAlign: "left", color: COLORS.text, padding: "10px 12px", fontSize: "13px", textDecoration: "none", borderRadius: "6px" }}>Email me this</a>
           </div>
         )}
       </div>
@@ -1260,15 +1470,369 @@ export default function RFFRetirementCalculator() {
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "nowrap", gap: isMobile ? "8px" : "10px" }}>
-          {["inputs", "pension", "medical", "income", "timeline", "help"].map(t => (
-            <button key={t} style={{ ...styles.tab(tab === t), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-              {{ inputs: isMobile ? "Overview" : "1 · Retirement Overview", pension: isMobile ? "Pension" : "2 · Pension Details", medical: isMobile ? "Med" : "3 · Medical", income: isMobile ? "Income" : "4 · Additional Income & Tax", timeline: isMobile ? "Timeline" : "5 · Income Timeline", help: isMobile ? "Guide" : "Guide" }[t]}
-            </button>
-          ))}
+          {["start", "wait", "sickleave", "medical", "advanced"].map(t => {
+            const active = t === "advanced" ? isAdvancedTab : tab === t;
+            return (
+              <button key={t} style={{ ...styles.tab(active), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }}
+                onClick={() => setTab(t === "advanced" ? "inputs" : t)}>
+                {{ start: isMobile ? "Start" : "Start here", wait: isMobile ? "Wait?" : "What if I wait?", sickleave: isMobile ? "Sick" : "Sick leave", medical: isMobile ? "Med" : "Medical", advanced: isMobile ? "More" : "Everything else" }[t]}
+              </button>
+            );
+          })}
         </div>
+        {isAdvancedTab && (
+          <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
+            {["inputs", "pension", "income", "timeline", "help"].map(t => (
+              <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
+                {{ inputs: "All inputs", pension: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ ...styles.grid, gridTemplateColumns: "1fr" }}>
           {/* LEFT PANEL */}
           <div>
+            {/* ═══════════════ START HERE ═══════════════ */}
+            {tab === "start" && (
+              <>
+                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Five questions</p>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                    Everything else in this tool is worked out from these. Answer them and you get a real number;
+                    leave them and you get nothing, which is better than getting somebody else's retirement.
+                  </div>
+
+                  <label style={styles.label}>1 · What do you do?</label>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "8px", marginBottom: "14px" }}>
+                    <select style={styles.select} value={classification} onChange={e => { setClassification(e.target.value); setSetupDone(true); }}>
+                      {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <select style={styles.select} value={salaryStep} onChange={e => { setSalaryStep(e.target.value); setSetupDone(true); }}>
+                      {Object.keys(activeSchedule[classification]?.steps || {}).map(st =>
+                        <option key={st} value={st}>Step {st}</option>)}
+                    </select>
+                  </div>
+
+                  <label style={styles.label}>2 · When were you born?</label>
+                  <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
+                    onChange={e => { setDob(e.target.value); setSetupDone(true); }} />
+
+                  <label style={styles.label}>3 · When did Roseville hire you?</label>
+                  <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={hireDate}
+                    onChange={e => { setHireDate(e.target.value); setSetupDone(true); }} />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px" }}>
+                    <span style={{ ...styles.badge, ...styles.badgeGreen }}>{memberType === "classic" ? "Classic · 3% @ 50" : "PEPRA · 2.7% @ 57"}</span>
+                    <span style={{ ...styles.badge, ...styles.badgeGreen }}>Schedule {scheduleLetter}</span>
+                    <span style={{ ...styles.badge, ...styles.badgeGreen }}>Medical Tier {medicalTier}</span>
+                    <span style={{ ...styles.badge, ...styles.badgeGreen }}>{pct(colaRate)} COLA</span>
+                    <span style={{ ...styles.badge, ...styles.badgeGreen }}>{showLongevity ? "Longevity pay" : "Service term bonus"}</span>
+                  </div>
+
+                  <label style={styles.label}>4 · When do you plan to go?</label>
+                  <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
+                    onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px" }}>
+                    Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
+                    {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
+                  </div>
+
+                  <label style={styles.label}>5 · Sick leave hours on the books today</label>
+                  <input type="number" style={{ ...styles.input, marginBottom: "6px" }} value={currentSickLeaveHours || ""}
+                    placeholder="e.g. 1800" onChange={e => { setCurrentSickLeaveHours(+e.target.value || 0); setSetupDone(true); }} />
+                  <div style={{ fontSize: "11px", color: COLORS.textDim }}>
+                    Projected to {sickLeaveHours.toFixed(0)} hrs at retirement. What you do with them is its own
+                    screen — see <strong>Sick leave</strong> above.
+                  </div>
+                </div>
+
+                {!setupDone && (
+                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: "40px", marginBottom: "8px", opacity: 0.35 }}>—</div>
+                    <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
+                      Answer the five questions above and your number appears here.
+                      <br /><br />
+                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
+                        Nothing you type leaves your browser. There is no account and no server.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {setupDone && !datesInvalid && (
+                  <>
+                    <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Your number</p>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
+                        Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
+                      </div>
+
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Gross CalPERS pension <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(combinedPensionPct)} of final comp</span></span>
+                        <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}</span>
+                      </div>
+                      {monthly457 > 0 && include457InTakeHome && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>457 draw <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {retireDrawRate}%/yr</span></span>
+                          <span style={styles.tableValAccent}>{fmt(monthly457)}</span>
+                        </div>
+                      )}
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· est. {pct(retEffRate)}, {stateName}</span></span>
+                        <span style={styles.tableVal}>−{fmt(combinedPensionMonthly * retEffRate)}</span>
+                      </div>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket</span></span>
+                        <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
+                      </div>
+                      <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
+                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
+                        <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(totalMonthlyTakeHome)}/mo</span>
+                      </div>
+
+                      <div style={{ marginTop: "16px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Working today, after everything</span>
+                          <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
+                        </div>
+                        <div style={styles.tableRowLast}>
+                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Difference</span>
+                          <span style={{ fontWeight: 800, fontSize: "17px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
+                            {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                          Both figures are take-home, not gross. In retirement you stop paying the
+                          {memberType === "classic" ? " 9% " : " 11.5% "} CalPERS member contribution,
+                          union dues, and the active medical premium — which is why the gap is smaller than
+                          the raw salary difference makes it look.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.card}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Also waiting for you at retirement</p>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Sick leave — {sickLeaveDisposition === "cash" ? "cashed out" : sickLeaveDisposition === "credit" ? "converted to service credit" : "split"}</span>
+                        <span style={styles.tableValGreen}>
+                          {sickLeaveCreditYears > 0 && <>+{sickLeaveCreditYears.toFixed(2)} yrs</>}
+                          {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " · "}
+                          {sickLeavePayoff > 0 && fmt(sickLeavePayoff)}
+                          {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && "—"}
+                        </span>
+                      </div>
+                      {value457 > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>457 balance</span>
+                          <span style={styles.tableValGreen}>{fmt(value457)}</span>
+                        </div>
+                      )}
+                      {medicalTier === "4" && medical.rhsBalance > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>RHS account (Tier 4)</span>
+                          <span style={styles.tableValGreen}>{fmt(medical.rhsBalance)}</span>
+                        </div>
+                      )}
+                      <div style={styles.tableRowLast}>
+                        <span style={styles.tableKey}>Annual COLA on the pension</span>
+                        <span style={styles.tableValGreen}>up to {pct(colaRate)}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                        {benefitIsCapped ? (
+                          <div style={{ marginBottom: "8px" }}>
+                            ▸ Your formula caps at <strong style={{ color: COLORS.text }}>90% of final compensation</strong>, reached at 30 years.
+                            {capYearRow
+                              ? <> You hit it in <strong style={{ color: COLORS.gold }}>{capYearRow.year}</strong> — service past that point adds nothing to the pension.</>
+                              : <> You are at {pct(pensionPct)} and not there yet.</>}
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: "8px" }}>
+                            ▸ <strong style={{ color: COLORS.text }}>2.7% @ 57 has no cap.</strong> Every extra year is worth another
+                            {" "}{pct(rosevilleFactor)} of final compensation, for life. Older versions of this tool stopped you at 90% — that was wrong.
+                          </div>
+                        )}
+                        <div>
+                          ▸ {memberType === "classic"
+                            ? <>Your pension is figured on your <strong style={{ color: COLORS.text }}>highest 12 months</strong> of pensionable pay.</>
+                            : <>Your pension is figured on a <strong style={{ color: COLORS.text }}>36-month average</strong>, not your last year — so the MOU raises in 2026–2028 reach you slower than your paycheck suggests.</>}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ═══════════════ WHAT IF I WAIT ═══════════════ */}
+            {tab === "wait" && (
+              <div style={styles.card}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What if I wait?</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                  The same calculation run for every year you could go. Your selected year is highlighted.
+                  Tap any year to make it your plan.
+                </div>
+                {!setupDone && (
+                  <div style={{ fontSize: "13px", color: COLORS.textMuted, padding: "24px", textAlign: "center" }}>
+                    Answer the five questions on <strong>Start here</strong> first.
+                  </div>
+                )}
+                {setupDone && retireYearOptions.length === 0 && (
+                  <div style={{ fontSize: "13px", color: COLORS.textMuted, padding: "24px", textAlign: "center" }}>
+                    No eligible years in the next 12 — safety members cannot draw a pension before age 50.
+                  </div>
+                )}
+                {setupDone && retireYearOptions.length > 0 && (
+                  <>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "13px" }}>
+                        <thead>
+                          <tr style={{ color: COLORS.textMuted, textAlign: "right" }}>
+                            <th style={{ textAlign: "left", padding: "6px 4px", fontWeight: 600 }}>Go in</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Age</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Yrs</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>%</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {retireYearOptions.map(r => {
+                            const isSel = r.year === retirementYear;
+                            const delta = earliestRow ? r.takeHome - earliestRow.takeHome : 0;
+                            return (
+                              <tr key={r.year}
+                                onClick={() => { setRetirementDateOverride(`${r.year}-${String(retMonthNum).padStart(2, "0")}-${String(retDayNum).padStart(2, "0")}`); setSetupDone(true); }}
+                                style={{ cursor: "pointer", textAlign: "right",
+                                  background: isSel ? "rgba(210,31,51,0.16)" : "transparent",
+                                  borderTop: `1px solid ${COLORS.border}` }}>
+                                <td style={{ textAlign: "left", padding: "9px 4px", fontWeight: isSel ? 800 : 600, color: isSel ? COLORS.accent : COLORS.text }}>
+                                  {r.year}{r.atCap ? " ▪" : ""}
+                                </td>
+                                <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{Math.floor(r.age)}</td>
+                                <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.yos.toFixed(1)}</td>
+                                <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{pct(r.pensionPct)}</td>
+                                <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.takeHome)}</td>
+                                <td style={{ padding: "9px 4px", color: delta > 0 ? COLORS.green : COLORS.textDim }}>
+                                  {delta > 0 ? "+" : ""}{delta === 0 ? "—" : fmt(delta)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                      {benefitIsCapped && capYearRow && <>▪ marks the year you reach the 90% cap. Waiting past {capYearRow.year} raises your pension only through pay increases and COLA, not service.<br /></>}
+                      {!benefitIsCapped && <>Your formula has no cap, so every row keeps climbing.<br /></>}
+                      Take-home is gross pension less estimated income tax and your retiree medical
+                      out-of-pocket. The tax rate is the one computed for your selected year, applied
+                      across all rows — good enough to rank the years, not a tax return. These are
+                      future dollars, not today's.
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ═══════════════ SICK LEAVE ═══════════════ */}
+            {tab === "sickleave" && (
+              <>
+                <div style={styles.card}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Cash or credit?</p>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                    This is the one retirement decision you cannot undo, and for most members it is worth
+                    five figures. Your CalPERS contract (¶11.e, Gov. Code §20965) lets unused sick leave
+                    become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
+                    out instead, on a sliding scale. You cannot do both with the same hours.
+                  </div>
+                  <label style={styles.label}>Sick leave hours today</label>
+                  <input type="number" style={{ ...styles.input, marginBottom: "10px" }} value={currentSickLeaveHours || ""}
+                    placeholder="e.g. 1800" onChange={e => { setCurrentSickLeaveHours(+e.target.value || 0); setSetupDone(true); }} />
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
+                    Projected to <strong style={{ color: COLORS.gold }}>{sickLeaveHours.toFixed(0)} hrs</strong> by {retirementYear},
+                    accruing at {SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr.
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
+                    <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "16px", border: `1px solid ${COLORS.border}` }}>
+                      <div style={styles.metricLabel}>All cash</div>
+                      <div style={{ fontSize: "24px", fontWeight: 800, color: COLORS.green, margin: "4px 0" }}>{fmt(altCashIfAllCash)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>
+                        One-time payment. Taxable in the year you get it.
+                        {sickLeaveHours > SICK_LEAVE_PAYOFF_MAX_HOURS && (
+                          <div style={{ color: COLORS.gold, marginTop: "6px" }}>
+                            ⚠ Only {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} of your {sickLeaveHours.toFixed(0)} hours
+                            are payable — the MOU table stops there.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ background: "rgba(16,185,129,0.06)", borderRadius: "10px", padding: "16px", border: `1px solid rgba(16,185,129,0.25)` }}>
+                      <div style={styles.metricLabel}>All service credit</div>
+                      <div style={{ fontSize: "24px", fontWeight: 800, color: COLORS.green, margin: "4px 0" }}>{fmt(altCreditMonthlyIfAllCredit)}/mo</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>
+                        +{sickLeaveMaxCreditYears.toFixed(2)} years of service, for life, with COLA.
+                        {benefitIsCapped && altCreditMonthlyIfAllCredit <= 0 && (
+                          <div style={{ color: COLORS.gold, marginTop: "6px" }}>
+                            ⚠ You are already at the 90% cap — extra service credit adds nothing.
+                            Cash is the better choice.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {altCreditMonthlyIfAllCredit > 0 && altCashIfAllCash > 0 && (
+                    <div style={{ marginTop: "14px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                      <strong style={{ color: COLORS.text }}>Break-even:</strong> the credit overtakes the cash after
+                      {" "}<strong style={{ color: COLORS.gold }}>{(altCashIfAllCash / (altCreditMonthlyIfAllCredit * 12)).toFixed(1)} years</strong> of
+                      retirement — around age {Math.floor(retireAgeQ + altCashIfAllCash / (altCreditMonthlyIfAllCredit * 12))}.
+                      Live past that and the credit wins, and it keeps winning, because it has a COLA and
+                      the cash does not. Before that, the cash is ahead.
+                      <div style={{ marginTop: "8px", color: COLORS.textDim }}>
+                        This ignores what you could earn by investing the cash, and it ignores tax — the lump sum
+                        lands in one year and may push you into a higher bracket.
+                      </div>
+                    </div>
+                  )}
+
+                  <label style={{ ...styles.label, marginTop: "18px" }}>What do you want to do?</label>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {[["credit", "All credit"], ["cash", "All cash"], ["split", "Split them"]].map(([k, lbl]) => (
+                      <button key={k} onClick={() => { setSickLeaveDisposition(k); setSetupDone(true); }}
+                        style={{ ...styles.tab(sickLeaveDisposition === k), flex: "1 1 30%", padding: "10px", fontSize: "13px" }}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  {sickLeaveDisposition === "split" && (
+                    <div style={{ marginTop: "12px" }}>
+                      <label style={styles.label}>Years to service credit: {sickLeaveCustomCreditYears.toFixed(2)} of {sickLeaveMaxCreditYears.toFixed(2)}</label>
+                      <input type="range" min={0} max={Math.max(0.01, sickLeaveMaxCreditYears)} step={0.05}
+                        value={Math.min(sickLeaveCustomCreditYears, sickLeaveMaxCreditYears)}
+                        onChange={e => setSickLeaveCustomCreditYears(+e.target.value)}
+                        style={{ width: "100%", accentColor: COLORS.accent }} />
+                    </div>
+                  )}
+                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
+                    <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
+                    {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
+                    {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
+                    {sickLeavePayoff > 0 && <> {fmt(sickLeavePayoff)} cash</>}
+                    {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && " nothing yet — enter your hours above."}
+                  </div>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                    Cash percentages come from the MOU table (Ch. 3, Art. III) and depend on your total balance —
+                    70% at 1,800 hours and up, less below that. Confirm your own balance and the City's reading of
+                    the table with the Treasurer before you commit.
+                  </div>
+                </div>
+              </>
+            )}
+
             {tab === "inputs" && (
               <>
                 {/* Privacy + Reset bar */}
@@ -1313,11 +1877,12 @@ export default function RFFRetirementCalculator() {
                     </div>
                     <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                       <span style={{ ...styles.badge, ...styles.badgeGreen }}>{yearsOfService.toFixed(1)} yrs at retirement</span>
+                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>Schedule {scheduleLetter}</span>
                       <span style={{ ...styles.badge, ...styles.badgeGreen }}>Medical Tier {medicalTier}</span>
                       <span style={{ fontSize: "11px", color: COLORS.textMuted }}>
                         {medicalTier === "1" ? "Pre-2004 · $1,200 base" :
                           medicalTier === "2" ? "2004–2011 · $1,200 base + vesting" :
-                            medicalTier === "3" ? "2012–2014 · $720 base + vesting" :
+                            medicalTier === "3" ? "1/2012–8/14/2015 · $720 base + vesting" :
                               "2015+ · RHS account"}
                       </span>
                     </div>
@@ -1474,7 +2039,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Classification</label>
                     <select style={styles.select} value={classification} onChange={e => setClassification(e.target.value)}>
-                      {Object.keys(SALARY_SCHEDULE).map(c => <option key={c}>{c}</option>)}
+                      {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   </>)}
@@ -1487,7 +2052,7 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>Salary Step</label>
                       <select style={styles.select} value={salaryStep} onChange={e => setSalaryStep(e.target.value)}>
-                        {Object.keys(SALARY_SCHEDULE[classification]?.steps || {}).map(s =>
+                        {Object.keys(activeSchedule[classification]?.steps || {}).map(s =>
                           <option key={s}>{s}</option>)}
                       </select>
                     </div>
@@ -1740,9 +2305,18 @@ export default function RFFRetirementCalculator() {
                         {sickLeaveHoursToCash > 0 && (
                           <>
                             <div style={styles.tableRow}>
-                              <span style={styles.tableKey}>→ Cash Hours ({sickLeaveHoursToCash.toFixed(0)} hrs at {pct(SICK_LEAVE_TIERS.find(t => sickLeaveHoursToCash >= t.min && sickLeaveHoursToCash <= t.max)?.pct || 0)})</span>
+                              <span style={styles.tableKey}>→ Cash Hours ({Math.min(sickLeaveHoursToCash, SICK_LEAVE_PAYOFF_MAX_HOURS).toFixed(0)} hrs at {pct(SICK_LEAVE_TIERS.find(t => sickLeaveHoursToCash >= t.min && sickLeaveHoursToCash <= t.max)?.pct || 0)})</span>
                               <span style={styles.tableValGreen}>{fmt(sickLeavePayoff)}</span>
                             </div>
+                            {sickLeaveHoursAbovePayCap > 0 && (
+                              <div style={{ fontSize: "11px", color: COLORS.gold, padding: "8px", marginTop: "4px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "6px", lineHeight: 1.6 }}>
+                                ⚠ <strong>{sickLeaveHoursAbovePayCap.toFixed(0)} hours are not being cashed out.</strong> The MOU payoff
+                                table (Ch. 3, Art. III) tops out at {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours for 24-hour shift
+                                employees — the band reads "1800 to 2400" under a column headed "Max." Hours above that are worth
+                                nothing as cash, but they still convert to service credit at
+                                2,000 hrs = 1 year. Confirm the City's reading with the Treasurer before you rely on either number.
+                              </div>
+                            )}
                           </>
                         )}
                         {sickLeaveCreditYears === 0 && sickLeaveHoursToCash === 0 && (
@@ -1849,19 +2423,13 @@ export default function RFFRetirementCalculator() {
                     <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(ledgerTotalIncome)}</span>
                   </div>
                   <div style={{ fontSize: "10px", color: COLORS.textDim, margin: "4px 0 12px", lineHeight: 1.5 }}>
-                    Gross PERS benefit {fmt(monthlyPension)} + City medical contribution {fmt(cityMedicalContribution)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}{foldExtraIncome && extraIncomeAnnual > 0 ? ` + extra income ${fmt(extraIncomeAnnual / 12)}` : ""}
+                    Gross PERS benefit {fmt(monthlyPension)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}{foldExtraIncome && extraIncomeAnnual > 0 ? ` + extra income ${fmt(extraIncomeAnnual / 12)}` : ""}
                   </div>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.green, marginBottom: "4px" }}>Money you keep</div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>PERS direct deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax &amp; medical</span></span>
-                    <span style={styles.tableValGreen}>−{fmt(pensionTakeHome)}</span>
+                    <span style={styles.tableKey}>PERS deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax &amp; medical</span></span>
+                    <span style={styles.tableValGreen}>−{fmt(ledgerPensionDeposit)}</span>
                   </div>
-                  {cityMedicalCheck > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>City medical check <span style={{ fontSize: "10px", color: COLORS.textDim }}>· separate deposit</span></span>
-                      <span style={styles.tableValGreen}>−{fmt(cityMedicalCheck)}</span>
-                    </div>
-                  )}
                   {monthly457 > 0 && (
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
@@ -1880,15 +2448,15 @@ export default function RFFRetirementCalculator() {
                     <span style={styles.tableVal}>−{fmt(ledgerTax)}</span>
                   </div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Health insurance premium <span style={{ fontSize: "10px", color: COLORS.textDim }}>· full plan cost</span></span>
-                    <span style={styles.tableVal}>−{fmt(retireePremium)}</span>
+                    <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket · detail on Medical tab</span></span>
+                    <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
                   </div>
                   <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "8px", paddingTop: "10px" }}>
                     <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Balance</span>
                     <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(Math.abs(ledgerBalance) < 0.5 ? 0 : ledgerBalance)}</span>
                   </div>
                   <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: "1.6" }}>
-                    Every dollar is accounted for: what you keep (deposits) + what's paid out (taxes &amp; premium) = total income, so it nets to $0. Tax is estimated monthly withholding (no HELPS); your situation may differ.
+                    Every dollar is accounted for: what you keep (deposits) + what's paid out (taxes &amp; your medical share) = total income, so it nets to $0. The City's retiree-medical contribution is not counted as income — it only exists if you take CalPERS medical and it goes straight to the premium, so only your out-of-pocket share shows here. Full premium and City contribution detail is on the Medical tab. Tax is estimated monthly withholding (no HELPS); your situation may differ.
                   </div>
 
                   {(sickLeavePayoff > 0 || value457 > 0 || priorPensionMonthly > 0) && (<>
@@ -2000,9 +2568,25 @@ export default function RFFRetirementCalculator() {
                     </>
                   )}
                   <div style={styles.tableRow}>
-                    <span style={{ ...styles.tableKey, fontWeight: "700", color: COLORS.text }}>Total Pensionable Comp</span>
+                    <span style={{ ...styles.tableKey, fontWeight: "700", color: COLORS.text }}>Total Pensionable Comp <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· final year</span></span>
                     <span style={{ ...styles.tableValGold, fontSize: "15px" }}>{fmt(totalPensionableMonthly)}/mo</span>
                   </div>
+                  <div style={styles.tableRow}>
+                    <span style={{ ...styles.tableKey, fontWeight: "700", color: COLORS.text }}>
+                      Final Compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>
+                        · {memberType === "classic" ? "highest 12 months" : "highest 36-month average"}</span>
+                    </span>
+                    <span style={{ ...styles.tableValAccent, fontSize: "15px" }}>{fmt(finalCompMonthly)}/mo</span>
+                  </div>
+                  {memberType !== "classic" && finalCompAveragingDrag > 1 && (
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "2px 0 8px", lineHeight: 1.6 }}>
+                      PEPRA pensions are figured on a <strong>36-month average</strong>, not your last year
+                      (Gov. Code §7522.32). With the MOU raises stacked in 2026–2028 your final year sits
+                      about <strong style={{ color: COLORS.gold }}>{fmt(finalCompAveragingDrag)}/mo</strong> above
+                      that average, so the pension is figured on the lower number. Classic members get
+                      one-year final comp instead (CalPERS contract ¶11.h — classic members only).
+                    </div>
+                  )}
                   {sickLeaveCreditYears > 0 && (
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>Sick Leave → Service Credit</span>
@@ -2023,6 +2607,13 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.bigNumber}>{fmt(combinedPensionMonthly)}</div>
                   <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "8px" }}>
                     {fmt(combinedPensionMonthly * 12)} / year · up to {pct(colaRate)} COLA
+                    <span style={{ display: "block", fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>
+                      {hireDateObj < COLA_TIER_DATE
+                        ? "3% — you entered CalPERS membership before 12/16/2016 (MOU Ch.5 Art.I.F; CalPERS contract ¶11.j)"
+                        : (memberType === "classic"
+                          ? "3% — Classic member hired on/after 12/16/2016 (MOU Ch.5 Art.I.F)"
+                          : "2% — PEPRA member hired on/after 12/16/2016 (CalPERS contract ¶11.m)")}
+                    </span>
                   </div>
                   {priorPensionMonthly > 0 && (
                     <div style={{ color: COLORS.textDim, fontSize: "12px", marginTop: "4px" }}>
@@ -2039,7 +2630,7 @@ export default function RFFRetirementCalculator() {
                   <div style={{ marginBottom: "20px" }}>
                     <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "10px" }}>Pension by department</div>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} · {pct(pensionPct)}{pensionPct >= 0.90 ? " (at 90% cap)" : ""}</span>
+                      <span style={styles.tableKey}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} · {pct(pensionPct)}{benefitIsCapped && pensionPct >= benefitMaxPct ? " (at 90% cap)" : ""}</span>
                       <span style={styles.tableValAccent}>{fmt(pension50Monthly)}/mo</span>
                     </div>
                     {priorServiceCalc.filter(r => r.sameFormula).map((r, i) => (
@@ -2095,8 +2686,9 @@ export default function RFFRetirementCalculator() {
                 )}
                 {(() => {
                   const factor = memberType === "classic" ? 0.03 : Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
-                  const fillPct = Math.min(100, (pensionPct / 0.90) * 100);
-                  const yearsToCap = factor > 0 ? Math.max(0, (0.90 - pensionPct) / factor) : 0;
+                  const capTarget = benefitIsCapped ? benefitMaxPct : 1.00;
+                  const fillPct = Math.min(100, (pensionPct / capTarget) * 100);
+                  const yearsToCap = (benefitIsCapped && factor > 0) ? Math.max(0, (benefitMaxPct - pensionPct) / factor) : 0;
                   return (
                     <div style={{ marginBottom: "20px" }}>
                       <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "10px" }}>Pension formula vs. the 90% cap</div>
@@ -2109,7 +2701,9 @@ export default function RFFRetirementCalculator() {
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim, marginTop: "8px" }}>
                         <span>{pct(pensionPct)} of final pay</span>
-                        <span>{pensionPct >= 0.90 ? "at the cap — extra service adds nothing" : `~${yearsToCap.toFixed(1)} more yrs to the cap`}</span>
+                        <span>{!benefitIsCapped
+                          ? `no cap on 2.7% @ 57 — each added year is worth ${pct(factor)} more`
+                          : (pensionPct >= benefitMaxPct ? "at the cap — extra service adds nothing" : `~${yearsToCap.toFixed(1)} more yrs to the cap`)}</span>
                       </div>
                     </div>
                   );
@@ -2249,7 +2843,7 @@ export default function RFFRetirementCalculator() {
                             <label style={styles.label}>To Classification</label>
                             <select style={styles.select} value={promotionClassification}
                               onChange={e => setPromotionClassification(e.target.value)}>
-                              {Object.keys(SALARY_SCHEDULE).map(c => <option key={c}>{c}</option>)}
+                              {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
                             </select>
                           </div>
                         </div>
@@ -2257,7 +2851,7 @@ export default function RFFRetirementCalculator() {
                           <label style={styles.label}>Step at Promotion</label>
                           <select style={styles.select} value={promotionStep}
                             onChange={e => setPromotionStep(e.target.value)}>
-                            {Object.keys(SALARY_SCHEDULE[promotionClassification]?.steps || {}).map(s =>
+                            {Object.keys(activeSchedule[promotionClassification]?.steps || {}).map(s =>
                               <option key={s}>{s}</option>)}
                           </select>
                         </div>
@@ -2403,7 +2997,7 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
                     <div style={styles.tableRow}><span style={styles.tableKey}>{retireeMedicalPlan} premium</span><span style={styles.tableVal}>{fmt(retireePremium)}/mo</span></div>
-                    <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong></span><span style={styles.tableValAccent}>{fmt(Math.max(0, retireePremium - medical.monthly))}/mo</span></div>
+                    <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>· the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
                   </>
                 )}
                 <p style={{ ...styles.cardTitle, marginTop: "18px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
@@ -2467,6 +3061,25 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Your annual contribution: {fmt(effectiveMember457)}</label>
                     <input type="range" min={0} max={memberMax457 || MAX_457_ANNUAL} step={500} value={Math.min(annual457Contrib, memberMax457 || MAX_457_ANNUAL)} onChange={e => setAnnual457Contrib(+e.target.value || 0)} style={{ width: "100%", accentColor: COLORS.accent }} />
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "6px", lineHeight: 1.6 }}>
+                      2026 ceiling at age {Math.floor(retireAgeQ)}: <strong style={{ color: COLORS.gold }}>{fmt(limit457ThisYear)}</strong>
+                      {catchup457Available > 0 && <span> — base {fmt(MAX_457_ANNUAL)} + {fmt(catchup457Available)} catch-up</span>}
+                      {cityMatchAnnual > 0 && <span> · less the City's {fmt(cityMatchAnnual)} match leaves you {fmt(memberMax457)}</span>}
+                    </div>
+                    {Math.floor(retireAgeQ) >= normalRetirementAge - 3 && Math.floor(retireAgeQ) < normalRetirementAge && (
+                      <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginTop: "10px", fontSize: "12px", color: COLORS.text, cursor: "pointer" }}>
+                        <input type="checkbox" checked={useSpecial457Catchup} onChange={e => setUseSpecial457Catchup(e.target.checked)} style={{ marginTop: "3px", accentColor: COLORS.accent }} />
+                        <span>
+                          Use the <strong>457(b) three-year pre-retirement catch-up</strong> — up to {fmt(MAX_457_SPECIAL_3YR)} this year.
+                          <span style={{ display: "block", color: COLORS.textDim, fontSize: "11px", marginTop: "2px" }}>
+                            A one-time election available only in the three years before normal retirement age
+                            (age {normalRetirementAge} for you). It cannot be combined with the age-based catch-up —
+                            you take the greater. Limited to what you under-contributed in earlier years, so confirm
+                            your own figure with the plan administrator.
+                          </span>
+                        </span>
+                      </label>
+                    )}
                   </div>
                   <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
                     <div style={styles.tableRow}>
@@ -2642,7 +3255,6 @@ export default function RFFRetirementCalculator() {
                 {(() => {
                   const parts = [
                     { v: monthlyPension, c: COLORS.accent, label: "Pension" },
-                    { v: medical.monthly, c: COLORS.green, label: "Medical subsidy" },
                     { v: monthly457, c: COLORS.blue, label: "457 (4% draw)" },
                     { v: priorPensionMonthly, c: COLORS.gold, label: "Prior service" },
                   ].filter(p => p.v > 0);
@@ -2662,11 +3274,9 @@ export default function RFFRetirementCalculator() {
                     </div>
                   );
                 })()}
-                {medicalTier === "4" && (
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "-8px", marginBottom: "16px", lineHeight: "1.6" }}>
-                    Tier 4 medical is a one-time RHS account ({fmt(medical.rhsBalance)}), not a monthly subsidy — so it isn't shown in the donut above.
-                  </div>
-                )}
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "-8px", marginBottom: "16px", lineHeight: "1.6" }}>
+                  Medical is not counted as income. The City's retiree-medical contribution only exists if you enroll in CalPERS medical, and it is paid straight to the premium — so it shows up as an out-of-pocket cost, not as a monthly benefit. {medicalTier === "4" ? `Tier 4 is a one-time RHS account (${fmt(medical.rhsBalance)}), not a monthly benefit.` : `Your Tier ${medicalTier} contribution and net premium are on the Medical tab.`}
+                </div>
                 {(() => {
                   const ratio = Math.max(0, Math.min(1, retirementVsWorking));
                   const filled = (mounted ? ratio * 276.46 : 0).toFixed(1);
@@ -2705,7 +3315,7 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.metricLabel}>Retired at {retirementAge}</div>
                     <div style={{ fontSize: "22px", fontWeight: "800", color: COLORS.accent }}>{fmt(totalMonthly)}</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>total/month gross</div>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>Take-home ~{fmt(totalMonthly - retTaxAnnual / 12)}/mo · <span style={{ color: COLORS.green }}>+{fmt(totalMonthly - currentMonthlySalary)} vs working</span></div>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>Take-home ~{fmt(totalMonthly - retTaxAnnual / 12 - retireeMedicalOOP)}/mo <span style={{ fontSize: "10px" }}>· after tax &amp; medical</span> · <span style={{ color: COLORS.green }}>+{fmt(totalMonthly - currentMonthlySalary)} vs working</span></div>
                   </div>
                 </div>
                 <div style={{ marginTop: "4px" }}>
@@ -2729,7 +3339,9 @@ export default function RFFRetirementCalculator() {
                   {retirementState !== "CA" && (
                     <div style={styles.tableRow}><span style={styles.tableKey}>{stateName} vs. California</span><span style={{ ...styles.tableVal, color: stateVsCa >= 0 ? COLORS.green : COLORS.accent }}>{stateVsCa >= 0 ? `saves ${fmt(stateVsCa)}/yr` : `${fmt(Math.abs(stateVsCa))}/yr more`}</span></div>
                   )}
-                  <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>After-tax retirement income</strong></span><span style={styles.tableValGreen}>{fmt(totalMonthly - retTaxAnnual / 12)}/mo</span></div>
+                  <div style={styles.tableRow}><span style={styles.tableKey}>After-tax retirement income</span><span style={styles.tableVal}>{fmt(totalMonthly - retTaxAnnual / 12)}/mo</span></div>
+                  <div style={styles.tableRow}><span style={styles.tableKey}>Retiree medical — your out-of-pocket <span style={{ fontSize: "10px", color: COLORS.textDim }}>· detail on Medical tab</span></span><span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}/mo</span></div>
+                  <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Take-home after tax &amp; medical</strong></span><span style={styles.tableValGreen}>{fmt(totalMonthly - retTaxAnnual / 12 - retireeMedicalOOP)}/mo</span></div>
                   {helpsExclusion > 0 && (
                     <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.2)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
                       💡 <strong style={{ color: COLORS.green }}>HELPS Act — year-end benefit (not in the figures above):</strong> as a retired safety officer you can exclude up to {fmt(helpsExclusion)}/yr of pension used for health premiums on your federal return (write "PSO" on Form 1040). Estimated federal savings ≈ <strong>{fmt(helpsFedSavings)}/yr</strong>, realized as a lower tax bill at filing — CalPERS still withholds monthly on the full pension, so it is not included in the monthly take-home.
@@ -3042,7 +3654,6 @@ export default function RFFRetirementCalculator() {
             {(() => {
               const parts = [
                 { v: monthlyPension, c: "#d21f33", label: "Pension" },
-                { v: medical.monthly, c: "#16a34a", label: "Medical" },
                 { v: monthly457, c: "#2563eb", label: "457 draw" },
                 { v: priorPensionMonthly, c: "#b45309", label: "Prior svc" },
               ].filter(p => p.v > 0);
@@ -3077,12 +3688,12 @@ export default function RFFRetirementCalculator() {
         <div style={{ marginBottom: "14px" }}>
           <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Pension</div>
           <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}><tbody>
-            <tr><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0" }}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} ({pct(pensionPct)}{pensionPct >= 0.90 ? ", at cap" : ""})</td><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0", textAlign: "right", fontWeight: 600 }}>{fmt(pension50Monthly)}/mo</td></tr>
+            <tr><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0" }}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} ({pct(pensionPct)}{benefitIsCapped && pensionPct >= benefitMaxPct ? ", at cap" : ""})</td><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0", textAlign: "right", fontWeight: 600 }}>{fmt(pension50Monthly)}/mo</td></tr>
             {priorServiceCalc.map((r, i) => (<tr key={i}><td style={{ padding: "3px 0 3px 14px", color: "#777", fontSize: "11px" }}>· {r.agencyName ? r.agencyName + " · " : ""}{(PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "Prior"} · {r.yrs} yrs × {pct(r.factor)}{r.otherCalpers ? " · stacks on top" : r.calpers ? "" : " · separate check"}</td><td style={{ padding: "3px 0", textAlign: "right", color: "#777", fontSize: "11px" }}>{r.sameFormula ? "in 90% bucket" : (r.otherCalpers ? "+" : "") + fmt(r.monthly) + "/mo"}</td></tr>))}
             <tr><td style={{ padding: "4px 0", fontWeight: 700 }}>Combined pension</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, color: "#d21f33" }}>{fmt(combinedPensionMonthly)}/mo</td></tr>
           </tbody></table>
-          <div style={{ fontSize: "10px", color: "#888", display: "flex", justifyContent: "space-between", marginTop: "6px" }}><span>{pct(pensionPct)} of final pay</span><span>90% cap</span></div>
-          <div style={{ background: "#eee", borderRadius: "5px", height: "11px", overflow: "hidden" }}><div style={{ width: `${Math.min(100, (pensionPct / 0.90) * 100).toFixed(0)}%`, height: "100%", background: "#d21f33" }} /></div>
+          <div style={{ fontSize: "10px", color: "#888", display: "flex", justifyContent: "space-between", marginTop: "6px" }}><span>{pct(pensionPct)} of final pay</span><span>{benefitIsCapped ? "90% cap" : "no cap (2.7% @ 57)"}</span></div>
+          <div style={{ background: "#eee", borderRadius: "5px", height: "11px", overflow: "hidden" }}><div style={{ width: `${Math.min(100, (pensionPct / (benefitIsCapped ? benefitMaxPct : 1.0)) * 100).toFixed(0)}%`, height: "100%", background: "#d21f33" }} /></div>
           <div style={{ fontSize: "10px", color: "#888", marginTop: "8px" }}>Pension growth — up to {pct(colaRate)} COLA (not guaranteed)</div>
           {(() => { const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, yr)); const mx = Math.max(...pts), mn = Math.min(...pts), W = 320, H = 40, P = 4; const co = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" "); return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40"><polyline points={co} fill="none" stroke="#16a34a" strokeWidth="2" /></svg>; })()}
         </div>
@@ -3112,10 +3723,11 @@ export default function RFFRetirementCalculator() {
           <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Estimated income tax</div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Working now ({filingStatus === "single" ? "Single" : filingStatus === "mfj" ? "Married filing jointly" : "Head of household"})</span><span>{fmt(workTaxAnnual / 12)}/mo · {pct(workEffRate)}</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>In retirement ({stateName})</span><span>{fmt(retTaxAnnual / 12)}/mo · {pct(retEffRate)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontWeight: 700, borderTop: "1px solid #eee" }}><span>After-tax retirement income</span><span style={{ color: "#16a34a" }}>{fmt(totalMonthly - retTaxAnnual / 12)}/mo</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Retiree medical — your out-of-pocket</span><span>−{fmt(retireeMedicalOOP)}/mo</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontWeight: 700, borderTop: "1px solid #eee" }}><span>Take-home after tax &amp; medical</span><span style={{ color: "#16a34a" }}>{fmt(totalMonthly - retTaxAnnual / 12 - retireeMedicalOOP)}/mo</span></div>
         </div>
         <div style={{ fontSize: "10px", color: "#777", marginTop: "10px", lineHeight: "1.5", borderTop: "1px solid #e5e5e5", paddingTop: "8px" }}>
-          Estimates only — not official CalPERS figures. Tax is a rough estimate (2026 federal / 2025 CA brackets), not tax advice. COLA shown is the contract cap and is not guaranteed every year. PEPRA pay is capped at the state pensionable-comp limit. Confirm all figures with CalPERS and the City of Roseville. Generated at 1592treasurer.github.io/RFF-retirement-calculator
+          Estimates only — not official CalPERS figures. Tax is a rough estimate (2026 federal / 2025 CA brackets), not tax advice. COLA shown is the contract cap and is not guaranteed every year. PEPRA pay is capped at the state pensionable-comp limit. Confirm all figures with CalPERS and the City of Roseville. Generated at neitling78.github.io/Roseville-Fire-Retirement-Calculator
         </div>
       </div>
       <div className="no-print" style={styles.footer}>

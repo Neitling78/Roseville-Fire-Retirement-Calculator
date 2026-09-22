@@ -22,3 +22,11 @@ pnpm-debug.log*
 .idea/
 .DS_Store
 *.swp
+
+# generated test artifact
+test/prelude.mjs
+
+# build scratch and local backups
+vite.config.js.timestamp-*.mjs
+*.bak-*
+test/component.mjs
