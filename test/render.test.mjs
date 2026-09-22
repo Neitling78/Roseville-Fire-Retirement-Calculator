@@ -484,5 +484,28 @@ check("breakdown still shows what lands in the bank", () => has(GH.pension, "Lan
 check("the tax line says plainly that it is rough", () => has(GH.pension, "rough estimate only"));
 check("timeline gains a gross CalPERS column", () => has(GH.timeline, "(gross — CalPERS)"));
 
+
+// ── What waiting actually costs ────────────────────────────────────────────
+// Working a year instead of drawing the earliest pension has a price; the bigger
+// pension you buy repays it over time, or never does. Take-home basis, because the
+// 9% member contribution, dues and active medical only come out while working.
+console.log("\n-- what waiting actually costs --");
+const CW = await scenario(mkCola("2028-12-31", 50));                       // 0% raises, 0% CPI
+const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
+check("the section is on the wait tab", () => has(CW.wait, "What waiting actually costs"));
+check("names the earliest year you can go", () => has(CW.wait, "You can go in"));
+check("states the yearly cost of staying", () => has(CW.wait, "$28,305"));
+check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,440"));
+check("shows the break-even in years and age", () => has(CW.wait, "11.6 yrs · age 63"));
+check("shows the net position at 20 years", () => has(CW.wait, "$20,494"));
+check("a later year can be a net loss", () => has(CW.wait, "$28,985"));
+// When pay only keeps pace with CPI the later pension is no bigger in real terms,
+// so there is nothing to repay the skipped checks and the answer must say so.
+check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
+check("explains what 'never' means", () => has(CW.wait, "waiting is never repaid"));
+check("says why it uses take-home", () => has(CW.wait, "stop when you retire"));
+check("admits what it leaves out", () => has(CW.wait, "not only about numbers"));
+check("the section is hidden before setup", () => lacks(A.wait, "What waiting actually costs"));
+
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

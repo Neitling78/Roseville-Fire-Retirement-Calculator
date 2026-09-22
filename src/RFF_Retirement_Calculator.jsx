@@ -243,6 +243,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v15)", items: [
+    "New section at the bottom of \u201cWhat if I wait\u201d: <strong>What waiting actually costs</strong>. Every year you work past your earliest date, you give up a year of pension checks to buy a permanently larger pension. This lays out that trade, year by year.",
+    "For each year it shows the pension you skip getting there, what your pension gains per year for life, how long that gain takes to repay the skipped checks \u2014 and how old you are when it does \u2014 and where you stand after twenty years retired.",
+    "It is on a take-home basis, unlike the rest of the tool. That is deliberate: the 9% CalPERS member contribution, union dues and the active medical premium all stop when you retire. Comparing a paycheck to a pension on gross would flatter working and give you the wrong answer.",
+    "If the later pension is no larger in real terms \u2014 which happens whenever your raises trail the CPI you set \u2014 the break-even column says <strong>never</strong>, because nothing ever repays those checks.",
+    "It also says plainly what it does not count: your 457 still growing, leave still accruing, coverage before Medicare, and the value of the years themselves. It is one input to the decision, not the decision.",
+  ] },
   { date: "September 22, 2026 (v14)", items: [
     "Added the missing piece: the <strong>Labor Market Adjustment</strong>, effective the first full pay period in January 2028 (MOU Ch.2 Art.I.A.3). It has its own box on \u201cWhat if I wait\u201d, on Your Pay \u203a Future raises and under Everything else \u203a Inputs. Put a number in and every figure in the tool moves with it.",
     "What the contract actually says: the 2027 Total Compensation Study, using survey data effective 9/1/2027, is run on the Firefighter Paramedic (PEPRA) benchmark. The City then raises the base hourly rate of any classification sitting below the total-compensation 55th percentile up to that percentile, on both Salary Schedule A and B.",
@@ -2720,6 +2727,98 @@ export default function RFFRetirementCalculator() {
                         which buy less — showing those raw numbers would make waiting look better than it is.
                       </div>
                     </div>
+
+                    {/* ── WHAT WAITING COSTS ─────────────────────────────────────────
+                        Every year worked past the earliest date trades a year of pension
+                        checks for a permanently larger pension. This is that trade, on a
+                        take-home basis, because the 9% CalPERS member contribution, union
+                        dues and the active medical premium only come out while working. */}
+                    {earliestRow && retireYearOptions.length > 1 && (() => {
+                      const E = earliestRow;
+                      // Net cost of one year spent working instead of drawing the earliest pension,
+                      // in today's dollars. Positive => the pension out-earns the paycheck.
+                      const perYearForgone = 12 * (E.takeHomeToday - workingTakeHome);
+                      const rows = retireYearOptions.slice(1).map(r => {
+                        const extraYears = r.year - E.year;
+                        const givenUp = Math.max(0, perYearForgone) * extraYears;
+                        const gainPerYear = 12 * (r.takeHomeToday - E.takeHomeToday);
+                        const breakEven = gainPerYear > 0 ? givenUp / gainPerYear : null;
+                        const net20 = gainPerYear * 20 - givenUp;
+                        return { ...r, extraYears, givenUp, gainPerYear, breakEven, net20,
+                                 breakEvenAge: breakEven === null ? null : r.age + breakEven };
+                      });
+                      const freeToWait = perYearForgone <= 0;
+                      return (
+                        <div style={{ ...styles.card, marginTop: "18px" }}>
+                          <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What waiting actually costs</p>
+                          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.7 }}>
+                            You can go in <strong style={{ color: COLORS.text }}>{E.year}</strong>. Every year you work past
+                            that, you give up a year of pension checks to buy a permanently larger pension. This is that trade.
+                            {freeToWait ? (
+                              <> Right now your paycheck out-earns your pension, so waiting costs you nothing in the
+                              meantime — every later year is simply better.</>
+                            ) : (
+                              <> Working a year nets you <strong style={{ color: COLORS.text }}>{fmt(workingTakeHome)}</strong>/mo
+                              take-home; your {E.year} pension would pay <strong style={{ color: COLORS.text }}>{fmt(E.takeHomeToday)}</strong>/mo.
+                              So each year you stay costs you <strong style={{ color: COLORS.gold }}>{fmt(perYearForgone)}</strong> you
+                              would otherwise have banked.</>
+                            )}
+                          </div>
+                          <div style={{ overflowX: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "13px" }}>
+                              <thead>
+                                <tr style={{ color: COLORS.textMuted, textAlign: "right" }}>
+                                  <th style={{ textAlign: "left", padding: "6px 4px", fontWeight: 600 }}>Go in</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Extra yrs<br />worked</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension you<br />skip getting there</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension gain<br />per year, for life</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Breaks even</th>
+                                  <th style={{ padding: "6px 4px", fontWeight: 600 }}>Net after<br />20 yrs retired</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map(r => (
+                                  <tr key={r.year} style={{ textAlign: "right", borderTop: `1px solid ${COLORS.border}`,
+                                    background: r.year === retirementYear ? "rgba(210,31,51,0.16)" : "transparent" }}>
+                                    <td style={{ textAlign: "left", padding: "9px 4px", fontWeight: r.year === retirementYear ? 800 : 600,
+                                      color: r.year === retirementYear ? COLORS.accent : COLORS.text }}>{r.year}</td>
+                                    <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.extraYears}</td>
+                                    <td style={{ padding: "9px 4px", color: COLORS.gold }}>{r.givenUp > 0 ? "−" + fmt(r.givenUp) : "—"}</td>
+                                    <td style={{ padding: "9px 4px", color: r.gainPerYear > 0 ? COLORS.green : COLORS.gold }}>
+                                      {r.gainPerYear > 0 ? "+" : ""}{Math.abs(r.gainPerYear) < 1 ? "—" : fmt(r.gainPerYear)}
+                                    </td>
+                                    <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>
+                                      {r.givenUp <= 0 ? "immediately"
+                                        : r.breakEven === null ? "never"
+                                        : `${r.breakEven.toFixed(1)} yrs · age ${Math.round(r.breakEvenAge)}`}
+                                    </td>
+                                    <td style={{ padding: "9px 4px", fontWeight: 700, color: r.net20 >= 0 ? COLORS.green : COLORS.gold }}>
+                                      {r.net20 >= 0 ? "+" : "−"}{fmt(Math.abs(r.net20))}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                            <strong style={{ color: COLORS.textMuted }}>Read it like this:</strong> &ldquo;Breaks even&rdquo; is how many
+                            years into retirement the bigger pension finally repays the checks you skipped to get it — and how old you
+                            are when it does. <strong style={{ color: COLORS.textMuted }}>Never</strong> means the later pension is no
+                            larger, so waiting is never repaid.
+                            <div style={{ marginTop: "8px" }}>
+                              Take-home, not gross, because the 9% CalPERS member contribution, union dues and the active medical
+                              premium stop when you retire — comparing a paycheck to a pension on gross would flatter working.
+                              Everything is in today&rsquo;s dollars at the CPI you set above.
+                            </div>
+                            <div style={{ marginTop: "8px" }}>
+                              What this does <em>not</em> count: your 457 growing while you keep contributing, sick leave and vacation
+                              accruing, health coverage between now and Medicare, and the plain fact that your years are worth
+                              something on their own. It is one number in a decision that is not only about numbers.
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
