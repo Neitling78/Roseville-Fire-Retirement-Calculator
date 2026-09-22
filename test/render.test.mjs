@@ -196,20 +196,30 @@ check("no cease warning when it does not apply", () => lacks(G.pay, "it ends 1/9
 
 // ── Year picker on the hourly-rate card ─────────────────────────────────────
 console.log("\n-- hourly rates by year --");
-const mkCapt = (rateYear) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+const mkCapt = (rateYear, unionRaisePct = 3) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear, unionRaisePct:3, openSections:{ starthourly:true } });
+  retirementDateOverride:"2034-06-01", rateYear, unionRaisePct, openSections:{ starthourly:true } });
 const H26 = await scenario(mkCapt(2026));
 const H27 = await scenario(mkCapt(2027));
 const H28 = await scenario(mkCapt(2028));
+const H28c = await scenario(mkCapt(2028, 0));
+const H29 = await scenario(mkCapt(2029));
+const H29c = await scenario(mkCapt(2029, 0));
+const H30 = await scenario(mkCapt(2030));
+const H30c = await scenario(mkCapt(2030, 0));
+const H31 = await scenario(mkCapt(2031));
 check("year picker is present", () => has(H26.pay, "Show rates for"));
 check("2026 shows the published base", () => has(H26.pay, "$12,295"));
 check("2027 shows the rank-separated base", () => has(H27.pay, "$13,013"));
-check("2028 base reflects the bargaining assumption", () => has(H28.pay, "$13,715"));
-const H28c = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
-  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear:2028, openSections:{ starthourly:true } });
-check("zero bargaining drops the assumed study from 2028", () => has(H28c.pay, "$13,316"));
+// The MOU sets 2027 and 2029 and runs through 12/31/2029. The bargaining dial is barred from
+// every year the contract already covers, so 2028 and 2029 must not move when it is turned up.
+check("the dial does not touch 2028", () => has(H28.pay, "$13,316"));
+check("2028 is the same with the dial at zero", () => has(H28c.pay, "$13,316"));
+check("2029 is the MOU 1.75%, not the dial", () => has(H29.pay, "$13,549"));
+check("2029 is the same with the dial at zero", () => has(H29c.pay, "$13,549"));
+check("2030 is the first year the dial bites", () => has(H30.pay, "$13,955"));
+check("2030 with the dial at zero stays at the 2029 rate", () => has(H30c.pay, "$13,549"));
+check("the dial compounds after 2030", () => has(H31.pay, "$14,374"));
 check("2026 base hourly to the cent", () => has(H26.pay, "$50.67/hr"));
 check("2027 base hourly to the cent", () => has(H27.pay, "$53.63/hr"));
 check("picking a future year explains what moved", () => has(H27.pay, "What moved between"));
@@ -398,6 +408,34 @@ check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","M
   .every(x => B.start.includes(x)) || "a primary tab is missing");
 check("old screens demoted, not deleted", () => ["All inputs","Pension detail","Timeline","Guide"]
   .every(x => B.inputs.includes(x)) || "an advanced screen is missing");
+
+// ── COLA starts the second calendar year after retirement, May 1 ────────────
+// CalPERS: "COLA begins the second calendar year after retirement," paid in the May 1 warrant.
+// The tool used to grant a COLA at year one, which overstated the allowance for life.
+console.log("\n-- COLA start date and lag --");
+const mkCola = (retirementDateOverride, retirementAge) => ({ setupDone:true,
+  hireDate:"2003-01-01", dob:"1978-09-28", memberType:"classic", medicalTier:"1",
+  classification:"Fire Captain", salaryStep:"H", retirementDateOverride, retirementAge,
+  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+  currentSickLeaveHours:2600, sickLeaveDisposition:"credit", unionRaisePct:0, inflationRate:0,
+  openSections:{ cola:true },
+  priorService:[{agencyName:"City of South Lake Tahoe",years:4.682,formula:"3@50"},
+                {agencyName:"State of California",years:1.038,formula:"3@55"}] });
+const CD = await scenario(mkCola("2028-12-31", 50));   // December 2028 -> May 1, 2030
+const CF = await scenario(mkCola("2028-02-15", 50));   // February 2028 -> also May 1, 2030
+const CL = await scenario(mkCola("2033-06-30", 55));   // June 2033     -> May 1, 2035
+check("December 2028 retiree: first COLA May 1, 2030", () => has(CD.pensiondetail, "May 1, 2030"));
+check("February 2028 retiree: same year, also May 1, 2030", () => has(CF.pensiondetail, "May 1, 2030"));
+check("the date is not hardcoded — 2033 retiree gets May 1, 2035", () => has(CL.pensiondetail, "May 1, 2035"));
+check("says the allowance is flat until then", () => has(CD.pensiondetail, "flat until then"));
+// Golden figures. Five years out, the December retiree has banked FOUR COLAs (May 2030-2033),
+// not five. Drop the lag and every number here rises by one 3% step.
+check("5 years out = 4 COLAs, not 5", () => has(CD.pensiondetail, "$16,156"));
+check("10 years out = 9 COLAs", () => has(CD.pensiondetail, "$18,730"));
+// A February retiree reaches each anniversary BEFORE May 1, so at the same elapsed
+// years they have banked one fewer COLA than the December retiree.
+check("February retiree: 5 years out = 3 COLAs", () => has(CF.pensiondetail, "$13,365"));
+check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

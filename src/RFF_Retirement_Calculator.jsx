@@ -243,6 +243,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v12)", items: [
+    "The bargaining dial no longer touches any year the MOU already covers. It used to apply in 2028; it now applies to 2030 and later only. The MOU sets 2027 and 2029 and runs through 12/31/2029, so those years show the contract figure and nothing else, whatever you set the dial to.",
+    "Fixed a real error in the pension growth: your first COLA now lands when CalPERS actually pays it. CalPERS starts COLAs in the second calendar year after you retire, effective in the May 1 warrant \u2014 retire in December 2028 and your first increase is May 1, 2030, not a year after you walk out.",
+    "The tool had been granting that first COLA a year early. Because a COLA compounds, that error never closed; it made every figure from retirement to age 90 too high. Depending on your retirement month, the corrected numbers are roughly one 3% step lower.",
+    "Your first COLA date is now printed on the screen \u2014 on the CPI dial and above the pension growth table \u2014 so you can check it rather than take our word for it. Source: CalPERS, Cost-of-Living Adjustment (COLA).",
+  ] },
   { date: "September 22, 2026 (v11)", items: [
     "Replaced the \u201conly count contracted raises\u201d checkbox with two dials you control, at the top of \u201cWhat if I wait\u201d: raises Local 1592 bargains (percent per year) and CPI / inflation (percent per year). Both start at zero.",
     "At zero and zero, nothing is assumed. The only things moving those rows are the service credit you earn and, for PEPRA members, your age factor. The 2027 and 2029 increases stay in because they are in the signed MOU.",
@@ -881,11 +887,11 @@ export default function RFFRetirementCalculator() {
     let f = 1.0;
     // 2027 and 2029 are set by the MOU and differ by class, so they are not user inputs.
     if (y >= 2027) f *= (1 + mouGwiFor(2027, classification));
-    // 2028 is the Total Compensation Study — no figure agreed, so it uses the bargaining lever.
-    const bargained = (parseFloat(unionRaisePct) || 0) / 100;
-    if (y >= 2028) f *= (1 + bargained);
     if (y >= 2029) f *= (1 + mouGwiFor(2029, classification));
-    // Contract ends 12/31/2029 — every year from 2030 on uses the same lever.
+    // 2028 has no agreed GWI (Total Compensation Study) and the contract runs through 12/31/2029,
+    // so the bargaining dial is barred from touching any year the MOU already covers. It applies
+    // to 2030 and later only, and compounds from there.
+    const bargained = (parseFloat(unionRaisePct) || 0) / 100;
     if (y >= 2030) f *= Math.pow(1 + bargained, y - 2029);
     return f;
   };
@@ -1553,6 +1559,16 @@ export default function RFFRetirementCalculator() {
   const cpiRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
   const effectiveColaRate = Math.min(colaRate, cpiRate);
   const colaYears = [5, 10, 15, 20, 25, 30];
+  // CalPERS: "COLA begins the second calendar year after retirement," effective in the May 1
+  // warrant (calpers.ca.gov/retirees/cost-of-living/cola). A December 2028 retiree therefore gets
+  // nothing until May 1, 2030. Counting a COLA at year one overstates the pension for life,
+  // because the error compounds. colasBy() returns how many COLAs have actually landed.
+  const firstColaYear = retirementYear + 2;
+  const retiredOnOrAfterMay = retirementDate.getMonth() >= 4; // 0-based; 4 = May
+  const colasBy = (yrsSinceRetire) => Math.max(
+    0,
+    (retirementYear + yrsSinceRetire) - firstColaYear + (retiredOnOrAfterMay ? 1 : 0)
+  );
   const ADVANCED_TABS = ["inputs", "pensiondetail", "income", "timeline", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
@@ -2546,8 +2562,8 @@ export default function RFFRetirementCalculator() {
                             <span style={{ fontSize: "12px", color: COLORS.textMuted }}>%/yr</span>
                           </div>
                           <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                            Covers the 2028 compensation study, which has no agreed figure, and every year
-                            after the MOU expires 12/31/2029.
+                            Applies to 2030 and later only. The MOU sets 2027 and 2029 and runs through
+                            12/31/2029, so this dial cannot touch a year the contract already covers.
                           </div>
                         </div>
                         <div>
@@ -2560,7 +2576,8 @@ export default function RFFRetirementCalculator() {
                           </div>
                           <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
                             Converts future pay into today's dollars, and caps your retiree COLA — CalPERS pays
-                            the lesser of your {pct(colaRate)} cap and actual CPI.
+                            the lesser of your {pct(colaRate)} cap and actual CPI. Your first COLA lands
+                            May 1, {firstColaYear} — the second calendar year after you retire.
                           </div>
                         </div>
                       </div>
@@ -3559,9 +3576,11 @@ export default function RFFRetirementCalculator() {
                     {openSections.cola && (<>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: "1.6" }}>
                       Best case — assumes the full {pct(colaRate)} cap every year. The CalPERS COLA tracks inflation and isn't guaranteed; some years are less.
+                      CalPERS starts COLAs in the second calendar year after retirement, so your first one is effective
+                      <strong>May 1, {firstColaYear}</strong> and your allowance is flat until then.
                     </div>
                     {(() => {
-                      const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, yr));
+                      const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, colasBy(yr)));
                       const mx = Math.max(...pts), mn = Math.min(...pts), W = 300, H = 60, P = 6;
                       const coords = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" ");
                       return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="60" style={{ marginBottom: "10px" }} aria-hidden="true"><polyline points={coords} fill="none" stroke={COLORS.green} strokeWidth="2" /></svg>;
@@ -3576,7 +3595,7 @@ export default function RFFRetirementCalculator() {
                       </thead>
                       <tbody>
                         {colaYears.map(yr => {
-                          const grown = monthlyPension * Math.pow(1 + colaRate, yr);
+                          const grown = monthlyPension * Math.pow(1 + colaRate, colasBy(yr));
                           return (
                             <tr key={yr} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                               <td style={{ padding: "8px 0", color: COLORS.textMuted, fontSize: "13px" }}>Age {retirementAge + yr}</td>
@@ -4287,7 +4306,7 @@ export default function RFFRetirementCalculator() {
               <div style={styles.card}>
                 <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>Income timeline</div>
                 <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: "1.6" }}>
-                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows by the realized COLA — the lesser of your {pct(colaRate)} cap and CPI ({pct(cpiRate)}), so <strong>{pct(effectiveColaRate)}/yr</strong> here. Medical out-of-pocket drops to $0 at 65 (Medicare).
+                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows by the realized COLA — the lesser of your {pct(colaRate)} cap and CPI ({pct(cpiRate)}), so <strong>{pct(effectiveColaRate)}/yr</strong>, first effective May 1, {firstColaYear}. Medical out-of-pocket drops to $0 at 65 (Medicare).
                 </div>
                 {(() => {
                   // Build the age set: retirement → 90 in 5-yr steps, plus 65 and the 457 draw-start age
@@ -4301,7 +4320,7 @@ export default function RFFRetirementCalculator() {
                   let depletedMarked = false;
                   const rows = ageList.map(A => {
                     const yrsSinceRetire = A - retirementAge;
-                    const pensionNominal = monthlyPension * Math.pow(1 + effectiveColaRate, yrsSinceRetire);
+                    const pensionNominal = monthlyPension * Math.pow(1 + effectiveColaRate, colasBy(yrsSinceRetire));
                     const medOOP = (A >= 65) ? 0 : retireeMedicalOOP; // Medicare at 65 → City covers supplement
                     const pensionTakeHomeM = pensionNominal * (1 - retEffRate) - medOOP;
                     const drawing = (A >= effectiveDrawStartAge) && (A < depletionAge);
@@ -4520,7 +4539,7 @@ export default function RFFRetirementCalculator() {
           <div style={{ fontSize: "10px", color: "#888", display: "flex", justifyContent: "space-between", marginTop: "6px" }}><span>{pct(pensionPct)} of final pay</span><span>{benefitIsCapped ? "90% cap" : "no cap (2.7% @ 57)"}</span></div>
           <div style={{ background: "#eee", borderRadius: "5px", height: "11px", overflow: "hidden" }}><div style={{ width: `${Math.min(100, (pensionPct / (benefitIsCapped ? benefitMaxPct : 1.0)) * 100).toFixed(0)}%`, height: "100%", background: "#d21f33" }} /></div>
           <div style={{ fontSize: "10px", color: "#888", marginTop: "8px" }}>Pension growth — up to {pct(colaRate)} COLA (not guaranteed)</div>
-          {(() => { const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, yr)); const mx = Math.max(...pts), mn = Math.min(...pts), W = 320, H = 40, P = 4; const co = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" "); return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40"><polyline points={co} fill="none" stroke="#16a34a" strokeWidth="2" /></svg>; })()}
+          {(() => { const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, colasBy(yr))); const mx = Math.max(...pts), mn = Math.min(...pts), W = 320, H = 40, P = 4; const co = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" "); return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40"><polyline points={co} fill="none" stroke="#16a34a" strokeWidth="2" /></svg>; })()}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
