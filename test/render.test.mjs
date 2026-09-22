@@ -256,6 +256,66 @@ check("seven primary tabs", () => ["Start here","Your pension","Your pay","What 
   .every(x => FF.start.includes(x)) || "a primary tab is missing");
 check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
 
+// ── CalPERS service credit, straight off myCalPERS ──────────────────────────
+console.log("\n-- CalPERS service credit override --");
+// Real shape of a myCalPERS page: Roseville 23.390, South Lake Tahoe 4.682 (same 3%@50),
+// State of California 1.038 (3%@55), total 29.110.
+const CP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-06-01",
+  calpersCreditRoseville:23.390, calpersCreditIncludesPurchased:true,
+  priorService:[
+    { agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+    { agencyName:"State of California", years:1.038, formula:"3@55" },
+  ],
+  openSections:{ startcalpers:true, startprior:true } });
+check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
+check("asks for CalPERS service credit", () => has(CP.start, "CalPERS service credit"));
+check("points at myCalPERS", () => has(CP.start, "my.calpers.ca.gov"));
+check("shows the figure on file", () => has(CP.start, "23.390"));
+check("projects it to retirement", () => has(CP.start, "Roseville credit at retirement"));
+check("asks whether purchased credit is included", () => has(CP.start, "already includes service credit I purchased"));
+check("warns about double-counting airtime", () => has(CP.start, "count it twice"));
+check("gives a total to reconcile", () => has(CP.start, "Check yourself"));
+check("total matches myCalPERS (29.110)", () => has(CP.start, "29.110 years"));
+check("explains same vs different formula buckets", () => has(CP.start, "is its own bucket and stacks on top"));
+// no override supplied -> falls back to the hire date and says so
+const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-06-01", openSections:{ startcalpers:true } });
+check("falls back to the hire date when blank", () => has(NOCP.start, "estimating"));
+check("says the fallback is an estimate", () => has(NOCP.start, "it is an estimate"));
+check("no reconcile panel without a figure", () => lacks(NOCP.start, "Check yourself"));
+
+// ── "Last reported" date and the balance-vs-pension comparison ─────────────
+console.log("\n-- reported date and account balance --");
+const BAL = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1978-09-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-10-01",
+  calpersCreditRoseville:23.390, calpersCreditIncludesPurchased:true,
+  calpersCreditAsOf:"2026-08-21", calpersBalance:571606.22,
+  priorService:[
+    { agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+    { agencyName:"State of California", years:1.038, formula:"3@55" },
+  ],
+  openSections:{ startcalpers:true } });
+check("every screen renders", () => Object.values(BAL).every(h => h.length > 200) || "a screen came back empty");
+check("asks for the Last reported date", () => has(BAL.start, '"Last reported" date on myCalPERS'));
+check("explains the employer reporting lag", () => has(BAL.start, "reports on a lag"));
+check("counts service still to earn from that date", () => has(BAL.start, "Still to earn"));
+check("asks for the account balance", () => has(BAL.start, "CalPERS account balance"));
+check("says the balance changes nothing", () => has(BAL.start, "does not change your pension by a cent"));
+check("warns a refund forfeits the pension", () => has(BAL.start, "forfeit the pension entirely"));
+check("pension tab compares balance to pension value", () => has(BAL.pension, "Your account balance is not your pension"));
+check("shows the refund value", () => has(BAL.pension, "refund value"));
+check("shows the private-saver equivalent", () => has(BAL.pension, "What a private saver would need"));
+check("notes the private saver carries risk and no COLA", () => has(BAL.pension, "market risk and no COLA"));
+// with no balance entered, the comparison stays off
+const NOBAL = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1978-09-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-10-01", calpersCreditRoseville:23.390 });
+check("no balance panel when none entered", () => lacks(NOBAL.pension, "Your account balance is not your pension"));
+
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
   .every(x => B.start.includes(x)) || "a primary tab is missing");
