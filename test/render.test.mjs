@@ -166,7 +166,7 @@ check("shows what the pension is figured on", () => has(E.pension, "What the pen
 check("shows pensionable incentives in the build-up", () => has(E.pension, "Pensionable incentives"));
 check("Classic sees holiday pay as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
 check("Classic sees uniform allowance", () => has(E.pension, "Uniform allowance"));
-check("Classic sees FLSA OT special comp", () => has(E.pension, "FLSA overtime (special comp)"));
+check("Classic sees FLSA OT special comp", () => has(E.pension, "regularly scheduled"));
 check("15% education+cert cap is applied", () => has(Eo.pay, "15% Education + Cert Cap Applied"));
 
 // ── Current pay vs pension projection must not be the same figure ───────────
@@ -280,7 +280,7 @@ check("asks sick leave", () => has(FF.start, "Sick leave hours on the books toda
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.member, "Before Roseville"));
 check("asks purchased service credit", () => has(FF.start, "Airtime / purchased service"));
-check("asks beneficiary age", () => has(FF.start, "Beneficiary's age at your retirement"));
+check("asks beneficiary age on Deductions", () => has(FF.deductions, "beneficiary’s age at your retirement"));
 check("offers the pension type override", () => has(FF.start, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
 check("no cash-out totals on Start here", () => lacks(FF.start, "Total cash at separation"));
@@ -310,22 +310,22 @@ const CP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-
   ],
   openSections:{ startcalpers:true, startprior:true } });
 check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
-check("asks for CalPERS service credit", () => has(CP.start, "CalPERS service credit"));
-check("points at myCalPERS", () => has(CP.start, "my.calpers.ca.gov"));
-check("shows the figure on file", () => has(CP.start, "23.390"));
-check("projects it to retirement", () => has(CP.start, "Roseville credit at retirement"));
-check("asks whether purchased credit is included", () => has(CP.start, "already includes service credit I purchased"));
-check("warns about double-counting airtime", () => has(CP.start, "count it twice"));
-check("gives a total to reconcile", () => has(CP.start, "Check yourself"));
-check("total matches myCalPERS (29.110)", () => has(CP.start, "29.110 years"));
-check("explains same vs different formula buckets", () => has(CP.start, "is its own bucket and stacks on top"));
+check("asks for CalPERS service credit", () => has(CP.inputs, "CalPERS service credit"));
+check("points at myCalPERS", () => has(CP.inputs, "my.calpers.ca.gov"));
+check("shows the figure on file", () => has(CP.inputs, "23.390"));
+check("projects it to retirement", () => has(CP.inputs, "Roseville credit at retirement"));
+check("asks whether purchased credit is included", () => has(CP.inputs, "already includes service credit I purchased"));
+check("warns about double-counting airtime", () => has(CP.inputs, "count it twice"));
+check("gives a total to reconcile", () => has(CP.inputs, "Check yourself"));
+check("total matches myCalPERS (29.110)", () => has(CP.inputs, "29.110 years"));
+check("explains same vs different formula buckets", () => has(CP.member, "is its own bucket and stacks on top"));
 // no override supplied -> falls back to the hire date and says so
 const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-06-01", openSections:{ startcalpers:true } });
-check("falls back to the hire date when blank", () => has(NOCP.start, "estimating"));
-check("says the fallback is an estimate", () => has(NOCP.start, "it is an estimate"));
-check("no reconcile panel without a figure", () => lacks(NOCP.start, "Check yourself"));
+check("falls back to the hire date when blank", () => has(NOCP.inputs, "estimating"));
+check("says the fallback is an estimate", () => has(NOCP.inputs, "it is an estimate"));
+check("no reconcile panel without a figure", () => lacks(NOCP.inputs, "Check yourself"));
 
 // ── "Last reported" date and the balance-vs-pension comparison ─────────────
 console.log("\n-- reported date and account balance --");
@@ -340,12 +340,12 @@ const BAL = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1978-09
   ],
   openSections:{ startcalpers:true } });
 check("every screen renders", () => Object.values(BAL).every(h => h.length > 200) || "a screen came back empty");
-check("asks for the Last reported date", () => has(BAL.start, '"Last reported" date on myCalPERS'));
-check("explains the employer reporting lag", () => has(BAL.start, "reports on a lag"));
-check("counts service still to earn from that date", () => has(BAL.start, "Still to earn"));
-check("asks for the account balance", () => has(BAL.start, "CalPERS account balance"));
-check("says the balance changes nothing", () => has(BAL.start, "does not change your pension by a cent"));
-check("warns a refund forfeits the pension", () => has(BAL.start, "forfeit the pension entirely"));
+check("asks for the Last reported date", () => has(BAL.inputs, '"Last reported" date on myCalPERS'));
+check("explains the employer reporting lag", () => has(BAL.inputs, "reports on a lag"));
+check("counts service still to earn from that date", () => has(BAL.inputs, "Still to earn"));
+check("asks for the account balance", () => has(BAL.inputs, "CalPERS account balance"));
+check("says the balance changes nothing", () => has(BAL.inputs, "does not change your pension by a cent"));
+check("warns a refund forfeits the pension", () => has(BAL.inputs, "forfeit the pension entirely"));
 check("pension tab compares balance to pension value", () => has(BAL.pension, "Your account balance is not your pension"));
 check("shows the refund value", () => has(BAL.pension, "refund value"));
 check("shows the private-saver equivalent", () => has(BAL.pension, "What a private saver would need"));
@@ -376,9 +376,9 @@ check("names sick leave as part of the surplus", () => has(CAP.pension, "worth")
 check("explains what still raises the pension", () => has(CAP.pension, "only through pay increases"));
 check("sick leave screen says worth $0", () => has(CAP.sickleave, "Worth $0 to you"));
 check("sick leave screen gives the cash alternative", () => has(CAP.sickleave, "Taking it as cash is worth"));
-check("airtime is not double-counted", () => has(CAP.start, "not") === true
-  && has(CAP.start, "already inside the figure above") === true);
-check("offers the rows-vs-total sanity check", () => has(CAP.start, "if the employer rows on myCalPERS add up to the Total"));
+check("airtime is not double-counted", () => has(CAP.inputs, "not") === true
+  && has(CAP.inputs, "already inside the figure above") === true);
+check("offers the rows-vs-total sanity check", () => has(CAP.inputs, "if the employer rows on myCalPERS add up to the Total"));
 // a member well under the cap sees none of it
 const UNDER = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-01-01",
   memberType:"pepra", medicalTier:"3", classification:"Firefighter Paramedic II", salaryStep:"H",
@@ -458,11 +458,11 @@ check("the date is not hardcoded — 2033 retiree gets May 1, 2035", () => has(C
 check("says the allowance is flat until then", () => has(CD.pensiondetail, "flat until then"));
 // Golden figures. Five years out, the December retiree has banked FOUR COLAs (May 2030-2033),
 // not five. Drop the lag and every number here rises by one 3% step.
-check("5 years out = 4 COLAs, not 5", () => has(CD.pensiondetail, "$16,156"));
-check("10 years out = 9 COLAs", () => has(CD.pensiondetail, "$18,730"));
+check("5 years out = 4 COLAs, not 5", () => has(CD.pensiondetail, "$16,241"));
+check("10 years out = 9 COLAs", () => has(CD.pensiondetail, "$18,828"));
 // A February retiree reaches each anniversary BEFORE May 1, so at the same elapsed
 // years they have banked one fewer COLA than the December retiree.
-check("February retiree: 5 years out = 3 COLAs", () => has(CF.pensiondetail, "$13,365"));
+check("February retiree: 5 years out = 3 COLAs", () => has(CF.pensiondetail, "$13,435"));
 check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"));
 
 
@@ -475,12 +475,12 @@ const GH = await scenario(mkCola("2028-12-31", 50));
 check("header is labelled as the CalPERS pension", () => has(GH.pension, "Monthly CalPERS pension"));
 check("header says it is gross", () => has(GH.pension, "gross, before tax"));
 check("header no longer leads with take-home", () => lacks(GH.pension, "Monthly take-home"));
-check("header shows the gross figure", () => has(GH.pension, "$14,355/mo"));
+check("header shows the gross figure", () => has(GH.pension, "$14,430/mo"));
 check("header shows percent of final comp", () => has(GH.pension, "Of final compensation"));
 check("the same gross figure appears on every tab", () =>
-  ["pension","wait","pay","sickleave","medical"].every(t => GH[t].includes("$14,355/mo"))
+  ["pension","wait","pay","sickleave","medical"].every(t => GH[t].includes("$14,430/mo"))
   || "a tab disagreed with the header");
-check("wait table leads with the gross allowance", () => has(GH.wait, "$14,355"));
+check("wait table leads with the gross allowance", () => has(GH.wait, "$14,430"));
 // The full take-home chain survives on the pension breakdown, where it has context.
 check("breakdown still shows gross pension", () => has(GH.pension, "Gross CalPERS pension"));
 check("breakdown still shows what lands in the bank", () => has(GH.pension, "Lands in your bank"));
@@ -497,11 +497,11 @@ const CW = await scenario(mkCola("2028-12-31", 50));                       // 0%
 const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
 check("the section is on the wait tab", () => has(CW.wait, "What waiting actually costs"));
 check("names the earliest year you can go", () => has(CW.wait, "You can go in"));
-check("states the yearly cost of staying", () => has(CW.wait, "$28,305"));
-check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,440"));
-check("shows the break-even in years and age", () => has(CW.wait, "11.6 yrs · age 63"));
-check("shows the net position at 20 years", () => has(CW.wait, "$20,494"));
-check("a later year can be a net loss", () => has(CW.wait, "$28,985"));
+check("states the yearly cost of staying", () => has(CW.wait, "$28,964"));
+check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,451"));
+check("shows the break-even in years and age", () => has(CW.wait, "11.8 yrs · age 63"));
+check("shows the net position at 20 years", () => has(CW.wait, "$20,063"));
+check("a later year can be a net loss", () => has(CW.wait, "$30,702"));
 // When pay only keeps pace with CPI the later pension is no bigger in real terms,
 // so there is nothing to repay the skipped checks and the answer must say so.
 check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
@@ -519,20 +519,20 @@ const mkOT = (currentOTHours) => ({ ...mkCola("2028-12-31", 50), currentOTHours 
 const OT0  = await scenario(mkOT(0));
 const OT40 = await scenario(mkOT(40));
 const OT60 = await scenario(mkOT(60));
-check("page one leads with gross and take-home", () => has(OT40.member, "Overtime, and what it all adds up to"));
+check("page one leads with gross and take-home", () => has(OT40.member, "Take-home"));
 check("the OT box is on page one", () => has(OT40.now, "Overtime you actually work"));
 check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
 check("page one says OT is not pensionable", () => has(OT40.now, "not pensionable"));
-check("overtime and gross pay is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
+check("overtime is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
 check("the sections run in order down the page", () => {
-  const order = ["1 \u00b7 Before Roseville","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime","5 \u00b7 CalPERS service credit","6 \u00b7 A few more details"];
+  const order = ["1 \u00b7 Before Roseville","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
   const at = order.map(x => OT40.member.indexOf(x));
   return at.every((v,i) => v >= 0 && (i === 0 || v > at[i-1])) || "sections out of order: " + at.join(",");
 });
 check("page one shows the annual OT figure", () => has(OT40.now, "a year that stops the day you retire"));
 check("zero OT is called out as a problem", () => has(OT0.now, "makes retiring look far better than it is"));
-check("page one itemises what stops at retirement", () => has(OT40.now, "stops at retirement"));
-check("page one ends in take-home", () => has(OT40.now, "Lands in your bank"));
+check("page one says overtime stops at retirement", () => has(OT40.member, "stops the day you retire"));
+check("the full ledger is still on Your pay right now", () => has(OT40.member, "Your pay right now"));
 
 check("stay or go leads with the take-home change", () => has(OT40.stayorgo, "The day you hang it up"));
 check("no OT: retiring reads as a gain", () => has(OT0.stayorgo, "You come out ahead"));
@@ -553,12 +553,12 @@ const S1  = await scenario(mkSurv("opt1"));
 const S3  = await scenario(mkSurv("opt3"));
 const S2  = await scenario(mkSurv("opt2"));
 const S2A = await scenario(mkSurv("opt2", "12"));
-check("Option 1 pays the unmodified allowance", () => has(S1.pension, "$14,355"));
-check("Option 3 reduces the allowance", () => has(S3.pension, "$13,020"));
-check("Option 2 reduces it further", () => has(S2.pension, "$12,115"));
-check("the reduction reaches take-home", () => has(S2.pension, "$9,350"));
-check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,845"));
-check("a myCalPERS figure overrides the estimate", () => has(S2A.pension, "$12,632"));
+check("Option 1 pays the unmodified allowance", () => has(S1.pension, "$14,430"));
+check("Option 3 reduces the allowance", () => has(S3.pension, "$13,088"));
+check("Option 2 reduces it further", () => has(S2.pension, "$12,179"));
+check("the reduction reaches take-home", () => has(S2.pension, "$9,393"));
+check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,896"));
+check("a myCalPERS figure overrides the estimate", () => has(S2A.pension, "$12,699"));
 check("it says it is using your figure", () => has(S2A.deductions, "Using your figure"));
 // The factors are invented. Every screen that shows one has to say so.
 check("the estimate is flagged as not a CalPERS figure", () => has(S2.deductions, "not a CalPERS figure"));

@@ -126,9 +126,31 @@ const HOLIDAY_HOURS = 168;
 // hourly rate (base ÷ 242.67). Used as the FLSA regular-rate divisor for overtime.
 const FLSA_56HR_MONTHLY_HOURS = 242.67;
 const UNIFORM_ALLOWANCE_ANNUAL = 1300;  // pensionable uniform allowance, Classic only (per Treasurer)
-// FLSA OT — "special compensation," pensionable for CLASSIC ONLY (~2% of base), NOT PEPRA.
-// Per CalPERS-confirmed MOU holiday language + CalPERS contract #3831513094 (Treasurer-confirmed).
-const FLSA_OT_PENSIONABLE_PCT = 0.02;
+// ── FLSA REGULARLY SCHEDULED OVERTIME (pensionable, Classic only) ──────────────
+// MOU Ch.3 Art.II.A: "The City will maintain a twenty-four (24) day FLSA work period (182 hours
+// worked) to coincide with the 48/96 work schedule... All regularly scheduled overtime, plus
+// applicable longevity pay, shall be reported to CalPERS as special compensation under C.C.R
+// § 571, pursuant to the Public Employee Retirement Law."
+//
+// So it is pensionable by contract, and the amount falls straight out of the schedule:
+//   48/96 is a 6-day cycle working 48 hours, so a 24-day work period is 4 × 48 = 192 hours worked.
+//   192 − 182 = 10 hours over the FLSA threshold every cycle, by schedule alone.
+//   10 hrs × (365.25 ÷ 24 cycles) = 152.19 overtime hours a year.
+//   Base salary already pays straight time for every scheduled hour — the salary schedule's own
+//   divisor is 242.67/mo (56 × 52 ÷ 12 = 2,912 hrs/yr) — so what FLSA still owes is the
+//   HALF-time premium on those hours: 152.19 × 0.5 = 76.1 premium-hours a year.
+//   76.1 ÷ 2,912 = 2.61% of base.
+//
+// This was a hardcoded 2% with no derivation behind it. It is now computed from the MOU's own
+// numbers so it can be checked. It is still DERIVED, not confirmed against a pay stub or against
+// what the City actually reports to CalPERS — members can override it from their own stub.
+const FLSA_WORK_PERIOD_DAYS = 24;
+const FLSA_WORK_PERIOD_THRESHOLD_HOURS = 182;
+const FLSA_HOURS_WORKED_PER_PERIOD = 192;              // 48/96 across a 24-day period
+const FLSA_OT_HOURS_PER_YEAR =
+  (FLSA_HOURS_WORKED_PER_PERIOD - FLSA_WORK_PERIOD_THRESHOLD_HOURS) * (365.25 / FLSA_WORK_PERIOD_DAYS);
+const FLSA_ANNUAL_SCHEDULE_HOURS = FLSA_56HR_MONTHLY_HOURS * 12;   // 2,912
+const FLSA_OT_PENSIONABLE_PCT = (FLSA_OT_HOURS_PER_YEAR * 0.5) / FLSA_ANNUAL_SCHEDULE_HOURS;
 // PEMHCA minimum employer contribution — set by CalPERS every year, NOT a fixed number.
 // 2026: $162 (Circular Letter 600-023-25). 2027: $167 (Circular Letter 600-026-26).
 // Add each new year here every January. Beyond the last known year the tool escalates at
@@ -243,6 +265,19 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v20)", items: [
+    "Member details is now four sections, not six. <strong>1 \u00b7 Before Roseville</strong>, <strong>2 \u00b7 Roseville</strong>, <strong>3 \u00b7 Specialty pay and certificates</strong>, <strong>4 \u00b7 Overtime</strong>. That is it.",
+    "Overtime is one box now. Type the hours you average in a month and you get your gross, your take-home and what the overtime is worth a year. The line-by-line ledger that used to sit under it is gone from that card \u2014 it is still on \u201cYour pay right now\u201d further down the page if you want it.",
+    "Deleted \u201cA few more details.\u201d The only thing in it was your beneficiary\u2019s age, which now belongs on Deductions with the rest of the survivor election.",
+    "Moved \u201cCalPERS service credit\u201d off the front page to More \u203a All inputs. It is the only place to enter the figure from your myCalPERS Service Credit History, so it could not simply be deleted \u2014 but most members will never touch it, and it did not belong in the first four things you read.",
+  ] },
+  { date: "September 22, 2026 (v19)", items: [
+    "Fixed the pensionable FLSA overtime figure. It was a hardcoded 2% of base with nothing behind it. It is now <strong>2.61%</strong>, derived from the MOU\u2019s own numbers, and the derivation is printed on the screen next to it so you can check it.",
+    "The arithmetic: MOU Ch.3 Art.II.A sets a 24-day FLSA work period with a 182-hour threshold, to coincide with 48/96. A 24-day period on 48/96 is 192 hours worked \u2014 so you are 10 hours over the threshold every cycle, 152 hours a year, by schedule alone. Your base already pays straight time for those hours, so what FLSA still owes is the half-time premium: 76 hours \u00f7 2,912 = 2.61% of base.",
+    "That is not the overtime you volunteer for. Voluntary and callback overtime is not pensionable and never has been. This is the overtime built into the schedule, which Art.II.A reports to CalPERS as special compensation under C.C.R \u00a7571.",
+    "What it moves: about <strong>+$82/mo</strong> of final compensation for a Captain at step H, which is roughly <strong>+$76/mo</strong> on the pension, for life. Every figure in the tool moved with it.",
+    "Still derived, not confirmed against payroll. If your pay stub shows a different FLSA overtime figure, trust the stub \u2014 and tell the Treasurer, because the tool should match it.",
+  ] },
   { date: "September 22, 2026 (v18)", items: [
     "Member details now walks the way you would actually tell it. <strong>1 \u00b7 Before Roseville</strong> \u2014 every agency you worked before, oldest first, plus any Air Time you bought. <strong>2 \u00b7 Roseville</strong> \u2014 hire date, birthdate, rank, step, sick leave. <strong>3 \u00b7 Specialty pay and certificates</strong>. <strong>4 \u00b7 Overtime</strong>, and what it all adds up to in gross and take-home pay. Then CalPERS service credit and the odds and ends.",
     "Prior service moved from the middle of the page to the top, where a member starts anyway \u2014 CDF time, then the city or county after it, then Roseville.",
@@ -2170,8 +2205,21 @@ export default function RFFRetirementCalculator() {
                             <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
                           </div>
                           <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>FLSA overtime (special comp)</span>
+                            <span style={styles.tableKey}>FLSA overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· regularly scheduled, {pct(FLSA_OT_PENSIONABLE_PCT)} of base</span></span>
                             <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
+                          </div>
+                          <div style={{ fontSize: "10px", color: COLORS.textDim, lineHeight: 1.7, margin: "2px 0 8px", paddingLeft: "2px" }}>
+                            Not the overtime you volunteer for — this is the overtime built into the schedule.
+                            The MOU sets a {FLSA_WORK_PERIOD_DAYS}-day FLSA work period with a {FLSA_WORK_PERIOD_THRESHOLD_HOURS}-hour
+                            threshold, and 48/96 works {FLSA_HOURS_WORKED_PER_PERIOD} hours in that period — so you are
+                            {FLSA_HOURS_WORKED_PER_PERIOD - FLSA_WORK_PERIOD_THRESHOLD_HOURS} hours over, every cycle, {FLSA_OT_HOURS_PER_YEAR.toFixed(0)} hours a year.
+                            Your base already pays straight time for them, so what is left is the half-time premium:
+                            {(FLSA_OT_HOURS_PER_YEAR * 0.5).toFixed(0)} hours ÷ {FLSA_ANNUAL_SCHEDULE_HOURS.toFixed(0)} = {pct(FLSA_OT_PENSIONABLE_PCT)}.
+                            MOU Ch.3 Art.II.A reports it to CalPERS as special compensation under C.C.R §571.
+                            <div style={{ marginTop: "4px", color: COLORS.gold }}>
+                              Derived from the MOU, not checked against a pay stub. If your stub shows a different
+                              FLSA overtime figure, trust the stub and tell the Treasurer.
+                            </div>
                           </div>
                         </>)}
                         <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
@@ -2335,10 +2383,10 @@ export default function RFFRetirementCalculator() {
                     tool tell members retiring was a raise. It is not, for anyone who works OT. */}
                 {setupDone && (
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>4 · Overtime, and what it all adds up to</p>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>4 · Overtime</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                    The average overtime you actually work in a month, then your gross pay and what is left
-                    after everything comes out.
+                    The average you actually work in a month. One number — the full breakdown is on
+                    <strong style={{ color: COLORS.textMuted }}> Your pay right now</strong> below.
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
                     <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
@@ -2349,7 +2397,7 @@ export default function RFFRetirementCalculator() {
                     <div style={{ padding: "12px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: "8px" }}>
                       <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>Take-home</div>
                       <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: 800, color: COLORS.green, lineHeight: 1.2 }}>{fmt(workingTakeHome)}</div>
-                      <div style={{ fontSize: "10px", color: COLORS.textDim }}>after everything below</div>
+                      <div style={{ fontSize: "10px", color: COLORS.textDim }}>after tax and deductions</div>
                     </div>
                   </div>
 
@@ -2373,170 +2421,8 @@ export default function RFFRetirementCalculator() {
                     </div>
                   </div>
 
-                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Money in</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}</span></span>
-                    <span style={styles.tableVal}>{fmt(baseSalary)}</span>
-                  </div>
-                  {currentIncentives.totalIncentivePct > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Specialty &amp; certificate pay <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(currentIncentives.totalIncentivePct)}</span></span>
-                      <span style={styles.tableVal}>+{fmt(currentMonthlySalary - baseSalary)}</span>
-                    </div>
-                  )}
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {otHoursMonthly || 0} hrs · not pensionable</span></span>
-                    <span style={{ ...styles.tableVal, color: otMonthly > 0 ? COLORS.gold : COLORS.textDim }}>{otMonthly > 0 ? "+" + fmt(otMonthly) : "$0"}</span>
-                  </div>
-                  <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}` }}>
-                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Gross</span>
-                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(salaryWithOT)}/mo</span>
-                  </div>
-
-                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, margin: "16px 0 6px" }}>What comes out</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>CalPERS member contribution <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {memberType === "classic" ? "9%" : "11.5%"} of pensionable pay · stops at retirement</span></span>
-                    <span style={styles.tableVal}>−{fmt(employeeCalPERSContrib)}</span>
-                  </div>
-                  {effectiveMember457 > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>457 contribution <span style={{ fontSize: "10px", color: COLORS.textDim }}>· yours to keep</span></span>
-                      <span style={styles.tableVal}>−{fmt(effectiveMember457 / 12)}</span>
-                    </div>
-                  )}
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Union dues <span style={{ fontSize: "10px", color: COLORS.textDim }}>· stops at retirement</span></span>
-                    <span style={styles.tableVal}>−{fmt(UNION_DUES_MONTHLY)}</span>
-                  </div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Medical, dental &amp; vision <span style={{ fontSize: "10px", color: COLORS.textDim }}>· active premium</span></span>
-                    <span style={styles.tableVal}>−{fmt(medicalTotalOOP)}</span>
-                  </div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· rough estimate only, {filingStatus === "single" ? "Single" : "Married"}, California</span></span>
-                    <span style={styles.tableVal}>−{fmt(taxSalaryOT.tax / 12)}</span>
-                  </div>
-                  <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
-                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
-                    <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(workingTakeHome)}/mo</span>
-                  </div>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
-                    The CalPERS contribution, union dues and the active medical premium all stop when you retire.
-                    Your overtime stops too. <strong style={{ color: COLORS.textMuted }}>Retired</strong> shows what is left.
-                  </div>
                 </div>
                 )}
-                <div style={styles.card}>
-                  {sectionHeaderValue("startcalpers", "5 · CalPERS service credit",
-                    usingCalpersCredit ? `${(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs on file` : "estimated from hire date")}
-                  {openSections.startcalpers !== false && (<>
-                    <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
-                      CalPERS earns service credit on the hours your employer reports, so it does not have to
-                      equal calendar years since your hire date. If you give the tool the real figure, your
-                      pension percentage stops being an estimate.
-                      <div style={{ marginTop: "8px", color: COLORS.textDim }}>
-                        Log in to <strong style={{ color: COLORS.text }}>my.calpers.ca.gov</strong> and open
-                        <strong style={{ color: COLORS.text }}> Service Credit</strong>. You will see a Total, and a
-                        Service Credit History table listing each employer with its own retirement formula.
-                      </div>
-                    </div>
-                    <label style={styles.label}>Roseville service credit today <span style={{ fontSize: "10px", color: COLORS.textDim }}>· years, to 3 decimals</span></label>
-                    <input type="number" step="0.001" min={0} style={styles.input}
-                      value={calpersCreditRoseville || ""} placeholder="leave blank to estimate from hire date"
-                      onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
-                    {usingCalpersCredit && (<>
-                      <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
-                      <input type="date" style={styles.input} value={calpersCreditAsOf}
-                        onChange={e => setCalpersCreditAsOf(e.target.value)} />
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
-                        Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
-                        can be weeks old. Service still to be earned is counted from this date, not from today.
-                        Leave blank to count from today.
-                      </div>
-                      <label style={{ ...styles.checkRow, marginTop: "10px" }}>
-                        <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
-                          onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
-                        <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
-                          This figure already includes service credit I purchased
-                        </span>
-                      </label>
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
-                        myCalPERS folds purchased credit into the employer lines and says so under the Total.
-                        Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
-                        top, which would count it twice.
-                        {calpersCreditIncludesPurchased && airtimeYears > 0 && (
-                          <div style={{ marginTop: "6px", color: COLORS.gold }}>
-                            Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
-                            <strong> not</strong> being added separately — it is already inside the figure above.
-                          </div>
-                        )}
-                        <div style={{ marginTop: "6px" }}>
-                          Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
-                          already in them. If the Total is higher than the rows, it is not.
-                        </div>
-                      </div>
-                      <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>On file today</span>
-                          <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
-                        </div>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
-                          <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
-                        </div>
-                        <div style={styles.tableRowLast}>
-                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
-                          <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
-                        </div>
-                      </div>
-                      {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
-                        <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
-                          Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
-                          {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
-                          The CalPERS figure is the one your pension is paid on. Calendar years still drive your
-                          longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
-                        </div>
-                      )}
-                      {calpersTotalToday > 0 && (
-                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                          <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
-                          agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
-                          That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
-                          missing from the list below.
-                        </div>
-                      )}
-                    </>)}
-                    {!usingCalpersCredit && (
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                        Blank for now, so the tool is estimating <strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} years</strong> from
-                        your hire date to your retirement date. That is usually close, but it is an estimate.
-                      </div>
-                    )}
-                    <label style={{ ...styles.label, marginTop: "16px" }}>CalPERS account balance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
-                    <input type="number" step="0.01" min={0} style={styles.input} value={calpersBalance || ""}
-                      placeholder="contributions + interest, from your Account Summary"
-                      onChange={e => setCalpersBalance(Math.max(0, +e.target.value || 0))} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.7 }}>
-                      This does not change your pension by a cent. It is what you would be refunded if you
-                      quit and cashed out — which would forfeit the pension entirely. It is here only because
-                      the two get confused, and the comparison is worth seeing once.
-                    </div>
-                  </>)}
-                </div>
-                <div style={styles.card}>
-                  {sectionHeaderValue("startextras", "6 · A few more details",
-                    beneficiaryAge > 0 ? `beneficiary ${beneficiaryAge}` : "optional")}
-                  {openSections.startextras !== false && (<>
-                    <label style={styles.label}>Beneficiary's age at your retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>\u00b7 optional</span></label>
-                    <input type="number" style={styles.input} value={beneficiaryAge || ""} min={18} max={100}
-                      placeholder={`${Math.floor(retireAgeQ)} (same as you)`}
-                      onChange={e => { setBeneficiaryAge(+e.target.value || 0); setSetupDone(true); }} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
-                      Drives the CalPERS survivor options (Option 2, 2W, 3, 3W) on the Pension detail screen.
-                      A younger beneficiary means a larger reduction to your own allowance.
-                    </div>
-                  </>)}
-                </div>
                 <div style={styles.card}>
                   {sectionHeaderValue("startpay", "Your pay right now", `${fmt(currentMonthlySalary)}/mo`)}
                   {openSections.startpay !== false && (<>
@@ -3242,6 +3128,103 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {/* Box 3 — Rank */}
                 <div style={styles.card}>
+                <div style={styles.card}>
+                  {sectionHeaderValue("startcalpers", "CalPERS service credit (from myCalPERS)",
+                    usingCalpersCredit ? `${(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs on file` : "estimated from hire date")}
+                  {openSections.startcalpers !== false && (<>
+                    <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
+                      CalPERS earns service credit on the hours your employer reports, so it does not have to
+                      equal calendar years since your hire date. If you give the tool the real figure, your
+                      pension percentage stops being an estimate.
+                      <div style={{ marginTop: "8px", color: COLORS.textDim }}>
+                        Log in to <strong style={{ color: COLORS.text }}>my.calpers.ca.gov</strong> and open
+                        <strong style={{ color: COLORS.text }}> Service Credit</strong>. You will see a Total, and a
+                        Service Credit History table listing each employer with its own retirement formula.
+                      </div>
+                    </div>
+                    <label style={styles.label}>Roseville service credit today <span style={{ fontSize: "10px", color: COLORS.textDim }}>· years, to 3 decimals</span></label>
+                    <input type="number" step="0.001" min={0} style={styles.input}
+                      value={calpersCreditRoseville || ""} placeholder="leave blank to estimate from hire date"
+                      onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
+                    {usingCalpersCredit && (<>
+                      <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
+                      <input type="date" style={styles.input} value={calpersCreditAsOf}
+                        onChange={e => setCalpersCreditAsOf(e.target.value)} />
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
+                        Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
+                        can be weeks old. Service still to be earned is counted from this date, not from today.
+                        Leave blank to count from today.
+                      </div>
+                      <label style={{ ...styles.checkRow, marginTop: "10px" }}>
+                        <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
+                          onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
+                        <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
+                          This figure already includes service credit I purchased
+                        </span>
+                      </label>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
+                        myCalPERS folds purchased credit into the employer lines and says so under the Total.
+                        Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
+                        top, which would count it twice.
+                        {calpersCreditIncludesPurchased && airtimeYears > 0 && (
+                          <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                            Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
+                            <strong> not</strong> being added separately — it is already inside the figure above.
+                          </div>
+                        )}
+                        <div style={{ marginTop: "6px" }}>
+                          Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
+                          already in them. If the Total is higher than the rows, it is not.
+                        </div>
+                      </div>
+                      <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>On file today</span>
+                          <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
+                        </div>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
+                          <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
+                        </div>
+                        <div style={styles.tableRowLast}>
+                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
+                          <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
+                        </div>
+                      </div>
+                      {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
+                        <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                          Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
+                          {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
+                          The CalPERS figure is the one your pension is paid on. Calendar years still drive your
+                          longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
+                        </div>
+                      )}
+                      {calpersTotalToday > 0 && (
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                          <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
+                          agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
+                          That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
+                          missing from the list below.
+                        </div>
+                      )}
+                    </>)}
+                    {!usingCalpersCredit && (
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                        Blank for now, so the tool is estimating <strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} years</strong> from
+                        your hire date to your retirement date. That is usually close, but it is an estimate.
+                      </div>
+                    )}
+                    <label style={{ ...styles.label, marginTop: "16px" }}>CalPERS account balance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
+                    <input type="number" step="0.01" min={0} style={styles.input} value={calpersBalance || ""}
+                      placeholder="contributions + interest, from your Account Summary"
+                      onChange={e => setCalpersBalance(Math.max(0, +e.target.value || 0))} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.7 }}>
+                      This does not change your pension by a cent. It is what you would be refunded if you
+                      quit and cashed out — which would forfeit the pension entirely. It is here only because
+                      the two get confused, and the comparison is worth seeing once.
+                    </div>
+                  </>)}
+                </div>
                   {sectionHeader("rank", "3 · Rank")}
                   {openSections.rank !== false && (<>
                   <div style={styles.fieldGroup}>
