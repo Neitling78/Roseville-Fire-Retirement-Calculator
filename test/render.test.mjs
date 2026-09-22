@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["member","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
+  for (const t of ["member","comp","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -122,7 +122,7 @@ const E = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
   hasBachelor:true, hasChiefFireOfficer:true, hasHazmat:true, hazmatLevel:"taskforce",
   unusedHolidayHours:96 });
 check("every screen renders", () => Object.values(E).every(h => h.length > 200) || "a screen came back empty");
-check("shows current pay section", () => has(E.pay, "Your pay right now"));
+check("shows the compensation table", () => has(E.comp, "Current compensation"));
 // same member, every pay section expanded
 const Eo = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1",
@@ -132,55 +132,55 @@ const Eo = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   openSections:{ startpay:true, startincent:true, starthourly:true, startraises:true, startpayout:true } });
 check("shows specialty pay section", () => has(E.start, "Specialty pay and certificates"));
 check("collapsed header still shows the incentive total", () => /Specialty pay and certificates \s*[\d.]+%/.test(E.start) || "no total in the collapsed header");
-check("collapsed header still shows current pay", () => /Your pay right now \s*\$/.test(E.pay) || "no value in the collapsed header");
-check("collapsed header still shows the hourly rate", () => /Your hourly rates \s*\$/.test(E.pay) || "no value in the collapsed header");
-check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.pay) || "no value in the collapsed header");
+check("the table ends at gross pay", () => has(E.comp, "Gross pay"));
+check("collapsed header still shows the hourly rate", () => /Your hourly rates \s*\$/.test(E.comp) || "no value in the collapsed header");
+check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.sickleave) || "no value in the collapsed header");
 check("offers the education incentive", () => has(Eo.start, "Bachelor's degree (10%)"));
 check("offers Chief Fire Officer for a Captain", () => has(Eo.start, "Chief Fire Officer cert (10%)"));
 check("offers hazmat", () => has(Eo.start, "Hazmat"));
 check("offers rescue", () => has(Eo.start, "Rescue"));
 check("offers fire investigation", () => has(Eo.start, "Fire investigation"));
-check("shows hourly rates", () => has(E.pay, "Your hourly rates"));
-check("shows the FLSA regular rate", () => has(Eo.pay, "FLSA regular rate"));
+check("shows hourly rates", () => has(E.comp, "Your hourly rates"));
+check("shows the FLSA regular rate", () => has(Eo.comp, "FLSA regular rate"));
 check("All-Call rate is gone (never actually paid)", () => lacks(Eo.pay, "All-Call"));
-check("hourly rates carry cents", () => (Eo.pay.match(/\$[\d,]+\.\d{2}\/hr/g) || []).length >= 5
+check("hourly rates carry cents", () => (Eo.comp.match(/\$[\d,]+\.\d{2}\/hr/g) || []).length >= 5
   || "expected 5 hourly rates with cents, found " + (Eo.pay.match(/\$[\d,]+\.\d{2}\/hr/g) || []).length);
-check("collapsed hourly header carries cents", () => /Your hourly rates \s*\$[\d,]+\.\d{2}\/hr/.test(E.pay)
+check("collapsed hourly header carries cents", () => /Your hourly rates \s*\$[\d,]+\.\d{2}\/hr/.test(E.comp)
   || "collapsed header rate has no cents");
 check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
-check("shows future raises", () => has(E.pay, "Future raises"));
-check("shows the 2028 study is an assumption", () => has(Eo.pay, "study"));
-check("shows the cash-out card", () => has(E.pay, "Cash-out at retirement"));
+check("shows future raises", () => has(E.pension, "Future raises"));
+check("shows the 2028 study is an assumption", () => has(Eo.pension, "study"));
+check("shows the cash-out card", () => has(E.sickleave, "Cash-out at retirement"));
 check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
   && lacks(E.start, "Unused holiday hours") === true);
-check("explains holiday is special comp, not a payout", () => has(Eo.pay, "Holiday hours are not a separate cash-out"));
-check("cites the special-comp reporting", () => has(Eo.pay, "reported to CalPERS as special compensation"));
-check("says it cannot be both", () => has(Eo.pay, "cannot be both reported to CalPERS and paid out again"));
+check("explains holiday is special comp, not a payout", () => has(Eo.sickleave, "Holiday hours are not a separate cash-out"));
+check("cites the special-comp reporting", () => has(Eo.sickleave, "reported to CalPERS as special compensation"));
+check("says it cannot be both", () => has(Eo.sickleave, "cannot be both reported to CalPERS and paid out again"));
 check("holiday pay still counts as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
-check("cash-out rate says base + longevity, no incentives", () => has(Eo.pay, "base + longevity, no incentives"));
-check("cash-out card spells out the exclusion", () => has(Eo.pay, "base hourly plus longevity only"));
-check("cash-out card excludes specialty pay explicitly", () => has(Eo.pay, "no education, certificate or specialty pay"));
-check("cash-out card distinguishes projected rate from today's", () => has(Eo.pay, "not today's"));
+check("cash-out rate says base + longevity, no incentives", () => has(Eo.comp, "base + longevity, no incentives"));
+check("cash-out card spells out the exclusion", () => has(Eo.sickleave, "base hourly plus longevity only"));
+check("cash-out card excludes specialty pay explicitly", () => has(Eo.sickleave, "no education, certificate or specialty pay"));
+check("cash-out card distinguishes projected rate from today's", () => has(Eo.sickleave, "not today's"));
 check("shows what the pension is figured on", () => has(E.pension, "What the pension is figured on"));
 check("shows pensionable incentives in the build-up", () => has(E.pension, "Pensionable incentives"));
 check("Classic sees holiday pay as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
 check("Classic sees uniform allowance", () => has(E.pension, "Uniform allowance"));
 check("Classic sees FLSA OT special comp", () => has(E.pension, "regularly scheduled"));
-check("15% education+cert cap is applied", () => has(Eo.pay, "15% Education + Cert Cap Applied"));
+check("15% education+cert cap is applied", () => has(Eo.comp, "15% Education + Cert Cap Applied"));
 
 // ── Current pay vs pension projection must not be the same figure ───────────
 console.log("\n-- a Captain paid Engine Boss today, retiring after it ceases --");
 const F = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1",
   classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2029-06-01",
+  retirementDateOverride:"2029-06-01", rateYear:2027,
   hasEngineBoss:true, hasBachelor:true,
   openSections:{ startpay:true, starthourly:true } });
 check("every screen renders", () => Object.values(F).every(h => h.length > 200) || "a screen came back empty");
-check("current pay still shows Engine Boss", () => has(F.pay, "Engine Boss"));
-check("explains why it is not in the pension", () => has(F.pay, "it ends 1/9/2027"));
-check("explains the rank-separation trade", () => has(F.pay, "trades it for rank separation"));
+check("current pay still shows Engine Boss", () => has(F.comp, "Engine Boss"));
+check("says the ceasing cert pay ends 1/9/2027", () => has(F.comp, "end 1/9/2027"));
+check("names the rank separation that replaces it", () => has(F.comp, "rank separation sets"));
 check("pension build-up does NOT count it", () => {
   const i = F.pension.indexOf("What the pension is figured on");
   const j = F.pension.indexOf("Lands in your bank");
@@ -194,8 +194,8 @@ const G = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
   retirementDateOverride:"2026-12-01",
   hasEngineBoss:true, hasBachelor:true,
   openSections:{ startpay:true } });
-check("retiring before the cease date keeps it", () => has(G.pay, "Engine Boss"));
-check("no cease warning when it does not apply", () => lacks(G.pay, "it ends 1/9/2027"));
+check("retiring before the cease date keeps it", () => has(G.comp, "Engine Boss"));
+check("no cease warning when it does not apply", () => lacks(G.comp, "it ends 1/9/2027"));
 
 // ── Year picker on the hourly-rate card ─────────────────────────────────────
 console.log("\n-- hourly rates by year --");
@@ -211,25 +211,25 @@ const H29c = await scenario(mkCapt(2029, 0));
 const H30 = await scenario(mkCapt(2030));
 const H30c = await scenario(mkCapt(2030, 0));
 const H31 = await scenario(mkCapt(2031));
-check("year picker is present", () => has(H26.pay, "Show rates for"));
-check("2026 shows the published base", () => has(H26.pay, "$12,295"));
-check("2027 shows the rank-separated base", () => has(H27.pay, "$13,013"));
+check("year picker is present", () => has(H26.comp, "Show rates for"));
+check("2026 shows the published base", () => has(H26.comp, "$12,295"));
+check("2027 shows the rank-separated base", () => has(H27.comp, "$13,013"));
 // The MOU sets 2027 and 2029 and runs through 12/31/2029. The bargaining dial is barred from
 // every year the contract already covers, so 2028 and 2029 must not move when it is turned up.
-check("the dial does not touch 2028", () => has(H28.pay, "$13,316"));
-check("2028 is the same with the dial at zero", () => has(H28c.pay, "$13,316"));
-check("2029 is the MOU 1.75%, not the dial", () => has(H29.pay, "$13,549"));
-check("2029 is the same with the dial at zero", () => has(H29c.pay, "$13,549"));
-check("2030 is the first year the dial bites", () => has(H30.pay, "$13,955"));
-check("2030 with the dial at zero stays at the 2029 rate", () => has(H30c.pay, "$13,549"));
-check("the dial compounds after 2030", () => has(H31.pay, "$14,374"));
-check("2026 base hourly to the cent", () => has(H26.pay, "$50.67/hr"));
-check("2027 base hourly to the cent", () => has(H27.pay, "$53.63/hr"));
-check("picking a future year explains what moved", () => has(H27.pay, "What moved between"));
-check("names the 2027 rank separation", () => has(H27.pay, "rank separation sets"));
-check("names the ceasing incentives", () => has(H27.pay, "end 1/9/2027"));
-check("names the 2028 Labor Market Adjustment", () => has(H28.pay, "Labor Market Adjustment"));
-check("no assumed-figure warning when the LMA is left at zero", () => lacks(H28.pay, "Change it under Future raises"));
+check("the dial does not touch 2028", () => has(H28.comp, "$13,316"));
+check("2028 is the same with the dial at zero", () => has(H28c.comp, "$13,316"));
+check("2029 is the MOU 1.75%, not the dial", () => has(H29.comp, "$13,549"));
+check("2029 is the same with the dial at zero", () => has(H29c.comp, "$13,549"));
+check("2030 is the first year the dial bites", () => has(H30.comp, "$13,955"));
+check("2030 with the dial at zero stays at the 2029 rate", () => has(H30c.comp, "$13,549"));
+check("the dial compounds after 2030", () => has(H31.comp, "$14,374"));
+check("2026 base hourly to the cent", () => has(H26.comp, "$50.67/hr"));
+check("2027 base hourly to the cent", () => has(H27.comp, "$53.63/hr"));
+check("picking a future year explains what moved", () => has(H27.comp, "What moved between"));
+check("names the 2027 rank separation", () => has(H27.comp, "rank separation sets"));
+check("names the ceasing incentives", () => has(H27.comp, "end 1/9/2027"));
+check("names the 2028 Labor Market Adjustment", () => has(H28.comp, "Labor Market Adjustment"));
+check("no assumed-figure warning when the LMA is left at zero", () => lacks(H28.pension, "Change it on Pension"));
 
 // ── Labor Market Adjustment, MOU Ch.2 Art.I.A.3 ────────────────────────────
 // Effective the first full pay period in January 2028. The 2027 Total Compensation Study
@@ -240,30 +240,30 @@ const L27 = await scenario(mkCapt(2027, 3, 5));
 const L28 = await scenario(mkCapt(2028, 3, 5));
 const L29 = await scenario(mkCapt(2029, 3, 5));
 const L30 = await scenario(mkCapt(2030, 3, 5));
-check("the LMA does not touch 2027", () => has(L27.pay, "$13,013"));
-check("a 5% LMA lifts the 2028 base", () => has(L28.pay, "$13,982"));
-check("the 2029 MOU raise compounds on top of the LMA", () => has(L29.pay, "$14,226"));
-check("the 2030 bargaining dial compounds on top of both", () => has(L30.pay, "$14,653"));
-check("warns once an LMA has been assumed", () => has(L28.pay, "Change it under Future raises"));
+check("the LMA does not touch 2027", () => has(L27.comp, "$13,013"));
+check("a 5% LMA lifts the 2028 base", () => has(L28.comp, "$13,982"));
+check("the 2029 MOU raise compounds on top of the LMA", () => has(L29.comp, "$14,226"));
+check("the 2030 bargaining dial compounds on top of both", () => has(L30.comp, "$14,653"));
+check("warns once an LMA has been assumed", () => has(L28.comp, "Change it on Pension"));
 check("the LMA box is on the wait tab", () => has(L28.wait, "Labor Market Adjustment"));
 check("the wait tab cites the MOU article", () => has(L28.wait, "MOU Ch.2 Art.I.A.3"));
 check("the wait tab says the study sets it", () => has(L28.wait, "Total Compensation"));
-check("the LMA box is on Your Pay", () => has(L28.pay, "55th percentile"));
+check("the LMA box is on Your Pay", () => has(L28.pension, "55th percentile"));
 const LZ = await scenario(mkCapt(2028, 0, 0));
 check("all three at zero says nothing is assumed", () => has(LZ.wait, "All three at zero"));
 check("zero state says the LMA is deliberately left out", () => has(LZ.wait, "does not exist yet"));
 check("a set LMA is named in the assumptions banner", () => has(L28.wait, "Labor Market Adjustment in January 2028"));
-check("today's year shows no 'what moved' panel", () => lacks(H26.pay, "What moved between"));
+check("today's year shows no 'what moved' panel", () => lacks(H26.comp, "What moved between"));
 
 console.log("\n-- MOU raises are shown, not typed --");
-check("2027 GWI stated", () => has(H26.pay, "Jan 2027 general wage increase"));
-check("2029 GWI stated", () => has(H26.pay, "Jan 2029 general wage increase"));
-check("cites the MOU article", () => has(H26.pay, "MOU Ch.2 Art.I.A"));
-check("the bargaining lever is on the pay tab too", () => has(H26.pay, "Raises Local 1592 bargains"));
+check("2027 GWI stated", () => has(H26.pension, "Jan 2027 general wage increase"));
+check("2029 GWI stated", () => has(H26.pension, "Jan 2029 general wage increase"));
+check("cites the MOU article", () => has(H26.pension, "MOU Ch.2 Art.I.A"));
+check("the bargaining lever is on the pay tab too", () => has(H26.pension, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
   memberType:"classic", medicalTier:"2", classification:"Fire Plans Examiner", salaryStep:"H",
   retirementDateOverride:"2030-06-01", rateYear:2029, openSections:{ starthourly:true, startraises:true } });
-check("prevention class gets its own 2027 figure", () => has(PREVp.pay, "prevention +3.0%")
+check("prevention class gets its own 2027 figure", () => has(PREVp.comp, "prevention +3.0%")
   || has(PREVp.pay, "2.5%"));
 check("prevention class renders", () => PREVp.pay.length > 200 || "empty");
 
@@ -283,15 +283,15 @@ check("asks purchased service credit", () => has(FF.member, "Air Time purchased"
 check("asks beneficiary age on Deductions", () => has(FF.deductions, "beneficiary’s age at your retirement"));
 check("offers the pension type override", () => has(FF.inputs, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
-check("no cash-out totals on Start here", () => lacks(FF.start, "Total cash at separation"));
-check("points at the next tabs", () => has(FF.now, "See what you get retired"));
+check("no cash-out totals on Start here", () => lacks(FF.sickleave, "Total cash at separation"));
+check("member details no longer ends in a call to action", () => lacks(FF.member, "That is everything"));
 
 console.log("\n-- the three tabs hold different things --");
 check("pension tab has the answer", () => has(FF.pension, "Lands in your bank"));
 check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular rate"));
-check("pay tab has the rates", () => has(FF.pay, "Your hourly rates"));
+check("pay tab has the rates", () => has(FF.comp, "Your hourly rates"));
 check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
-check("pay tab has the cash-out card", () => has(FF.pay, "Cash-out at retirement"));
+check("pay tab has the cash-out card", () => has(FF.sickleave, "Cash-out at retirement"));
 check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
 check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
@@ -522,7 +522,7 @@ const OT60 = await scenario(mkOT(60));
 check("page one leads with gross and take-home", () => has(OT40.member, "Take-home"));
 check("the OT box is on page one", () => has(OT40.now, "Overtime you actually work"));
 check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
-check("page one says OT is not pensionable", () => has(OT40.now, "not pensionable"));
+check("page one says OT is not pensionable", () => has(OT40.member, "none of it is in your pension"));
 check("overtime is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
 check("the sections run in order down the page", () => {
   const order = ["1 \u00b7 Prior service","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
@@ -532,7 +532,7 @@ check("the sections run in order down the page", () => {
 check("page one shows the annual OT figure", () => has(OT40.now, "a year that stops the day you retire"));
 check("zero OT is called out as a problem", () => has(OT0.now, "makes retiring look far better than it is"));
 check("page one says overtime stops at retirement", () => has(OT40.member, "stops the day you retire"));
-check("the full ledger is still on Your pay right now", () => has(OT40.member, "Your pay right now"));
+check("the full ledger moved to Current compensation", () => has(OT40.comp, "Gross pay"));
 
 check("stay or go leads with the take-home change", () => has(OT40.stayorgo, "The day you hang it up"));
 check("no OT: retiring reads as a gain", () => has(OT0.stayorgo, "You come out ahead"));
@@ -569,6 +569,33 @@ check("the beneficiary continuance is shown", () => has(S2.deductions, "keeps, f
 check("the option selector is on Deductions", () => has(S2.deductions, "Who gets it after you"));
 check("retirement date moved to Pension", () => has(S1.pension, "When do you plan to go?"));
 check("retirement date is off Member details", () => lacks(S1.member, "When do you plan to go?"));
+
+
+// ── Sick leave: two boxes, not a dropdown ──────────────────────────────────
+// The split IS the decision — how many hours you cash and how many you convert
+// (2,000 hrs = 1 year of service credit, Gov. Code §20965).
+console.log("\n-- sick leave split --");
+const SPL = await scenario({ ...mkCola("2028-12-31", 50), sickCashHours: 600, sickCreditHours: 2000,
+  currentSickLeaveHours: 0 });
+check("two boxes, not a dropdown", () => has(SPL.member, "hours to cash out") && has(SPL.member, "hours to convert"));
+check("shows the years the converted hours buy", () => has(SPL.member, "1.00 yrs"));
+check("projects the split total, not just one box", () => has(SPL.member, "2600 hrs today"));
+check("accrual is added, not lost", () => has(SPL.member, "2927 hrs"));
+check("future accrual follows the same split", () => has(SPL.member, "1.13 yrs"));
+check("and the rest is cashed", () => has(SPL.member, "676 hrs cashed"));
+
+// ── Current compensation: one table, ends at W-2 gross ─────────────────────
+console.log("\n-- current compensation --");
+const CC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+check("one consolidated table", () => has(CC.comp, "Current compensation"));
+check("hourly, monthly and annual", () => ["Hourly","Monthly","Annual"].every(x => CC.comp.includes(x)));
+check("base salary to the cent", () => has(CC.comp, "$50.67"));
+check("ends at gross pay", () => has(CC.comp, "Gross pay"));
+check("annual gross is shown", () => has(CC.comp, "$223,950"));
+check("separates what CalPERS is told", () => has(CC.comp, "reported to CalPERS"));
+check("overtime is flagged as not pensionable", () => has(CC.comp, "Overtime you work"));
+check("explains the W-2 difference", () => has(CC.comp, "Box 1 will read lower"));
+check("it is off Member details now", () => lacks(CC.member, "Gross pay"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
