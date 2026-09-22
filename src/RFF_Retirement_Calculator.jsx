@@ -243,6 +243,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v13)", items: [
+    "Every headline figure is now your <strong>gross monthly CalPERS allowance</strong> \u2014 the same number myCalPERS shows you. The banner at the top of every screen, the \u201cWhat if I wait\u201d table and the long-range timeline all report it.",
+    "They used to report take-home: the gross allowance with an estimated income tax taken out. That number matched nothing you could check. Put your CalPERS estimate next to this tool and the figures should now line up.",
+    "Why it was wrong to lead with: the tax figure is a single flat effective rate. It does not know your filing status, your deductions or any other income you have, and it will be off for nearly everyone. CalPERS does not net tax out of an estimate either \u2014 tax and your health premium come off the warrant afterward.",
+    "The take-home math has not been deleted. The full chain \u2014 final compensation, percentage, gross allowance, tax, retiree medical, what lands in your bank \u2014 is still on Your Pension, where there is room to label it. The tax line now says on its face that it is a rough estimate.",
+    "One figure to watch: the gross number is the <em>unmodified</em> allowance. If you elect a survivor option, CalPERS will show you the reduced amount instead. Survivor options are on Everything else \u203a Pension detail.",
+  ] },
   { date: "September 22, 2026 (v12)", items: [
     "The bargaining dial no longer touches any year the MOU already covers. It used to apply in 2028; it now applies to 2030 and later only. The MOU sets 2027 and 2029 and runs through 12/31/2029, so those years show the contract figure and nothing else, whatever you set the dial to.",
     "Fixed a real error in the pension growth: your first COLA now lands when CalPERS actually pays it. CalPERS starts COLAs in the second calendar year after you retire, effective in the May 1 warrant \u2014 retire in December 2028 and your first increase is May 1, 2030, not a year after you walk out.",
@@ -1620,8 +1627,12 @@ export default function RFFRetirementCalculator() {
     // Same figure with inflation taken back out, so later years are comparable with today.
     const yearsOut = Math.max(0, y - NOW.getFullYear());
     const takeHomeToday = takeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsOut);
+    // The headline figure is the GROSS CalPERS allowance — the number myCalPERS shows — with
+    // inflation taken back out so later years stay comparable with today. Tax and medical are
+    // deductions from the warrant; CalPERS does not net them out and neither do we.
+    const pensionToday = pension / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsOut);
     return { year: y, age: ageQ, yos, pensionPct: pPct + priorOther, finalComp: fc,
-      pension, tax, medOOP, takeHome, takeHomeToday, sickCash, slCreditYrs, slHours,
+      pension, pensionToday, tax, medOOP, takeHome, takeHomeToday, sickCash, slCreditYrs, slHours,
       atCap: benefitIsCapped && pPct >= benefitMaxPct - 1e-9 };
   };
   const retireYearOptions = (() => {
@@ -1773,12 +1784,14 @@ export default function RFFRetirementCalculator() {
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly take-home</div>
-            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{fmt(totalMonthlyTakeHome)}/mo</div>
+            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly CalPERS pension</div>
+            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{fmt(combinedPensionMonthly)}/mo</div>
+            <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim, marginTop: "1px" }}>gross, before tax — as CalPERS shows it</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>{takeHomeDiff >= 0 ? "Gained by retiring" : "Lost by retiring"}</div>
-            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold, lineHeight: 1.1 }}>{takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo</div>
+            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Of final compensation</div>
+            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{pct(combinedPensionPct)}</div>
+            <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim, marginTop: "1px" }}>{fmt(finalCompMonthly)}/mo final comp</div>
           </div>
         </div>
       </div>
@@ -2189,7 +2202,7 @@ export default function RFFRetirementCalculator() {
                         </div>
                       )}
                       <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· est. {pct(retEffRate)}, {stateName}</span></span>
+                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· rough estimate only — flat {pct(retEffRate)}, {stateName}</span></span>
                         <span style={styles.tableVal}>−{fmt(combinedPensionMonthly * retEffRate)}</span>
                       </div>
                       <div style={styles.tableRow}>
@@ -2616,16 +2629,15 @@ export default function RFFRetirementCalculator() {
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Age</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Yrs</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>%</th>
-                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home <span style={{ fontWeight: 400, fontSize: "10px" }}>· today's $</span></th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>Pension / mo <span style={{ fontWeight: 400, fontSize: "10px" }}>· gross, today's $</span></th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest</th>
                           </tr>
                         </thead>
                         <tbody>
                           {retireYearOptions.map(r => {
                             const isSel = r.year === retirementYear;
-                            const delta = earliestRow ? r.takeHome - earliestRow.takeHome : 0;
-                            // Compare like with like: the "vs. earliest" gain is in today's dollars.
-                            const deltaToday = earliestRow ? r.takeHomeToday - earliestRow.takeHomeToday : 0;
+                            // Compare like with like: gross allowance, in today's dollars.
+                            const deltaToday = earliestRow ? r.pensionToday - earliestRow.pensionToday : 0;
                             return (
                               <tr key={r.year}
                                 onClick={() => { setRetirementDateOverride(`${r.year}-${String(retMonthNum).padStart(2, "0")}-${String(retDayNum).padStart(2, "0")}`); setSetupDone(true); }}
@@ -2638,7 +2650,7 @@ export default function RFFRetirementCalculator() {
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{Math.floor(r.age)}</td>
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.yos.toFixed(1)}</td>
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{pct(r.pensionPct)}</td>
-                                <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.takeHomeToday)}</td>
+                                <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.pensionToday)}</td>
                                 <td style={{ padding: "9px 4px", color: deltaToday > 0 ? COLORS.green : (deltaToday < -1 ? COLORS.gold : COLORS.textDim) }}>
                                   {deltaToday > 0 ? "+" : ""}{Math.abs(deltaToday) < 1 ? "—" : fmt(deltaToday)}
                                 </td>
@@ -2651,9 +2663,9 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
                       {benefitIsCapped && capYearRow && <>▪ marks the year you reach the {pct(benefitMaxPct)} cap. From {capYearRow.year} on, the percentage stops moving — what still raises the number is your pay growing, and any service under a different CalPERS formula. Extra years in the capped bucket add nothing.<br /></>}
                       {!benefitIsCapped && <>Your formula has no cap, so every row keeps climbing.<br /></>}
-                      Take-home is gross pension less estimated income tax and your retiree medical
-                      out-of-pocket. The tax rate is the one computed for your selected year, applied
-                      across all rows — good enough to rank the years, not a tax return.
+                      This is your <strong style={{ color: COLORS.text }}>gross monthly allowance</strong> — the
+                      same figure myCalPERS shows you. Income tax and your retiree medical premium come off
+                      the warrant afterward; CalPERS does not net them out of an estimate, and neither does this.
                       <div style={{ marginTop: "8px", color: COLORS.textMuted }}>
                         Every figure here is in <strong style={{ color: COLORS.text }}>today's dollars</strong> at the CPI
                         you set above, so the rows are comparable. A pension paid in 2035 arrives in 2035 dollars,
@@ -4332,7 +4344,7 @@ export default function RFFRetirementCalculator() {
                     if (effectiveDrawStartAge > retirementAge && A === Math.round(effectiveDrawStartAge)) notes.push("457 starts");
                     if (A === 65) notes.push("Medicare — $0 medical");
                     if (!depletedMarked && depletionAge <= 90 && A >= depletionAge) { notes.push("457 depleted"); depletedMarked = true; }
-                    return { A, totalNominalM, totalTodayM, notes };
+                    return { A, pensionNominal, totalNominalM, totalTodayM, notes };
                   });
                   return (
                     <div style={{ overflowX: "auto" }}>
@@ -4340,6 +4352,7 @@ export default function RFFRetirementCalculator() {
                         <thead>
                           <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                             <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Age</th>
+                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Pension / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(gross — CalPERS)</span></th>
                             <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(nominal)</span></th>
                             <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(today's $)</span></th>
                             <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Notes</th>
@@ -4349,6 +4362,7 @@ export default function RFFRetirementCalculator() {
                           {rows.map(r => (
                             <tr key={r.A} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                               <td style={{ padding: "8px 6px", color: COLORS.text, fontWeight: "600" }}>{r.A}</td>
+                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.green, fontWeight: "700" }}>{fmt(r.pensionNominal)}</td>
                               <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.text, fontWeight: "600" }}>{fmt(r.totalNominalM)}</td>
                               <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.textMuted }}>{fmt(r.totalTodayM)}</td>
                               <td style={{ padding: "8px 6px", color: COLORS.gold, fontSize: "11px" }}>{r.notes.join(" · ")}</td>

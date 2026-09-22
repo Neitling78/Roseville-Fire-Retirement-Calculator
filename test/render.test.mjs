@@ -73,7 +73,7 @@ check("shows the Classic formula", () => has(B.start, "3% @ 50"));
 console.log("\n-- 'what if I wait' with real numbers --");
 check("table header present", () => has(B.wait, "Go in"));
 check("lists candidate years", () => has(B.wait, "2028"));
-check("explains the tax approximation", () => has(B.wait, "rank the years"));
+check("says tax comes off the warrant, not the estimate", () => has(B.wait, "come off the warrant afterward"));
 check("warns later dollars buy less", () => has(B.wait, "which buy less"));
 
 console.log("\n-- sick leave decision screen --");
@@ -387,7 +387,9 @@ const WD = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-09-28", calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
   priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }] });
-check("take-home column is labelled today's dollars", () => has(WD.wait, "Take-home"));
+check("column is the gross CalPERS allowance", () => has(WD.wait, "gross, today's $"));
+check("says the figure matches myCalPERS", () => has(WD.wait, "same figure myCalPERS shows you"));
+check("wait tab no longer nets out tax", () => lacks(WD.wait, "less estimated income tax"));
 check("says every figure is in today's dollars", () => has(WD.wait, "Every figure here is in"));
 check("explains why raw future numbers are not shown", () => has(WD.wait, "would make waiting look better than it is"));
 check("offers the bargaining lever", () => has(WD.wait, "Raises Local 1592 bargains"));
@@ -436,6 +438,28 @@ check("10 years out = 9 COLAs", () => has(CD.pensiondetail, "$18,730"));
 // years they have banked one fewer COLA than the December retiree.
 check("February retiree: 5 years out = 3 COLAs", () => has(CF.pensiondetail, "$13,365"));
 check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"));
+
+
+// ── The headline is the gross CalPERS allowance, not a take-home guess ──────
+// myCalPERS shows the gross monthly allowance; tax and health premiums come off the
+// warrant afterward. The header used to lead with an after-tax figure, which matched
+// nothing a member could check against their own CalPERS estimate.
+console.log("\n-- headline is the gross allowance --");
+const GH = await scenario(mkCola("2028-12-31", 50));
+check("header is labelled as the CalPERS pension", () => has(GH.pension, "Monthly CalPERS pension"));
+check("header says it is gross", () => has(GH.pension, "gross, before tax"));
+check("header no longer leads with take-home", () => lacks(GH.pension, "Monthly take-home"));
+check("header shows the gross figure", () => has(GH.pension, "$14,355/mo"));
+check("header shows percent of final comp", () => has(GH.pension, "Of final compensation"));
+check("the same gross figure appears on every tab", () =>
+  ["pension","wait","pay","sickleave","medical"].every(t => GH[t].includes("$14,355/mo"))
+  || "a tab disagreed with the header");
+check("wait table leads with the gross allowance", () => has(GH.wait, "$14,355"));
+// The full take-home chain survives on the pension breakdown, where it has context.
+check("breakdown still shows gross pension", () => has(GH.pension, "Gross CalPERS pension"));
+check("breakdown still shows what lands in the bank", () => has(GH.pension, "Lands in your bank"));
+check("the tax line says plainly that it is rough", () => has(GH.pension, "rough estimate only"));
+check("timeline gains a gross CalPERS column", () => has(GH.timeline, "(gross — CalPERS)"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
