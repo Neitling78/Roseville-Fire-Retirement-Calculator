@@ -243,6 +243,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v16)", items: [
+    "Rebuilt around four tabs instead of seven. <strong>Working now</strong> \u2014 what you earn and what you keep. <strong>Retired</strong> \u2014 what the pension pays and what you keep. <strong>Stay or go?</strong> \u2014 the comparison. <strong>Details</strong> \u2014 everything else, still there, out of the way.",
+    "<strong>Overtime is on page one now.</strong> It was buried three screens deep under \u201cOther income &amp; tax\u201d and it defaulted to zero. That was the single worst thing about this tool: with no overtime entered it told members that retiring was a <em>raise</em>.",
+    "It is not a raise for anyone who works OT. Overtime is not reported to CalPERS, so none of it is in your pension and all of it stops the day you leave. Page one now shows what yours is worth a month and a year, and says plainly that it does not follow you out the door.",
+    "Page one is a straight ledger: base, specialty pay and overtime add up to gross; then the CalPERS member contribution, 457, union dues, medical and tax come out; what is left is what lands in your bank. Same shape on Retired, so the two pages compare line for line.",
+    "\u201cStay or go?\u201d opens with the single number most people came for: your take-home working versus your take-home retired, and the size of the change. Where overtime is most of the gap, it says so.",
+    "How much that matters: a Captain at step H with no overtime comes out <em>ahead</em> by about $2,400 a month retiring. The same Captain working 60 hours of overtime a month takes a cut of about $840. The break-even is somewhere near 44 hours a month.",
+    "Old links still work. A bookmark to \u201cStart here\u201d lands on Working now, \u201cWhat if I wait?\u201d lands on Stay or go.",
+  ] },
   { date: "September 22, 2026 (v15)", items: [
     "New section at the bottom of \u201cWhat if I wait\u201d: <strong>What waiting actually costs</strong>. Every year you work past your earliest date, you give up a year of pension checks to buy a permanently larger pension. This lays out that trade, year by year.",
     "For each year it shows the pension you skip getting there, what your pension gains per year for life, how long that gain takes to repay the skipped checks \u2014 and how old you are when it does \u2014 and where you stand after twenty years retired.",
@@ -670,13 +679,16 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["start", "pension", "pay", "wait", "sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help"];
+  const VALID_TABS = ["now", "retired", "stayorgo", "sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help", "updates"];
+  // Links sent out before the rebuild still have to land somewhere sensible.
+  const LEGACY_TABS = { start: "now", pay: "now", pension: "retired", wait: "stayorgo", advanced: "inputs" };
   const initialTab = (() => {
     try {
       const q = typeof window !== "undefined" && window.location
         ? new URLSearchParams(window.location.search).get("tab") : null;
-      return VALID_TABS.includes(q) ? q : "start";
-    } catch { return "start"; }
+      if (LEGACY_TABS[q]) return LEGACY_TABS[q];
+      return VALID_TABS.includes(q) ? q : "now";
+    } catch { return "now"; }
   })();
   const [tab, setTab] = useState(initialTab);
   // The tool used to open on a brand-new hire's numbers. It now shows nothing until the
@@ -1605,7 +1617,7 @@ export default function RFFRetirementCalculator() {
   const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
     && (parseFloat(inflationRate) || 0) === 0
     && (parseFloat(lmaPct) || 0) === 0;
-  const ADVANCED_TABS = ["inputs", "pensiondetail", "income", "timeline", "help"];
+  const ADVANCED_TABS = ["sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
@@ -1683,7 +1695,7 @@ export default function RFFRetirementCalculator() {
   // The year the Classic 90% cap first binds — after this, more service adds nothing.
   const capYearRow = benefitIsCapped ? retireYearOptions.find(r => r.atCap) : null;
   // Prior-agency service, pension-type override and purchased service credit. Defined once
-  // and rendered on both Start here and the advanced inputs tab, so the two never drift.
+  // and rendered on both Working now and the advanced inputs tab, so the two never drift.
   const priorServiceEditor = (<>
                   {/* Pension Type (auto from hire date, manual override) */}
                   <div style={styles.fieldGroup}>
@@ -1827,16 +1839,16 @@ export default function RFFRetirementCalculator() {
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
         {datesInvalid && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
-            ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Start here — the numbers above aren't valid until then.
+            ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Working now — the numbers above aren't valid until then.
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
-          {["start", "pension", "pay", "wait", "sickleave", "medical", "advanced"].map(t => {
+          {["now", "retired", "stayorgo", "advanced"].map(t => {
             const active = t === "advanced" ? isAdvancedTab : tab === t;
             return (
-              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "9px 2px" : "11px 8px", whiteSpace: "nowrap" }}
-                onClick={() => setTab(t === "advanced" ? "inputs" : t)}>
-                {{ start: isMobile ? "Start" : "Start here", pension: isMobile ? "Pension" : "Your pension", pay: isMobile ? "Pay" : "Your pay", wait: isMobile ? "Wait?" : "What if I wait?", sickleave: isMobile ? "Sick" : "Sick leave", medical: isMobile ? "Med" : "Medical", advanced: isMobile ? "More" : "Everything else" }[t]}
+              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 45%" : 1, textAlign: "center", fontSize: isMobile ? "12px" : "14px", padding: isMobile ? "11px 2px" : "12px 8px", whiteSpace: "nowrap" }}
+                onClick={() => setTab(t === "advanced" ? "sickleave" : t)}>
+                {{ now: isMobile ? "Working" : "Working now", retired: "Retired", stayorgo: isMobile ? "Stay or go" : "Stay or go?", advanced: "Details" }[t]}
               </button>
             );
           })}
@@ -1845,7 +1857,7 @@ export default function RFFRetirementCalculator() {
           <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
             {ADVANCED_TABS.map(t => (
               <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
+                {{ sickleave: "Sick leave", medical: "Medical", inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
               </button>
             ))}
           </div>
@@ -1853,8 +1865,8 @@ export default function RFFRetirementCalculator() {
         <div style={{ ...styles.grid, gridTemplateColumns: "1fr" }}>
           {/* LEFT PANEL */}
           <div>
-            {/* ═══════════════ START HERE ═══════════════ */}
-            {tab === "start" && (
+            {/* ═══════════════ WORKING NOW · inputs ═══════════════ */}
+            {tab === "now" && (
               <>
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Five questions</p>
@@ -2143,7 +2155,7 @@ export default function RFFRetirementCalculator() {
                     </div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" }}>
                       <button style={{ ...styles.tab(true), padding: "12px 20px", fontSize: "14px" }} onClick={() => setTab("pension")}>
-                        See your pension
+                        See what you get retired
                       </button>
                       <button style={{ ...styles.tab(false), padding: "12px 20px", fontSize: "14px" }} onClick={() => setTab("pay")}>
                         See your pay
@@ -2165,13 +2177,13 @@ export default function RFFRetirementCalculator() {
               </>
             )}
 
-            {/* ═══════════════ YOUR PENSION ═══════════════ */}
-            {tab === "pension" && (
+            {/* ═══════════════ RETIRED ═══════════════ */}
+            {tab === "retired" && (
               <>
                 {!setupDone && (
                   <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
-                      Answer the questions on <strong style={{ color: COLORS.text }}>Start here</strong> first.
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Working now</strong> first.
                       <br /><br />
                       <span style={{ fontSize: "12px", color: COLORS.textDim }}>
                         Nothing you type leaves your browser. There is no account and no server.
@@ -2354,19 +2366,115 @@ export default function RFFRetirementCalculator() {
               </>
             )}
 
-            {/* ═══════════════ YOUR PAY ═══════════════ */}
-            {tab === "pay" && (
+            {/* ═══════════════ WORKING NOW · what you actually take home ═══════════════ */}
+            {tab === "now" && (
               <>
                 {!setupDone && (
                   <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
-                      Answer the questions on <strong style={{ color: COLORS.text }}>Start here</strong> first.
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Working now</strong> first.
                       <br /><br />
                       <span style={{ fontSize: "12px", color: COLORS.textDim }}>
                         Nothing you type leaves your browser. There is no account and no server.
                       </span>
                     </div>
                   </div>
+                )}
+                {/* ── THE PAGE-ONE ANSWER: gross and take-home, with overtime in it ──
+                    Overtime is the whole reason this page exists. It is real money today and it is
+                    NOT pensionable, so it vanishes the day you retire. Burying the input made the
+                    tool tell members retiring was a raise. It is not, for anyone who works OT. */}
+                {setupDone && (
+                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What you make now</p>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                    Everything you earn working, and everything that comes out before it hits your bank.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+                    <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>Gross</div>
+                      <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: 800, color: COLORS.text, lineHeight: 1.2 }}>{fmt(salaryWithOT)}</div>
+                      <div style={{ fontSize: "10px", color: COLORS.textDim }}>per month, with overtime</div>
+                    </div>
+                    <div style={{ padding: "12px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: "8px" }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>Take-home</div>
+                      <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: 800, color: COLORS.green, lineHeight: 1.2 }}>{fmt(workingTakeHome)}</div>
+                      <div style={{ fontSize: "10px", color: COLORS.textDim }}>after everything below</div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: "8px", marginBottom: "16px" }}>
+                    <label style={{ ...styles.label, marginBottom: "6px" }}>Overtime you actually work</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <input type="number" step="1" min={0} max={400} value={currentOTHours || ""} placeholder="0"
+                        onChange={e => setCurrentOTHours(Math.max(0, parseFloat(e.target.value) || 0))}
+                        style={{ ...styles.input, margin: 0, width: "110px" }} />
+                      <span style={{ fontSize: "12px", color: COLORS.textMuted }}>hours a month</span>
+                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
+                        × {fmtHr(otHourlyRate)} = <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong>
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
+                      {otMonthly > 0
+                        ? <>That is <strong style={{ color: COLORS.gold }}>{fmt(otMonthly * 12)}</strong> a year that stops the day you retire.
+                          Overtime is not reported to CalPERS, so none of it is in your pension.</>
+                        : <>Put your real number in. Overtime is not pensionable — it stops at retirement and
+                          none of it counts toward your pension, so leaving this at zero makes retiring look far better than it is.</>}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Money in</div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}</span></span>
+                    <span style={styles.tableVal}>{fmt(baseSalary)}</span>
+                  </div>
+                  {currentIncentives.totalIncentivePct > 0 && (
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Specialty &amp; certificate pay <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(currentIncentives.totalIncentivePct)}</span></span>
+                      <span style={styles.tableVal}>+{fmt(currentMonthlySalary - baseSalary)}</span>
+                    </div>
+                  )}
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {otHoursMonthly || 0} hrs · not pensionable</span></span>
+                    <span style={{ ...styles.tableVal, color: otMonthly > 0 ? COLORS.gold : COLORS.textDim }}>{otMonthly > 0 ? "+" + fmt(otMonthly) : "$0"}</span>
+                  </div>
+                  <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Gross</span>
+                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(salaryWithOT)}/mo</span>
+                  </div>
+
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, margin: "16px 0 6px" }}>What comes out</div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>CalPERS member contribution <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {memberType === "classic" ? "9%" : "11.5%"} of pensionable pay · stops at retirement</span></span>
+                    <span style={styles.tableVal}>−{fmt(employeeCalPERSContrib)}</span>
+                  </div>
+                  {effectiveMember457 > 0 && (
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>457 contribution <span style={{ fontSize: "10px", color: COLORS.textDim }}>· yours to keep</span></span>
+                      <span style={styles.tableVal}>−{fmt(effectiveMember457 / 12)}</span>
+                    </div>
+                  )}
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Union dues <span style={{ fontSize: "10px", color: COLORS.textDim }}>· stops at retirement</span></span>
+                    <span style={styles.tableVal}>−{fmt(UNION_DUES_MONTHLY)}</span>
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Medical, dental &amp; vision <span style={{ fontSize: "10px", color: COLORS.textDim }}>· active premium</span></span>
+                    <span style={styles.tableVal}>−{fmt(medicalTotalOOP)}</span>
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· rough estimate only, {filingStatus === "single" ? "Single" : "Married"}, California</span></span>
+                    <span style={styles.tableVal}>−{fmt(taxSalaryOT.tax / 12)}</span>
+                  </div>
+                  <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
+                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
+                    <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(workingTakeHome)}/mo</span>
+                  </div>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                    The CalPERS contribution, union dues and the active medical premium all stop when you retire.
+                    Your overtime stops too. <strong style={{ color: COLORS.textMuted }}>Retired</strong> shows what is left.
+                  </div>
+                </div>
                 )}
                 <div style={styles.card}>
                   {sectionHeaderValue("startpay", "Your pay right now", `${fmt(currentMonthlySalary)}/mo`)}
@@ -2526,7 +2634,7 @@ export default function RFFRetirementCalculator() {
                       onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
                       Applies to 2030 and later, after the MOU expires 12/31/2029. At 0 the tool credits you
-                      with nothing beyond the signed contract. Same controls as on the "What if I wait?" tab.
+                      with nothing beyond the signed contract. Same controls as on the "Stay or go?" tab.
                     </div>
                     <div style={{ marginTop: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
                       <div style={styles.tableRow}>
@@ -2578,17 +2686,64 @@ export default function RFFRetirementCalculator() {
               </>
             )}
 
-            {/* ═══════════════ WHAT IF I WAIT ═══════════════ */}
-            {tab === "wait" && (
-              <div style={styles.card}>
-                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What if I wait?</p>
+            {/* ═══════════════ STAY OR GO ═══════════════ */}
+            {/* The headline answer: what the paycheck-to-pension change actually is, in one line.
+                Overtime drives most of it for most members and is called out by name. */}
+            {tab === "stayorgo" && setupDone && (() => {
+              const cut = workingTakeHome - retireTakeHomeToday;   // + = retiring is a pay cut
+              const otShare = cut > 0 && otMonthly > 0 ? Math.min(1, otMonthly / cut) : 0;
+              return (
+                <div style={{ ...styles.card, border: `1px solid ${cut > 0 ? COLORS.gold : COLORS.green}` }}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>The day you hang it up</p>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                    Take-home against take-home, both in today&rsquo;s dollars. This is the change to the money
+                    that actually reaches your account.
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Working now <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {otMonthly > 0 ? `includes ${fmt(otMonthly)} of overtime` : "no overtime entered"}</span></span>
+                    <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Retired in {retirementYear} <span style={{ fontSize: "10px", color: COLORS.textDim }}>· pension after tax and medical</span></span>
+                    <span style={styles.tableVal}>{fmt(retireTakeHomeToday)}/mo</span>
+                  </div>
+                  <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${cut > 0 ? COLORS.gold : COLORS.green}`, marginTop: "10px", paddingTop: "12px" }}>
+                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>
+                      {cut > 0 ? "The cut" : "You come out ahead"}
+                    </span>
+                    <span style={{ fontWeight: 800, fontSize: "22px", color: cut > 0 ? COLORS.gold : COLORS.green }}>
+                      {cut > 0 ? "−" : "+"}{fmt(Math.abs(cut))}/mo
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "10px", lineHeight: 1.7 }}>
+                    That is <strong style={{ color: cut > 0 ? COLORS.gold : COLORS.green }}>{fmt(Math.abs(cut) * 12)}</strong> a year
+                    {cut > 0 ? " less" : " more"} than you live on today.
+                    {otShare > 0.5 && (
+                      <> Most of it is overtime: <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong> of what you
+                      earn now is not pensionable, so it does not follow you out the door.</>
+                    )}
+                    {cut > 0 && otMonthly === 0 && (
+                      <> You have no overtime entered. If you work any, put it in on <strong style={{ color: COLORS.textMuted }}>Working now</strong> — it will widen this gap.</>
+                    )}
+                    {cut <= 0 && (
+                      <> You stop paying the {memberType === "classic" ? "9%" : "11.5%"} CalPERS contribution, union dues and the
+                      active medical premium, and that more than covers the drop from salary to pension
+                      {otMonthly === 0 ? " — though you have no overtime entered, which would change this." : "."}</>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            {tab === "stayorgo" && (
+              <div style={{ ...styles.card, marginTop: setupDone ? "18px" : 0 }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Every year you could go</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
                   The same calculation run for every year you could go. Your selected year is highlighted.
                   Tap any year to make it your plan.
                 </div>
                 {!setupDone && (
                   <div style={{ fontSize: "13px", color: COLORS.textMuted, padding: "24px", textAlign: "center" }}>
-                    Answer the five questions on <strong>Start here</strong> first.
+                    Answer the five questions on <strong>Working now</strong> first.
                   </div>
                 )}
                 {setupDone && retireYearOptions.length === 0 && (

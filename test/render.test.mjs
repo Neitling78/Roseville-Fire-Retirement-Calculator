@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
+  for (const t of ["now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -279,19 +279,18 @@ check("asks prior agency service", () => has(FF.start, "Prior service and purcha
 check("asks purchased service credit", () => has(FF.start, "Airtime / purchased service"));
 check("asks beneficiary age", () => has(FF.start, "Beneficiary's age at your retirement"));
 check("offers the pension type override", () => has(FF.start, "CalPERS reciprocity"));
-check("no pension answer on Start here", () => lacks(FF.start, "Lands in your bank"));
-check("no hourly rates on Start here", () => lacks(FF.start, "FLSA regular rate"));
+check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
 check("no cash-out totals on Start here", () => lacks(FF.start, "Total cash at separation"));
-check("points at the next tabs", () => has(FF.start, "See your pension"));
+check("points at the next tabs", () => has(FF.now, "See what you get retired"));
 
 console.log("\n-- the three tabs hold different things --");
 check("pension tab has the answer", () => has(FF.pension, "Lands in your bank"));
 check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular rate"));
 check("pay tab has the rates", () => has(FF.pay, "Your hourly rates"));
-check("pay tab has no pension answer", () => lacks(FF.pay, "Lands in your bank"));
+check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
 check("pay tab has the cash-out card", () => has(FF.pay, "Cash-out at retirement"));
-check("seven primary tabs", () => ["Start here","Your pension","Your pay","What if I wait?","Sick leave","Medical","Everything else"]
-  .every(x => FF.start.includes(x)) || "a primary tab is missing");
+check("four primary tabs", () => ["Working now","Retired","Stay or go?","Details"]
+  .every(x => FF.now.includes(x)) || "a primary tab is missing");
 check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
 
 // ── CalPERS service credit, straight off myCalPERS ──────────────────────────
@@ -429,10 +428,11 @@ check("compares pay growth against CPI", () => has(WDoff.wait, "beats inflation 
 check("no zero/zero banner when assumptions are set", () => lacks(WDoff.wait, "Nothing is assumed"));
 
 console.log("\n-- navigation --");
-check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
-  .every(x => B.start.includes(x)) || "a primary tab is missing");
-check("old screens demoted, not deleted", () => ["All inputs","Pension detail","Timeline","Guide"]
-  .every(x => B.inputs.includes(x)) || "an advanced screen is missing");
+check("four primary tabs", () => ["Working now","Retired","Stay or go?","Details"]
+  .every(x => B.now.includes(x)) || "a primary tab is missing");
+check("detail screens demoted, not deleted", () => ["Sick leave","Medical","All inputs","Pension detail","Timeline","Guide"]
+  .every(x => B.inputs.includes(x)) || "a detail screen is missing");
+check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
 // ── COLA starts the second calendar year after retirement, May 1 ────────────
 // CalPERS: "COLA begins the second calendar year after retirement," paid in the May 1 warrant.
@@ -506,6 +506,32 @@ check("explains what 'never' means", () => has(CW.wait, "waiting is never repaid
 check("says why it uses take-home", () => has(CW.wait, "stop when you retire"));
 check("admits what it leaves out", () => has(CW.wait, "not only about numbers"));
 check("the section is hidden before setup", () => lacks(A.wait, "What waiting actually costs"));
+
+
+// ── Overtime is the whole point of the rebuild ─────────────────────────────
+// OT is real money now and is NOT reported to CalPERS, so it vanishes at retirement.
+// With the input buried and defaulting to zero, the tool told members retiring was a raise.
+console.log("\n-- overtime on page one, and what it does to the answer --");
+const mkOT = (currentOTHours) => ({ ...mkCola("2028-12-31", 50), currentOTHours });
+const OT0  = await scenario(mkOT(0));
+const OT40 = await scenario(mkOT(40));
+const OT60 = await scenario(mkOT(60));
+check("page one leads with gross and take-home", () => has(OT40.now, "What you make now"));
+check("the OT box is on page one", () => has(OT40.now, "Overtime you actually work"));
+check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
+check("page one says OT is not pensionable", () => has(OT40.now, "not pensionable"));
+check("page one shows the annual OT figure", () => has(OT40.now, "a year that stops the day you retire"));
+check("zero OT is called out as a problem", () => has(OT0.now, "makes retiring look far better than it is"));
+check("page one itemises what stops at retirement", () => has(OT40.now, "stops at retirement"));
+check("page one ends in take-home", () => has(OT40.now, "Lands in your bank"));
+
+check("stay or go leads with the take-home change", () => has(OT40.stayorgo, "The day you hang it up"));
+check("no OT: retiring reads as a gain", () => has(OT0.stayorgo, "You come out ahead"));
+check("no OT: says so and points at the input", () => has(OT0.stayorgo, "no overtime entered"));
+// Enough overtime and the sign flips — which is the thing members needed to see.
+check("heavy OT: retiring reads as a pay cut", () => has(OT60.stayorgo, "The cut"));
+check("heavy OT: names overtime as the reason", () => has(OT60.stayorgo, "does not follow you out the door"));
+check("the gap is given per year too", () => has(OT60.stayorgo, "a year"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
