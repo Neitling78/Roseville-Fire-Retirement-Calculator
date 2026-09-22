@@ -472,11 +472,13 @@ check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"
 // nothing a member could check against their own CalPERS estimate.
 console.log("\n-- headline is the gross allowance --");
 const GH = await scenario(mkCola("2028-12-31", 50));
-check("header is labelled as the CalPERS pension", () => has(GH.pension, "Monthly CalPERS pension"));
-check("header says it is gross", () => has(GH.pension, "gross, before tax"));
+check("header shows the working pair", () => has(GH.pension, "While working"));
+check("header shows the retired pair", () => has(GH.pension, "While retired"));
+check("header labels gross and take home", () => has(GH.pension, "Gross") && has(GH.pension, "Take home"));
+check("header says the working figure includes overtime", () => has(GH.pension, "today, with your overtime"));
 check("header no longer leads with take-home", () => lacks(GH.pension, "Monthly take-home"));
 check("header shows the gross figure", () => has(GH.pension, "$14,430/mo"));
-check("header shows percent of final comp", () => has(GH.pension, "Of final compensation"));
+check("header names the allowance option", () => has(GH.pension, "unmodified allowance"));
 check("the same gross figure appears on every tab", () =>
   ["pension","wait","pay","sickleave","medical"].every(t => GH[t].includes("$14,430/mo"))
   || "a tab disagreed with the header");
@@ -684,6 +686,25 @@ check("ends at take-home", () => has(PO.pension, "Lands in your bank"));
 check("says what stops at retirement", () => has(PO.pension, "What stops the day you retire"));
 check("names no Medicare on a pension", () => has(PO.pension, "no Medicare or Social Security"));
 check("admits the tax figures are estimates", () => has(PO.pension, "not a number to budget against"));
+
+
+// ── The header carries the four numbers, on every tab ──────────────────────
+console.log("\n-- header: working vs retired, gross and net --");
+const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+check("working gross includes overtime", () => has(HD.member, "$16,485"));
+check("working take-home is there", () => has(HD.member, "$10,615"));
+check("retired gross is the allowance", () => has(HD.member, "$14,430"));
+check("retired take-home is there", () => has(HD.member, "$10,896"));
+check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
+check("all four appear on every tab", () =>
+  ["member","comp","pension","deductions","stayorgo"].every(t =>
+    HD[t].includes("While working") && HD[t].includes("While retired"))
+  || "a tab is missing the header numbers");
+// A survivor election has to show in the header, since it moves the retired pair.
+const HD2 = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
+  beneficiaryAge: 48, survivorOption: "opt2" });
+check("an elected option is named in the header", () => has(HD2.member, "Option 2 elected"));
+check("and the retired gross follows it", () => has(HD2.member, "$12,179"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

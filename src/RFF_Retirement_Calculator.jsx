@@ -266,6 +266,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v28)", items: [
+    "The banner at the top of every screen now carries the four numbers people actually came for: <strong>while working</strong>, gross and take-home, against <strong>while retired</strong>, gross and take-home. It follows you across every tab.",
+    "The working pair includes the overtime you entered, because that is what is on your check. The retired pair is dated with your retirement year, so there is no guessing which year it is talking about.",
+    "It also names your allowance option. If you have elected a survivor continuance the header says so and shows the reduced figure \u2014 no more reading an unmodified allowance you never intend to take.",
+    "For a Captain at step H working 40 hours of overtime: working $16,485 gross and $10,615 take-home, retired in 2028 $14,430 gross and $10,896 take-home.",
+    "Replaces the old banner, which showed the pension and the percentage of final compensation \u2014 true, but not the comparison anyone was actually making.",
+  ] },
   { date: "September 22, 2026 (v27)", items: [
     "Pension tab now runs in the order you would actually work through it: <strong>when you plan to go</strong>, then <strong>future raises</strong>, then the whole drop from your pension to what lands in your bank.",
     "Every line of that drop is shown. Federal income tax and California income tax are split apart instead of hidden inside one blended rate \u2014 and the California line says out loud that a CalPERS pension is fully taxable by this state.",
@@ -1952,17 +1959,32 @@ export default function RFFRetirementCalculator() {
         </div>
       </div>
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
-        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
-          <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Monthly CalPERS pension</div>
-            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{fmt(combinedPensionMonthly)}/mo</div>
-            <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim, marginTop: "1px" }}>gross, before tax — as CalPERS shows it</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: "600" }}>Of final compensation</div>
-            <div style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "800", color: COLORS.green, lineHeight: 1.1 }}>{pct(combinedPensionPct)}</div>
-            <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim, marginTop: "1px" }}>{fmt(finalCompMonthly)}/mo final comp</div>
-          </div>
+        {/* The four numbers a member actually came for: what they make now, gross and net,
+            against what they will get retired, gross and net. Everything else is the working. */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 20px",
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? "8px" : "16px" }}>
+          {[
+            { label: "While working", sub: "today, with your overtime",
+              gross: salaryWithOT, net: workingTakeHome, tone: COLORS.text },
+            { label: `While retired${retirementYear ? " · " + retirementYear : ""}`,
+              sub: survivorOption === "opt1" ? "unmodified allowance" : `${survivorChosen.label.split(" — ")[0]} elected`,
+              gross: combinedPensionMonthly, net: totalMonthlyTakeHome, tone: COLORS.green },
+          ].map(c => (
+            <div key={c.label} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: isMobile ? "9px" : "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, fontWeight: 700 }}>{c.label}</div>
+              <div style={{ display: "flex", gap: isMobile ? "10px" : "22px", marginTop: "2px", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim }}>Gross</div>
+                  <div style={{ fontSize: isMobile ? "15px" : "22px", fontWeight: 800, color: c.tone, lineHeight: 1.1 }}>{fmt(c.gross)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim }}>Take home</div>
+                  <div style={{ fontSize: isMobile ? "15px" : "22px", fontWeight: 800, color: COLORS.green, lineHeight: 1.1 }}>{fmt(c.net)}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: isMobile ? "8px" : "10px", color: COLORS.textDim, marginTop: "1px" }}>{c.sub}</div>
+            </div>
+          ))}
         </div>
       </div>
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
