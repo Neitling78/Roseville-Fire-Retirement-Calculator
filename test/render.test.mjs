@@ -150,6 +150,10 @@ check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.start)
 check("shows future raises", () => has(E.start, "Future raises"));
 check("shows the 2028 study is an assumption", () => has(Eo.start, "study"));
 check("shows cash-outs at retirement", () => has(E.start, "Cash-outs at retirement"));
+check("cash-out rate says base + longevity, no incentives", () => has(Eo.start, "base + longevity, no incentives"));
+check("cash-out card spells out the exclusion", () => has(Eo.start, "base hourly plus longevity only"));
+check("cash-out card excludes specialty pay explicitly", () => has(Eo.start, "no education, certificate or specialty pay"));
+check("cash-out card distinguishes projected rate from today's", () => has(Eo.start, "not today's"));
 check("shows holiday cash-out", () => has(Eo.start, "Unused holiday hours at separation"));
 check("tells them to confirm holiday practice", () => has(Eo.start, "Confirm the City's separation practice"));
 check("shows what the pension is figured on", () => has(E.start, "What the pension is figured on"));
@@ -158,6 +162,34 @@ check("Classic sees holiday pay as pensionable", () => has(E.start, "Holiday pay
 check("Classic sees uniform allowance", () => has(E.start, "Uniform allowance"));
 check("Classic sees FLSA OT special comp", () => has(E.start, "FLSA overtime (special comp)"));
 check("15% education+cert cap is applied", () => has(Eo.start, "15% Education + Cert Cap Applied"));
+
+// ── Current pay vs pension projection must not be the same figure ───────────
+console.log("\n-- a Captain paid Engine Boss today, retiring after it ceases --");
+const F = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1",
+  classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2029-06-01",
+  hasEngineBoss:true, hasBachelor:true,
+  openSections:{ startpay:true, starthourly:true } });
+check("every screen renders", () => Object.values(F).every(h => h.length > 200) || "a screen came back empty");
+check("current pay still shows Engine Boss", () => has(F.start, "Engine Boss"));
+check("explains why it is not in the pension", () => has(F.start, "it ends 1/9/2027"));
+check("explains the rank-separation trade", () => has(F.start, "trades it for rank separation"));
+check("pension build-up does NOT count it", () => {
+  const i = F.start.indexOf("What the pension is figured on");
+  const j = F.start.indexOf("Lands in your bank");
+  return i > -1 && j > i && !F.start.slice(i, j).includes("Engine Boss")
+    || "Engine Boss leaked into the pension build-up";
+});
+// same member retiring BEFORE the cease date keeps it in both places
+const G = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1",
+  classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2026-12-01",
+  hasEngineBoss:true, hasBachelor:true,
+  openSections:{ startpay:true } });
+check("retiring before the cease date keeps it", () => has(G.start, "Engine Boss"));
+check("no cease warning when it does not apply", () => lacks(G.start, "it ends 1/9/2027"));
 
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]

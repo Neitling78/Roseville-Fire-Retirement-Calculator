@@ -982,6 +982,10 @@ export default function RFFRetirementCalculator() {
     hasHazmat, hazmatLevel, hasInvestigation, investigationLevel, retirementDate]);
   // Incentives and pension base use PROJECTED salary at retirement (captures future raises + rank sep)
   const incentives = calcIncentives(projectedBaseSalary, classification, memberType, yearsOfService, retirementDate, hireYear);
+  const currentIncentives = calcIncentives(baseSalary, classification, memberType, currentServiceYears, NOW, hireYear);
+  // Incentives being paid today that will not be in the final compensation period.
+  const ceasingIncentives = currentIncentives.breakdown.filter(c =>
+    !c.note && !incentives.breakdown.some(r => r.label === c.label));
   // Retirement-time pensionable compensation
   const cashPensionable = projectedBaseSalary + incentives.pensionableAmt;
   const cashNonPensionable = incentives.nonPensionableAmt;
@@ -990,6 +994,7 @@ export default function RFFRetirementCalculator() {
   // (no incentives), on the 56-hr shift basis (÷242.67, matching the official schedule's
   // hourly column). Gross = hours × this rate, then the tier % (e.g. 60%) is applied.
   const sickLeaveHourlyRate = (projectedBaseSalary * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) / FLSA_56HR_MONTHLY_HOURS;
+  const sickLeaveHourlyRateToday = (baseSalary * (1 + (showLongevity ? LONGEVITY(currentServiceYears) : 0))) / FLSA_56HR_MONTHLY_HOURS;
   // Holiday pay (Classic only, pensionable) — based on projected salary
   const holidayPayMonthly = memberType === "classic"
     ? (projectedBaseSalary / FLSA_56HR_MONTHLY_HOURS * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) * HOLIDAY_HOURS / 12
@@ -1267,11 +1272,11 @@ export default function RFFRetirementCalculator() {
   const totalMonthly = monthlyPension + monthly457 + priorPensionMonthly;
   const totalAnnual = totalMonthly * 12;
   // vs current — use today's base salary (not projected) for the take-home comparison
-  const currentMonthlySalary = baseSalary * (1 + incentives.totalIncentivePct);
+  const currentMonthlySalary = baseSalary * (1 + currentIncentives.totalIncentivePct);
   // CalPERS member contribution is on TODAY'S pensionable comp (so the take-home comparison is today-vs-today, not today-minus-projected).
-  const currentLongevityPct = (memberType === "classic" && showLongevity) ? LONGEVITY(yearsOfService) : 0;
+  const currentLongevityPct = (memberType === "classic" && showLongevity) ? LONGEVITY(currentServiceYears) : 0;
   const currentPensionableMonthly =
-    baseSalary * (1 + incentives.pensionablePct)
+    baseSalary * (1 + currentIncentives.pensionablePct)
     + (memberType === "classic" ? (baseSalary / FLSA_56HR_MONTHLY_HOURS) * (1 + currentLongevityPct) * HOLIDAY_HOURS / 12 : 0)
     + (memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0)
     + (memberType === "classic" ? baseSalary * FLSA_OT_PENSIONABLE_PCT : 0);
@@ -1582,7 +1587,7 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}, Schedule {scheduleLetter}</span></span>
                       <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
                     </div>
-                    {incentives.breakdown.filter(b => !b.note).map((b, i) => (
+                    {currentIncentives.breakdown.filter(b => !b.note).map((b, i) => (
                       <div key={i} style={styles.tableRow}>
                         <span style={styles.tableKey}>{b.label}</span>
                         <span style={b.pensionable === false ? styles.tableValDim : styles.tableValGold}>
@@ -1590,17 +1595,26 @@ export default function RFFRetirementCalculator() {
                         </span>
                       </div>
                     ))}
-                    {incentives.breakdown.filter(b => b.note).map((b, i) => (
+                    {currentIncentives.breakdown.filter(b => b.note).map((b, i) => (
                       <div key={"n" + i} style={styles.warningBox}>{b.label}</div>
                     ))}
                     <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
                       <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total, all incentives</span>
-                      <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{pct(incentives.totalIncentivePct)} · {fmt(currentMonthlySalary)}/mo</span>
+                      <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{pct(currentIncentives.totalIncentivePct)} · {fmt(currentMonthlySalary)}/mo</span>
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
-                      Gold lines count toward your pension. Dim lines are paid but not pensionable —
-                      the Service Term Bonus, and longevity for PEPRA members.
+                      This is what you are paid today. Gold lines count toward your pension. Dim lines are
+                      paid but not pensionable — the Service Term Bonus, and longevity for PEPRA members.
                     </div>
+                    {ceasingIncentives.length > 0 && (
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                        ⓘ You are paid {ceasingIncentives.map(c => c.label.replace(/\s*\(.*$/, "")).join(" and ")} now,
+                        but it is not in your pension projection — it ends 1/9/2027, before you retire in {retirementYear}.
+                        The MOU trades it for rank separation (Captain set 10% above Engineer). At every salary
+                        step that trade comes out ahead, so the higher base more than replaces it. Your pension
+                        is figured on what you earn in your final compensation period, not on what you earn today.
+                      </div>
+                    )}
                   </>)}
                 </div>
 
@@ -1724,8 +1738,8 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.tableVal}>{fmtHr(contractOTHourly)}/hr</span>
                     </div>
                     <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, at retirement</span></span>
-                      <span style={styles.tableValGreen}>{fmtHr(sickLeaveHourlyRate)}/hr</span>
+                      <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, no incentives</span></span>
+                      <span style={styles.tableValGreen}>{fmtHr(sickLeaveHourlyRateToday)}/hr</span>
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
                       The City pays the greater of FLSA or contract overtime. Education pay counts in the
@@ -1800,8 +1814,17 @@ export default function RFFRetirementCalculator() {
                       plan to burn them. <strong>Confirm the City's separation practice with the Treasurer.</strong>
                     </div>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {unusedHolidayHours || 0} hrs × {fmtHr(sickLeaveHourlyRate)}</span></span>
+                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs × {fmtHr(sickLeaveHourlyRate)}</span></span>
                       <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                      Both are paid at <strong style={{ color: COLORS.text }}>base hourly plus longevity only</strong> — no
+                      education, certificate or specialty pay (MOU Ch.3 Art.III.A.1 and Art.II.C).
+                      {Math.abs(sickLeaveHourlyRate - sickLeaveHourlyRateToday) > 0.01 && (
+                        <> The rate used here is <strong style={{ color: COLORS.gold }}>{fmtHr(sickLeaveHourlyRate)}/hr</strong>, your
+                        projected rate in {retirementYear}, not today's {fmtHr(sickLeaveHourlyRateToday)}/hr — you are paid out
+                        at your rate on your last day.</>
+                      )}
                     </div>
                     <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
                       <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total cash at separation</span>
