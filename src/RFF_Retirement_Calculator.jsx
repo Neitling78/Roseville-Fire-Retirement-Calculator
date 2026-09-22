@@ -266,6 +266,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v32)", items: [
+    "Confirmed and kept: your <strong>457 contribution still comes out of the working take-home</strong> in the banner, because it comes out of your check. Put in $24,500 a year and working take-home drops by about $1,360 a month, exactly as it should.",
+    "Fixed the other half of it. After the 457 draw was taken out of the retirement figure, it was still being counted when the tool worked out your retirement tax rate \u2014 so changing your 457 <em>contribution</em> quietly moved your retirement <em>take-home</em>, by about $20 a month. It was taxing income it had stopped showing you.",
+    "Retirement take-home is now flat no matter what you contribute, which is the honest answer: nobody knows when you will start drawing. If you do want the draw counted, the switch for it is still under More \u203a Other income &amp; tax, and it now controls both the income and the tax together.",
+    "Every downstream figure moved slightly as a result \u2014 take-home, the cost of waiting, the break-even years. All re-verified.",
+  ] },
   { date: "September 22, 2026 (v31)", items: [
     "<strong>Fixed a rounding error on a contract figure.</strong> The January 2029 increase was printing as 1.8%. It is <strong>1.75%</strong>. Percentages were being rounded to one decimal everywhere, which is fine for an estimate and wrong for a bargained number — members check these against the MOU.",
     "Future raises is now a list by year. <strong>2027</strong>: the general wage increase and your rank separation. <strong>2028</strong>: a box to put the Labor Market Adjustment in, with the alignment tightening noted, flagged in orange while it is empty. <strong>2029</strong>: 1.75% for suppression, 3% for prevention. <strong>2030+</strong>: the bargaining dial. Each line cites its own MOU article.",
@@ -1724,7 +1730,11 @@ export default function RFFRetirementCalculator() {
   const extraIncomeAnnual = (parseFloat(retIra) || 0) + (parseFloat(retRental) || 0) + (parseFloat(retBusiness) || 0) + (parseFloat(otherIncomeRet) || 0);
   // Retirement scenario: retirement household + chosen state. CA/SC/MT/HI use real brackets/exemptions.
   // PAGE-ONE base = pension + 457 only by default; extra income counts only when folded in.
-  const retGrossTax = (combinedPensionMonthly + monthly457) * 12 + (foldExtraIncome ? extraIncomeAnnual : 0);
+  // Tax what we actually count. The 457 draw is only income here when the member has opted to
+  // fold it in — otherwise taxing it would raise the rate on a pension standing alone, which is
+  // how the headline take-home quietly moved when someone changed their 457 contribution.
+  const retGrossTax = (combinedPensionMonthly + (include457InTakeHome ? monthly457 : 0)) * 12
+    + (foldExtraIncome ? extraIncomeAnnual : 0);
   const ret457AndOther = monthly457 * 12 + (foldExtraIncome ? extraIncomeAnnual : 0);
   const age65 = retirementAge >= 65;
   // HELPS Act (IRC §402(l)): a retired public-safety officer may exclude up to $3,000/yr of pension used

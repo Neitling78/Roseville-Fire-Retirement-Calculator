@@ -502,11 +502,11 @@ const CW = await scenario(mkCola("2028-12-31", 50));                       // 0%
 const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
 check("the section is on the wait tab", () => has(CW.wait, "What waiting actually costs"));
 check("names the earliest year you can go", () => has(CW.wait, "You can go in"));
-check("states the yearly cost of staying", () => has(CW.wait, "$19,630"));
-check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,451"));
+check("states the yearly cost of staying", () => has(CW.wait, "$19,722"));
+check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,453"));
 check("shows the break-even in years and age", () => has(CW.wait, "8.0 yrs · age 59"));
-check("shows the net position at 20 years", () => has(CW.wait, "$29,397"));
-check("a later year can be a net loss", () => has(CW.wait, "$2,699"));
+check("shows the net position at 20 years", () => has(CW.wait, "$29,339"));
+check("a later year can be a net loss", () => has(CW.wait, "$2,937"));
 // When pay only keeps pace with CPI the later pension is no bigger in real terms,
 // so there is nothing to repay the skipped checks and the answer must say so.
 check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
@@ -561,8 +561,8 @@ const S2A = await scenario(mkSurv("opt2", "12"));
 check("Option 1 pays the unmodified allowance", () => has(S1.pension, "$14,430"));
 check("Option 3 reduces the allowance", () => has(S3.pension, "$13,088"));
 check("Option 2 reduces it further", () => has(S2.pension, "$12,179"));
-check("the reduction reaches take-home", () => has(S2.pension, "$9,393"));
-check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,896"));
+check("the reduction reaches take-home", () => has(S2.pension, "$9,402"));
+check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,904"));
 check("a myCalPERS figure overrides the estimate", () => has(S2A.pension, "$12,699"));
 check("it says it is using your figure", () => has(S2A.deductions, "Using your figure"));
 // The factors are invented. Every screen that shows one has to say so.
@@ -699,7 +699,7 @@ const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
 check("working gross includes overtime", () => has(HD.member, "$17,677"));
 check("working take-home is there", () => has(HD.member, "$11,392"));
 check("retired gross is the allowance", () => has(HD.member, "$14,430"));
-check("retired take-home is there", () => has(HD.member, "$10,896"));
+check("retired take-home is there", () => has(HD.member, "$10,904"));
 check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
 check("all four appear on every tab", () =>
   ["member","comp","pension","deductions","stayorgo"].every(t =>
@@ -765,6 +765,30 @@ const FRP = await scenario({ ...mkCola("2028-12-31", 50),
   classification: "Fire Plans Examiner", openSections: { startraises: true } });
 check("prevention gets its own 2027 figure", () => has(FRP.pension, "2.5% general wage increase"));
 check("prevention gets its own 2029 figure", () => has(FRP.pension, "3% general wage increase"));
+
+
+// ── 457: a deduction while working, not income in retirement ───────────────
+// The contribution comes off your check, so it belongs in the working take-home.
+// The draw starts whenever you decide to start it, so it does not belong in the
+// retirement headline — and must not be taxed there either.
+console.log("\n-- 457 in the header --");
+const mk457 = (annual457Contrib) => ({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-12-31", retirementAge:50, currentOTHours:40, annual457Contrib });
+const hdr = (t) => {
+  const w = t.match(/While working Gross \$[\d,]+ Take home (\$[\d,]+)/);
+  const r = t.match(/While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
+  return { work: w && w[1], ret: r && r[1] };
+};
+const Z = hdr((await scenario(mk457(0))).member);
+const M = hdr((await scenario(mk457(12000))).member);
+const X = hdr((await scenario(mk457(24500))).member);
+check("contributing more lowers working take-home", () =>
+  (Z.work && M.work && X.work && Z.work !== M.work && M.work !== X.work)
+  || `457 contribution is not coming off the check: ${Z.work} / ${M.work} / ${X.work}`);
+check("the retirement figure ignores the 457 entirely", () =>
+  (Z.ret === M.ret && M.ret === X.ret)
+  || `457 is leaking into the retirement take-home: ${Z.ret} / ${M.ret} / ${X.ret}`);
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
