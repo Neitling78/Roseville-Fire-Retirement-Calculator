@@ -220,6 +220,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (later)", items: [
+    "Put the pay detail back on the Start screen where it belongs \u2014 specialty pay and certificates, your hourly rates, future raises, and cash-outs at retirement. Each one is a collapsed section whose header still shows the total, so the page stays short but nothing is hidden.",
+    "Fixed a real problem with the first version of the redesign: the incentive checkboxes had moved to a tab most members would never open, so the headline number was missing education, CSFM, paramedic, hazmat, rescue and investigation pay unless you went looking.",
+    "The answer now shows what the pension is actually figured on \u2014 projected base, pensionable incentives, holiday pay, uniform allowance and FLSA overtime, adding up to your final compensation.",
+    "New: unused holiday hours cashed out at separation, paid at base plus longevity (MOU Ch.3 Art.II.C and F). Defaults to zero \u2014 enter what you expect to be holding, and confirm the City's separation practice with the Treasurer.",
+  ] },
   { date: "September 22, 2026 (evening)", items: [
     "Rebuilt the front of the tool. It now opens on five questions \u2014 what you do, when you were born, when you were hired, when you plan to go, and your sick leave hours. Everything else is worked out from those.",
     "It no longer shows you a number until you have answered. It used to open on a brand-new hire's retirement, which meant every number on screen belonged to somebody else until you corrected it field by field.",
@@ -574,7 +580,8 @@ export default function RFFRetirementCalculator() {
   useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   // Collapsible input sections — tap a title to open/close (choice persists on device)
-  const [openSections, setOpenSections] = useState(SAVED.openSections ?? { profile: true, prior: true, hiredate: true, rank: true, paystep: true, raises: false, incentives: false, sickleave: false, yourprofile: false, breakdown: false, cola: false, survivor: false });
+  const [openSections, setOpenSections] = useState(SAVED.openSections ?? { profile: true, prior: true, hiredate: true, rank: true, paystep: true, raises: false, incentives: false, sickleave: false, yourprofile: false, breakdown: false, cola: false, survivor: false,
+      startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false });
   const toggleSection = (k) => setOpenSections(s => ({ ...s, [k]: s[k] === false }));
   const sectionHeader = (key, title) => (
     <p
@@ -582,6 +589,19 @@ export default function RFFRetirementCalculator() {
       onClick={() => toggleSection(key)}>
       <span>{title}</span>
       <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections[key] !== false ? "▾" : "▸ tap to open"}</span>
+    </p>
+  );
+  // Same collapsible header, but the current value stays visible when it's closed — so
+  // collapsing a section hides the controls, never the number.
+  const sectionHeaderValue = (key, title, value) => (
+    <p
+      style={{ ...styles.cardTitle, cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", ...(openSections[key] !== false ? {} : { marginBottom: 0, borderBottom: "none", paddingBottom: 0 }) }}
+      onClick={() => toggleSection(key)}>
+      <span>{title}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+        <span style={{ fontSize: "13px", color: COLORS.gold, fontWeight: 700 }}>{value}</span>
+        <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections[key] !== false ? "▾" : "▸"}</span>
+      </span>
     </p>
   );
   // Mobile detection — stacks layout, shrinks header, wraps tabs below 768px
@@ -665,6 +685,10 @@ export default function RFFRetirementCalculator() {
   const [currentOTHours, setCurrentOTHours] = useState(SAVED.currentOTHours ?? 0);
   // Sick leave — user enters CURRENT hours; we project forward to retirement
   const [currentSickLeaveHours, setCurrentSickLeaveHours] = useState(SAVED.currentSickLeaveHours ?? 0);
+  // Unused holiday hours at separation. Shift members are granted 7 x 24-hr shifts each
+  // January 1 (MOU Ch.3 Art.II.B); unused hours are paid at base + longevity (Art.II.C, F).
+  // Defaults to 0 so it never silently inflates anyone's number.
+  const [unusedHolidayHours, setUnusedHolidayHours] = useState(SAVED.unusedHolidayHours ?? 0);
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
   // Sick leave disposition: "cash" | "credit" | "split"
   // "credit" = convert everything to CalPERS service credit (max possible)
@@ -810,7 +834,7 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
+      currentSickLeaveHours, unusedHolidayHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
@@ -823,7 +847,7 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
+    currentSickLeaveHours, unusedHolidayHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
@@ -1187,6 +1211,10 @@ export default function RFFRetirementCalculator() {
   const depletionAge = effectiveDrawStartAge + years457Lasts;
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
+  // Unused holiday paid at the same base + longevity hourly rate. Capped at the annual grant,
+  // since that is the most a member can be holding (MOU Ch.3 Art.II.B).
+  const holidayCashOutHours = Math.min(Math.max(0, parseFloat(unusedHolidayHours) || 0), HOLIDAY_HOURS);
+  const holidayCashOut = holidayCashOutHours * sickLeaveHourlyRate;
   // Hours the member holds that the MOU payoff table does not reach (above 2400).
   const sickLeaveHoursAbovePayCap = Math.max(0, sickLeaveHoursToCash - SICK_LEAVE_PAYOFF_MAX_HOURS);
   // Pension boost from sick leave credit (monthly)
@@ -1545,6 +1573,249 @@ export default function RFFRetirementCalculator() {
                   </div>
                 </div>
 
+                {/* ── Pay detail: collapsed, but every header shows its own total ── */}
+                <div style={styles.card}>
+                  {sectionHeaderValue("startpay", "Your pay right now", `${fmt(currentMonthlySalary)}/mo`)}
+                  {openSections.startpay !== false && (<>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}, Schedule {scheduleLetter}</span></span>
+                      <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
+                    </div>
+                    {incentives.breakdown.filter(b => !b.note).map((b, i) => (
+                      <div key={i} style={styles.tableRow}>
+                        <span style={styles.tableKey}>{b.label}</span>
+                        <span style={b.pensionable === false ? styles.tableValDim : styles.tableValGold}>
+                          +{fmt(baseSalary * b.pct)}/mo ({pct(b.pct)})
+                        </span>
+                      </div>
+                    ))}
+                    {incentives.breakdown.filter(b => b.note).map((b, i) => (
+                      <div key={"n" + i} style={styles.warningBox}>{b.label}</div>
+                    ))}
+                    <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
+                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total, all incentives</span>
+                      <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{pct(incentives.totalIncentivePct)} · {fmt(currentMonthlySalary)}/mo</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      Gold lines count toward your pension. Dim lines are paid but not pensionable —
+                      the Service Term Bonus, and longevity for PEPRA members.
+                    </div>
+                  </>)}
+                </div>
+
+                <div style={styles.card}>
+                  {sectionHeaderValue("startincent", "Specialty pay and certificates", `${pct(incentives.totalIncentivePct)} total`)}
+                  {openSections.startincent !== false && (<>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
+                      Tick everything you hold. Education and CSFM certificates are capped at 15% combined (MOU Ch.2 Art.VI.B).
+                    </div>
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasBachelor}
+                        onChange={e => { setHasBachelor(e.target.checked); if (e.target.checked) setHasAssociate(false); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Bachelor's degree (10%)</span>
+                    </label>
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasAssociate}
+                        onChange={e => { setHasAssociate(e.target.checked); if (e.target.checked) setHasBachelor(false); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Associate's degree (5%)</span>
+                    </label>
+                    {classification === "Fire Engineer" && (
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasEngineerCert}
+                          onChange={e => { setHasEngineerCert(e.target.checked); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Engineer cert / FA Driver-Op (5%){!engineerCertActive && " — ends 1/9/2027"}</span>
+                      </label>
+                    )}
+                    {classification === "Fire Captain" && (<>
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasChiefFireOfficer}
+                          onChange={e => { setHasChiefFireOfficer(e.target.checked); if (e.target.checked) setHasCompanyOfficer(false); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Chief Fire Officer cert (10%)</span>
+                      </label>
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasCompanyOfficer}
+                          onChange={e => { setHasCompanyOfficer(e.target.checked); if (e.target.checked) setHasChiefFireOfficer(false); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Company Officer cert (5%)</span>
+                      </label>
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasEngineBoss}
+                          onChange={e => { setHasEngineBoss(e.target.checked); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Engine Boss NWCG (5%){!captainIncentivesActive && " — ends 1/9/2027"}</span>
+                      </label>
+                    </>)}
+                    {(classification === "Firefighter Paramedic I" || classification === "Firefighter Paramedic II") && (
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasFFII}
+                          onChange={e => { setHasFFII(e.target.checked); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Firefighter II cert (5%)</span>
+                      </label>
+                    )}
+                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                      <label style={styles.checkRow}>
+                        <input style={styles.checkbox} type="checkbox" checked={hasParamedic}
+                          onChange={e => { setHasParamedic(e.target.checked); setSetupDone(true); }} />
+                        <span style={styles.checkLabel}>Paramedic incentive (5%){classification === "Fire Captain" && !captainIncentivesActive && " — ends 1/9/2027"}</span>
+                      </label>
+                    )}
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasHazmat}
+                        onChange={e => { setHasHazmat(e.target.checked); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Hazmat</span>
+                    </label>
+                    {hasHazmat && (
+                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                        value={hazmatLevel} onChange={e => setHazmatLevel(e.target.value)}>
+                        <option value="team">Team (2.5%)</option>
+                        <option value="taskforce">Task Force (5%)</option>
+                      </select>
+                    )}
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasRescue}
+                        onChange={e => { setHasRescue(e.target.checked); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Rescue</span>
+                    </label>
+                    {hasRescue && (
+                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                        value={rescueLevel} onChange={e => setRescueLevel(e.target.value)}>
+                        <option value="team">Team (2.5%)</option>
+                        <option value="taskforce">Task Force (5%)</option>
+                      </select>
+                    )}
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasInvestigation}
+                        onChange={e => { setHasInvestigation(e.target.checked); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Fire investigation</span>
+                    </label>
+                    {hasInvestigation && (
+                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                        value={investigationLevel} onChange={e => setInvestigationLevel(e.target.value)}>
+                        <option value="team">Team (2.5%)</option>
+                        <option value="lead">Team Lead (5%)</option>
+                      </select>
+                    )}
+                    {!captainIncentivesActive && classification === "Fire Captain" && (hasParamedic || hasEngineBoss) && (
+                      <div style={styles.warningBox}>
+                        ⚠ Captain Paramedic and Engine Boss pay both cease 1/9/2027 in exchange for rank
+                        separation (MOU Ch.2 Art.X.B.2.c). Your retirement is after that date, so they are
+                        not counted — the rank separation is in your projected salary instead.
+                      </div>
+                    )}
+                  </>)}
+                </div>
+
+                <div style={styles.card}>
+                  {sectionHeaderValue("starthourly", "Your hourly rates", `${fmt(flsaRegularHourly)}/hr`)}
+                  {openSections.starthourly !== false && (<>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Base hourly <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base ÷ 242.67</span></span>
+                      <span style={styles.tableVal}>{fmt(baseSalary / FLSA_56HR_MONTHLY_HOURS)}/hr</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>FLSA regular rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + incentives</span></span>
+                      <span style={styles.tableValGold}>{fmt(flsaRegularHourly)}/hr</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>FLSA overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5×</span></span>
+                      <span style={styles.tableValGold}>{fmt(otHourlyRate)}/hr</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Contract overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5 × (base + longevity)</span></span>
+                      <span style={styles.tableVal}>{fmt(contractOTHourly)}/hr</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>All-Call / emergency OT <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 2× base</span></span>
+                      <span style={styles.tableVal}>{fmt((baseSalary / FLSA_56HR_MONTHLY_HOURS) * 2)}/hr</span>
+                    </div>
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, at retirement</span></span>
+                      <span style={styles.tableValGreen}>{fmt(sickLeaveHourlyRate)}/hr</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      The City pays the greater of FLSA or contract overtime. Education pay counts in the
+                      FLSA regular rate but not in contract overtime (MOU Ch.2 Art.VI.D).
+                    </div>
+                  </>)}
+                </div>
+
+                <div style={styles.card}>
+                  {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
+                  {openSections.startraises !== false && (<>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
+                      The MOU sets 2027 and 2029. 2028 is a total-compensation study with no number yet, so
+                      it is an assumption you can change. After the contract ends 12/31/2029, everything is
+                      an assumption.
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                      <div>
+                        <label style={styles.label}>Jan 2027 (%)</label>
+                        <input type="number" step="0.25" style={styles.input} value={raise2027 || ""}
+                          onChange={e => setRaise2027(+e.target.value || 0)} />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Jan 2028 (%) · study</label>
+                        <input type="number" step="0.25" style={styles.input} value={raise2028 || ""}
+                          onChange={e => setRaise2028(+e.target.value || 0)} />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Jan 2029 (%) · MOU</label>
+                        <input type="number" step="0.25" style={styles.input} value={raise2029 || ""}
+                          onChange={e => setRaise2029(+e.target.value || 0)} />
+                      </div>
+                      <div>
+                        <label style={styles.label}>2030 onward (%/yr)</label>
+                        <input type="number" step="0.25" style={styles.input} value={raiseAfterContract || ""}
+                          onChange={e => setRaiseAfterContract(+e.target.value || 0)} />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Base today</span>
+                        <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
+                      </div>
+                      <div style={styles.tableRowLast}>
+                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Projected base at retirement ({retirementYear})</span>
+                        <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{fmt(projectedBaseSalary)}/mo</span>
+                      </div>
+                      {(classification === "Fire Engineer" || classification === "Fire Captain") && retirementYear >= 2027 && (
+                        <div style={{ fontSize: "11px", color: COLORS.blue, marginTop: "8px", lineHeight: 1.6 }}>
+                          ⓘ Includes MOU rank separation: Engineer set {retirementYear >= 2028 ? "10%" : "7.5%"} above
+                          Firefighter Paramedic II{classification === "Fire Captain" && ", Captain 10% above Engineer"}.
+                        </div>
+                      )}
+                    </div>
+                  </>)}
+                </div>
+
+                <div style={styles.card}>
+                  {sectionHeaderValue("startpayout", "Cash-outs at retirement", fmt(sickLeavePayoff + holidayCashOut))}
+                  {openSections.startpayout !== false && (<>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Sick leave <span style={{ fontSize: "10px", color: COLORS.textDim }}>· set on the Sick leave tab</span></span>
+                      <span style={styles.tableValGreen}>{fmt(sickLeavePayoff)}</span>
+                    </div>
+                    <label style={{ ...styles.label, marginTop: "10px" }}>Unused holiday hours at separation</label>
+                    <input type="number" style={styles.input} value={unusedHolidayHours || ""} placeholder="0"
+                      onChange={e => { setUnusedHolidayHours(+e.target.value || 0); setSetupDone(true); }} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "6px 0 10px", lineHeight: 1.6 }}>
+                      Shift members get seven 24-hour holiday shifts ({HOLIDAY_HOURS} hrs) in advance each
+                      January 1. Anything unused is paid at base hourly plus longevity (MOU Ch.3 Art.II.C
+                      and F). Enter what you expect to be holding on your last day — leave it at 0 if you
+                      plan to burn them. <strong>Confirm the City's separation practice with the Treasurer.</strong>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {unusedHolidayHours || 0} hrs × {fmt(sickLeaveHourlyRate)}</span></span>
+                      <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
+                    </div>
+                    <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
+                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total cash at separation</span>
+                      <span style={{ ...styles.tableValGreen, fontWeight: 800, fontSize: "15px" }}>{fmt(sickLeavePayoff + holidayCashOut)}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      Both land in one tax year and are taxed as wages. Neither is pensionable.
+                    </div>
+                  </>)}
+                </div>
+
                 {!setupDone && (
                   <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "40px", marginBottom: "8px", opacity: 0.35 }}>—</div>
@@ -1566,6 +1837,39 @@ export default function RFFRetirementCalculator() {
                         Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
                       </div>
 
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", marginBottom: "10px" }}>
+                        <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>What the pension is figured on</div>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Projected base at {retirementYear}</span>
+                          <span style={styles.tableVal}>{fmt(projectedBaseSalary)}/mo</span>
+                        </div>
+                        {incentives.pensionableAmt > 0 && (
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Pensionable incentives ({pct(incentives.pensionablePct)})</span>
+                            <span style={styles.tableValGold}>+{fmt(incentives.pensionableAmt)}/mo</span>
+                          </div>
+                        )}
+                        {memberType === "classic" && (<>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Holiday pay ({HOLIDAY_HOURS} hrs)</span>
+                            <span style={styles.tableValGold}>+{fmt(holidayPayMonthly)}/mo</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Uniform allowance</span>
+                            <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>FLSA overtime (special comp)</span>
+                            <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
+                          </div>
+                        </>)}
+                        <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
+                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
+                            Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}</span>
+                          </span>
+                          <span style={{ ...styles.tableValAccent, fontWeight: 800 }}>{fmt(finalCompMonthly)}/mo</span>
+                        </div>
+                      </div>
                       <div style={styles.tableRow}>
                         <span style={styles.tableKey}>Gross CalPERS pension <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(combinedPensionPct)} of final comp</span></span>
                         <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}</span>
@@ -1620,6 +1924,12 @@ export default function RFFRetirementCalculator() {
                           {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && "—"}
                         </span>
                       </div>
+                      {holidayCashOut > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Unused holiday cashed out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs</span></span>
+                          <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
+                        </div>
+                      )}
                       {value457 > 0 && (
                         <div style={styles.tableRow}>
                           <span style={styles.tableKey}>457 balance</span>
