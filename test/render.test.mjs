@@ -196,9 +196,9 @@ check("no cease warning when it does not apply", () => lacks(G.pay, "it ends 1/9
 
 // ── Year picker on the hourly-rate card ─────────────────────────────────────
 console.log("\n-- hourly rates by year --");
-const mkCapt = (rateYear, unionRaisePct = 3) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+const mkCapt = (rateYear, unionRaisePct = 3, lmaPct = 0) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2034-06-01", rateYear, unionRaisePct, openSections:{ starthourly:true } });
+  retirementDateOverride:"2034-06-01", rateYear, unionRaisePct, lmaPct, openSections:{ starthourly:true } });
 const H26 = await scenario(mkCapt(2026));
 const H27 = await scenario(mkCapt(2027));
 const H28 = await scenario(mkCapt(2028));
@@ -225,8 +225,31 @@ check("2027 base hourly to the cent", () => has(H27.pay, "$53.63/hr"));
 check("picking a future year explains what moved", () => has(H27.pay, "What moved between"));
 check("names the 2027 rank separation", () => has(H27.pay, "rank separation sets"));
 check("names the ceasing incentives", () => has(H27.pay, "end 1/9/2027"));
-check("flags 2028 as an assumption", () => has(H28.pay, "not yet known"));
-check("warns the figure is assumed", () => has(H28.pay, "include an assumed figure"));
+check("names the 2028 Labor Market Adjustment", () => has(H28.pay, "Labor Market Adjustment"));
+check("no assumed-figure warning when the LMA is left at zero", () => lacks(H28.pay, "Change it under Future raises"));
+
+// ── Labor Market Adjustment, MOU Ch.2 Art.I.A.3 ────────────────────────────
+// Effective the first full pay period in January 2028. The 2027 Total Compensation Study
+// sets it (survey data effective 9/1/2027), so the figure does not exist yet — the member
+// supplies it. It raises base hourly rate, so everything after compounds on top of it.
+console.log("\n-- Labor Market Adjustment (Jan 2028) --");
+const L27 = await scenario(mkCapt(2027, 3, 5));
+const L28 = await scenario(mkCapt(2028, 3, 5));
+const L29 = await scenario(mkCapt(2029, 3, 5));
+const L30 = await scenario(mkCapt(2030, 3, 5));
+check("the LMA does not touch 2027", () => has(L27.pay, "$13,013"));
+check("a 5% LMA lifts the 2028 base", () => has(L28.pay, "$13,982"));
+check("the 2029 MOU raise compounds on top of the LMA", () => has(L29.pay, "$14,226"));
+check("the 2030 bargaining dial compounds on top of both", () => has(L30.pay, "$14,653"));
+check("warns once an LMA has been assumed", () => has(L28.pay, "Change it under Future raises"));
+check("the LMA box is on the wait tab", () => has(L28.wait, "Labor Market Adjustment"));
+check("the wait tab cites the MOU article", () => has(L28.wait, "MOU Ch.2 Art.I.A.3"));
+check("the wait tab says the study sets it", () => has(L28.wait, "Total Compensation"));
+check("the LMA box is on Your Pay", () => has(L28.pay, "55th percentile"));
+const LZ = await scenario(mkCapt(2028, 0, 0));
+check("all three at zero says nothing is assumed", () => has(LZ.wait, "All three at zero"));
+check("zero state says the LMA is deliberately left out", () => has(LZ.wait, "does not exist yet"));
+check("a set LMA is named in the assumptions banner", () => has(L28.wait, "Labor Market Adjustment in January 2028"));
 check("today's year shows no 'what moved' panel", () => lacks(H26.pay, "What moved between"));
 
 console.log("\n-- MOU raises are shown, not typed --");

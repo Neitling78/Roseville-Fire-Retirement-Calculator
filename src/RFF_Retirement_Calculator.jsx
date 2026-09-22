@@ -243,6 +243,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v14)", items: [
+    "Added the missing piece: the <strong>Labor Market Adjustment</strong>, effective the first full pay period in January 2028 (MOU Ch.2 Art.I.A.3). It has its own box on \u201cWhat if I wait\u201d, on Your Pay \u203a Future raises and under Everything else \u203a Inputs. Put a number in and every figure in the tool moves with it.",
+    "What the contract actually says: the 2027 Total Compensation Study, using survey data effective 9/1/2027, is run on the Firefighter Paramedic (PEPRA) benchmark. The City then raises the base hourly rate of any classification sitting below the total-compensation 55th percentile up to that percentile, on both Salary Schedule A and B.",
+    "It cannot be negative. The contract only moves classifications that fall <em>below</em> the 55th percentile, so the box will not accept a number under zero.",
+    "Engineers and Captains inherit it. The MOU holds Fire Engineer at 10% above Firefighter Paramedic and Fire Captain at 10% above Fire Engineer from 2028, so an adjustment to the Paramedic benchmark carries up the ranks. The tool already tightens the alignment from 7.5% to 10% in 2028.",
+    "It compounds. The LMA lifts base hourly rate, so the 1.75% January 2029 increase and every later raise build on the higher number, not the old one.",
+    "Timing worth knowing: the adjustment lands in January 2028. A member retiring in December 2028 has a full twelve months at the new rate, so it lands in their final compensation in full.",
+    "The figure is nobody\u2019s guess yet \u2014 the study has not been run. It defaults to zero, and at zero the tool credits you with nothing for it.",
+  ] },
   { date: "September 22, 2026 (v13)", items: [
     "Every headline figure is now your <strong>gross monthly CalPERS allowance</strong> \u2014 the same number myCalPERS shows you. The banner at the top of every screen, the \u201cWhat if I wait\u201d table and the long-range timeline all report it.",
     "They used to report take-home: the gross allowance with an estimated income tax taken out. That number matched nothing you could check. Put your CalPERS estimate next to this tool and the figures should now line up.",
@@ -819,6 +828,11 @@ export default function RFFRetirementCalculator() {
   // lesser of your contracted cap and actual CPI). Defaults to 0 so the tool starts with no
   // assumptions at all — at 0 and 0, only service credit moves the numbers.
   const [inflationRate, setInflationRate] = useState(SAVED.inflationRate ?? 0);
+  // MOU Ch.2 Art.I.A.3 — Labor Market Adjustment, first full pay period January 2028. The 2027
+  // Total Compensation Study (survey data effective 9/1/2027) sets it, so the figure does not
+  // exist yet. Floor-only: the City raises classifications that fall BELOW the 55th percentile
+  // up to it, so this can never be negative.
+  const [lmaPct, setLmaPct] = useState(SAVED.lmaPct ?? 0);
   // ── DERIVED VALUES ────────────────────────────────────────────────────────
   const hireYear = parseInt(hireDate.slice(0, 4), 10) || new Date().getFullYear();
   const hireMonth = parseInt(hireDate.slice(5, 7), 10) || 1;
@@ -894,6 +908,10 @@ export default function RFFRetirementCalculator() {
     let f = 1.0;
     // 2027 and 2029 are set by the MOU and differ by class, so they are not user inputs.
     if (y >= 2027) f *= (1 + mouGwiFor(2027, classification));
+    // MOU Ch.2 Art.I.A.3 — Labor Market Adjustment, first full pay period January 2028. Set by the
+    // 2027 Total Compensation Study, which has not been run, so the member supplies the figure.
+    // It lifts base hourly rate, so the 2029 GWI compounds on top of it.
+    if (y >= 2028) f *= (1 + Math.max(0, parseFloat(lmaPct) || 0) / 100);
     if (y >= 2029) f *= (1 + mouGwiFor(2029, classification));
     // 2028 has no agreed GWI (Total Compensation Study) and the contract runs through 12/31/2029,
     // so the bargaining dial is barred from touching any year the MOU already covers. It applies
@@ -959,7 +977,7 @@ export default function RFFRetirementCalculator() {
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
-      unionRaisePct, rhsReturn, inflationRate, openSections,
+      unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections,
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
@@ -973,7 +991,7 @@ export default function RFFRetirementCalculator() {
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
-    unionRaisePct, rhsReturn, inflationRate, openSections,
+    unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults
   const resetAll = () => {
@@ -1132,7 +1150,7 @@ export default function RFFRetirementCalculator() {
       contractOT: baseLonHourly * 1.5, cashOut: baseLonHourly,
       incentivePct: inc.totalIncentivePct, longevityPct: lon,
       rankSepApplied: y >= 2027 && (classification === "Fire Engineer" || classification === "Fire Captain"),
-      studyAssumed: y >= 2028 };
+      studyAssumed: y >= 2028 && (parseFloat(lmaPct) || 0) > 0 };
   };
   const rateYearOptions = (() => {
     const out = [];
@@ -1576,6 +1594,10 @@ export default function RFFRetirementCalculator() {
     0,
     (retirementYear + yrsSinceRetire) - firstColaYear + (retiredOnOrAfterMay ? 1 : 0)
   );
+  // True only when the member has assumed nothing: no LMA, no bargained raises, no CPI.
+  const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
+    && (parseFloat(inflationRate) || 0) === 0
+    && (parseFloat(lmaPct) || 0) === 0;
   const ADVANCED_TABS = ["inputs", "pensiondetail", "income", "timeline", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
@@ -2426,8 +2448,8 @@ export default function RFFRetirementCalculator() {
                               <br /></>
                           )}
                           {shownRateYear >= 2028 && (
-                            <>▸ <strong>Jan 2028</strong> — Total Compensation Study (amount not yet known; shown here at your
-                              bargaining assumption of {unionRaisePct || 0}%); alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer<br /></>
+                            <>▸ <strong>Jan 2028</strong> — Labor Market Adjustment, shown here at your assumption of {lmaPct || 0}%
+                              (the 2027 Total Compensation Study sets the real figure); alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer<br /></>
                           )}
                           {shownRateYear >= 2029 && (
                             <>▸ <strong>Jan 2029</strong> — {isPreventionClass(classification) ? "prevention +3.0%" : "Firefighter Paramedic I/II and EMT I +1.75%"}<br /></>
@@ -2439,7 +2461,7 @@ export default function RFFRetirementCalculator() {
                         </div>
                         {shownRates.studyAssumed && (
                           <div style={{ marginTop: "6px", color: COLORS.gold }}>
-                            ⚠ 2028 and later include an assumed figure. Change it under Future raises.
+                            ⚠ 2028 and later include your assumed {lmaPct}% Labor Market Adjustment. Change it under Future raises.
                           </div>
                         )}
                       </div>
@@ -2483,13 +2505,21 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
                     <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Your assumption</div>
-                    <label style={styles.label}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
+                    <label style={styles.label}>Labor Market Adjustment <span style={{ fontSize: "10px", color: COLORS.textDim }}>· one-time %, Jan 2028</span></label>
+                    <input type="number" step="0.25" min={0} max={30} style={styles.input} value={lmaPct || ""} placeholder="0"
+                      onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                      MOU Ch.2 Art.I.A.3. The City raises any classification sitting below the 55th percentile
+                      of the market up to it, effective the first full pay period in January 2028. The 2027 Total
+                      Compensation Study sets the figure, so nobody knows it yet — put your own number in and see.
+                      It lifts base hourly rate, so the 2029 increase compounds on top of it.
+                    </div>
+                    <label style={{ ...styles.label, marginTop: "12px" }}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
                     <input type="number" step="0.25" min={0} max={20} style={styles.input} value={unionRaisePct || ""} placeholder="0"
                       onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                      One figure covering the 2028 compensation study, which has no agreed number, and every
-                      year after the MOU expires 12/31/2029. At 0 the tool credits you with nothing beyond the
-                      signed contract. Same control as on the "What if I wait?" tab.
+                      Applies to 2030 and later, after the MOU expires 12/31/2029. At 0 the tool credits you
+                      with nothing beyond the signed contract. Same controls as on the "What if I wait?" tab.
                     </div>
                     <div style={{ marginTop: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
                       <div style={styles.tableRow}>
@@ -2563,9 +2593,23 @@ export default function RFFRetirementCalculator() {
                   <>
                     <div style={{ marginBottom: "14px", padding: "14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
                       <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "10px" }}>
-                        Two assumptions, yours to set
+                        Three assumptions, yours to set
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <label style={styles.label}>Labor Market Adjustment <span style={{ fontWeight: 400, color: COLORS.textDim }}>· Jan 2028</span></label>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
+                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0 }} />
+                            <span style={{ fontSize: "12px", color: COLORS.textMuted }}>%</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                            A one-time increase to base hourly rate, first full pay period January 2028
+                            (MOU Ch.2 Art.I.A.3). Nobody knows the number yet — the 2027 Total Compensation
+                            Study sets it, using survey data effective 9/1/2027.
+                          </div>
+                        </div>
                         <div>
                           <label style={styles.label}>Raises Local 1592 bargains</label>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -2595,18 +2639,22 @@ export default function RFFRetirementCalculator() {
                         </div>
                       </div>
                       <div style={{ fontSize: "11px", marginTop: "12px", padding: "10px 12px", borderRadius: "8px", lineHeight: 1.7,
-                        background: (unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? "rgba(16,185,129,0.08)" : "rgba(37,99,235,0.08)",
-                        border: `1px solid ${(unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? "rgba(16,185,129,0.3)" : "rgba(37,99,235,0.28)"}`,
+                        background: noAssumptions ? "rgba(16,185,129,0.08)" : "rgba(37,99,235,0.08)",
+                        border: `1px solid ${noAssumptions ? "rgba(16,185,129,0.3)" : "rgba(37,99,235,0.28)"}`,
                         color: COLORS.textMuted }}>
-                        {(unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? (
-                          <><strong style={{ color: COLORS.green }}>Both at zero.</strong> Nothing is assumed. The only
+                        {noAssumptions ? (
+                          <><strong style={{ color: COLORS.green }}>All three at zero.</strong> Nothing is assumed. The only
                           thing moving these rows is the service credit you earn and, for PEPRA, your age factor.
-                          The signed MOU increases for 2027 and 2029 are still in, because those are in the contract.</>
+                          The signed MOU increases for 2027 and 2029 are still in, because those are in the contract.
+                          The 2028 Labor Market Adjustment is <em>not</em> in, because its number does not exist yet.</>
                         ) : (
                           <><strong style={{ color: COLORS.text }}>What you are assuming:</strong>{" "}
-                          {(unionRaisePct || 0) > 0 && <>{unionRaisePct}%/yr bargained</>}
+                          {(lmaPct || 0) > 0 && <>a {lmaPct}% Labor Market Adjustment in January 2028</>}
+                          {(lmaPct || 0) > 0 && ((unionRaisePct || 0) > 0 || (inflationRate || 0) > 0) && ", "}
+                          {(unionRaisePct || 0) > 0 && <>{unionRaisePct}%/yr bargained from 2030</>}
                           {(unionRaisePct || 0) > 0 && (inflationRate || 0) > 0 && " and "}
                           {(inflationRate || 0) > 0 && <>{inflationRate}%/yr CPI</>}.
+                          {(lmaPct || 0) > 0 && <> The LMA lifts base hourly rate, so the 2029 increase and everything after compound on top of it.</>}
                           {(unionRaisePct || 0) > 0 && (inflationRate || 0) > 0 && (
                             Math.abs((unionRaisePct || 0) - (inflationRate || 0)) < 0.01
                               ? <> Pay keeps pace with inflation exactly, so what is left in these rows is the
@@ -3219,6 +3267,15 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px" }}>MOU Ch.2 Art.I.A(2), (3) and (4).</div>
                   </div>
                   <div style={styles.row}>
+                    <div style={styles.fieldGroup}>
+                      <label style={styles.label}>
+                        Labor Market Adjustment <span style={{ color: COLORS.gold, fontSize: "10px" }}>· one-time %, Jan 2028</span>
+                      </label>
+                      <input style={styles.input} type="number" step="0.01" min={0} max={30}
+                        value={lmaPct || ""}
+                        placeholder="0"
+                        onChange={e => setLmaPct(Math.max(0, parseFloat(e.target.value) || 0))} />
+                    </div>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>
                         Raises Local 1592 bargains <span style={{ color: COLORS.gold, fontSize: "10px" }}>· %/yr, est.</span>
