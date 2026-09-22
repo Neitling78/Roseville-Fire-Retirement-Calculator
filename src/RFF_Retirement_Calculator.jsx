@@ -266,6 +266,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v29)", items: [
+    "<strong>Your working pay was understated by about $1,200 a month.</strong> Everywhere the tool said \u201cworking,\u201d it meant base plus specialty pay and nothing else \u2014 it was dropping your holiday pay, your uniform allowance and your FLSA scheduled overtime. All three are real cash, paid every year, and all three are reported to CalPERS.",
+    "You could see it on one screen: the banner read $16,291 gross while the Current compensation table two inches below it read $17,483. Same member, same month, same word.",
+    "It was not just the headline. Take-home and the tax estimate were both built on the short figure, so every working-versus-retired comparison in the tool leaned toward retiring.",
+    "What moves: for a Captain at step H with 40 hours of overtime, working gross goes from $16,485 to <strong>$17,677</strong> and take-home from $10,615 to <strong>$11,392</strong>.",
+    "And it changes the answer on \u201cStay or go?\u201d. The cost of working one more year drops from $28,964 to $19,630, so the break-even on staying through 2029 moves from 11.8 years to <strong>8.0 years \u2014 age 59</strong>, and two more years now pays off by 67 instead of 74.",
+    "Your pension never used the short figure \u2014 final compensation always included all three \u2014 so no pension number changes. This was the working side only.",
+    "There is now a test that reads the banner and the table off the same rendered page and fails if the two gross figures ever disagree again.",
+  ] },
   { date: "September 22, 2026 (v28)", items: [
     "The banner at the top of every screen now carries the four numbers people actually came for: <strong>while working</strong>, gross and take-home, against <strong>while retired</strong>, gross and take-home. It follows you across every tab.",
     "The working pair includes the overtime you entered, because that is what is on your check. The retired pair is dated with your retirement year, so there is no guessing which year it is talking about.",
@@ -1650,8 +1659,17 @@ export default function RFFRetirementCalculator() {
     + (memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0)
     + (memberType === "classic" ? baseSalary * FLSA_OT_PENSIONABLE_PCT : 0);
   const employeeCalPERSContrib = currentPensionableMonthly * (memberType === "classic" ? 0.09 : 0.115);
-  const currentTakeHome = currentMonthlySalary - employeeCalPERSContrib - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP;
-  const retirementVsWorking = totalMonthly / currentMonthlySalary;
+  // Holiday pay, the uniform allowance and FLSA scheduled overtime are real cash, paid every year
+  // and reported to CalPERS — but "salary" here only ever meant base + incentives, so all three were
+  // missing from every working figure in the tool. That made working pay read about $1,200/mo light
+  // against a pension figured on compensation that DID include them.
+  const workingExtrasMonthly = holidayPayMonthlyNow + uniformMonthly
+    + (memberType === "classic" ? baseSalary * FLSA_OT_PENSIONABLE_PCT : 0);
+  // Everything Roseville pays you in a month before overtime — the same total the Current
+  // compensation table adds up, minus the overtime row.
+  const workingGrossNoOT = currentMonthlySalary + workingExtrasMonthly;
+  const currentTakeHome = workingGrossNoOT - employeeCalPERSContrib - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP;
+  const retirementVsWorking = totalMonthly / workingGrossNoOT;
   // Retirement income deflated to TODAY'S purchasing power (projection is in retirement-year dollars).
   const totalMonthlyTodayDollars = totalMonthly / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
   // ── OVERTIME (FLSA regular-rate method) ─────────────────────────────────
@@ -1659,7 +1677,7 @@ export default function RFFRetirementCalculator() {
   const flsaRegularHourly = currentMonthlySalary / FLSA_56HR_MONTHLY_HOURS;     // base + incentives
   const otHourlyRate = flsaRegularHourly * 1.5;                                 // time-and-a-half
   const otMonthly = otHoursMonthly * otHourlyRate;
-  const salaryWithOT = currentMonthlySalary + otMonthly;
+  const salaryWithOT = workingGrossNoOT + otMonthly;
   const longevityMonthlyNow = (memberType === "classic" && showLongevity) ? baseSalary * LONGEVITY(yearsOfService) : 0;
   const contractOTHourly = ((baseSalary + longevityMonthlyNow) / FLSA_56HR_MONTHLY_HOURS) * 1.5;
   // ── INCOME TAX (estimate) — separate household for working vs. retirement ──

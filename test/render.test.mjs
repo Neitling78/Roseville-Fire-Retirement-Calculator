@@ -499,11 +499,11 @@ const CW = await scenario(mkCola("2028-12-31", 50));                       // 0%
 const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
 check("the section is on the wait tab", () => has(CW.wait, "What waiting actually costs"));
 check("names the earliest year you can go", () => has(CW.wait, "You can go in"));
-check("states the yearly cost of staying", () => has(CW.wait, "$28,964"));
+check("states the yearly cost of staying", () => has(CW.wait, "$19,630"));
 check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,451"));
-check("shows the break-even in years and age", () => has(CW.wait, "11.8 yrs · age 63"));
-check("shows the net position at 20 years", () => has(CW.wait, "$20,063"));
-check("a later year can be a net loss", () => has(CW.wait, "$30,702"));
+check("shows the break-even in years and age", () => has(CW.wait, "8.0 yrs · age 59"));
+check("shows the net position at 20 years", () => has(CW.wait, "$29,397"));
+check("a later year can be a net loss", () => has(CW.wait, "$2,699"));
 // When pay only keeps pace with CPI the later pension is no bigger in real terms,
 // so there is nothing to repay the skipped checks and the answer must say so.
 check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
@@ -691,8 +691,8 @@ check("admits the tax figures are estimates", () => has(PO.pension, "not a numbe
 // ── The header carries the four numbers, on every tab ──────────────────────
 console.log("\n-- header: working vs retired, gross and net --");
 const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-check("working gross includes overtime", () => has(HD.member, "$16,485"));
-check("working take-home is there", () => has(HD.member, "$10,615"));
+check("working gross includes overtime", () => has(HD.member, "$17,677"));
+check("working take-home is there", () => has(HD.member, "$11,392"));
 check("retired gross is the allowance", () => has(HD.member, "$14,430"));
 check("retired take-home is there", () => has(HD.member, "$10,896"));
 check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
@@ -705,6 +705,37 @@ const HD2 = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
   beneficiaryAge: 48, survivorOption: "opt2" });
 check("an elected option is named in the header", () => has(HD2.member, "Option 2 elected"));
 check("and the retired gross follows it", () => has(HD2.member, "$12,179"));
+
+
+// ── The header's working gross IS the Current compensation total ───────────
+// It used to be base + incentives only, dropping holiday pay, the uniform allowance and
+// FLSA scheduled overtime — about $1,200/mo of real, pensionable cash. The header read
+// $16,291 while the table two inches below it read $17,483.
+console.log("\n-- header working gross matches the table --");
+const headerWorkingGross = (txt) => {
+  const m = txt.match(/While working Gross (\$[\d,]+) Take home (\$[\d,]+)/);
+  return m && { gross: m[1], net: m[2] };
+};
+const tableGross = (txt) => {
+  const m = txt.match(/Gross pay \$[\d.,]+ (\$[\d,]+) \$[\d,]+/);
+  return m && m[1];
+};
+for (const ot of [0, 40]) {
+  const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: ot, rateYear: 2026,
+    hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
+  check(`header working gross matches the table at ${ot} OT hrs`, () => {
+    const h = headerWorkingGross(S.comp), t = tableGross(S.comp);
+    if (!h) return "could not read the header";
+    if (!t) return "could not read the table total";
+    return h.gross === t || `header ${h.gross} vs table ${t}`;
+  });
+}
+const WX = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 0, rateYear: 2026,
+  hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
+check("working gross includes holiday pay", () => has(WX.comp, "Holiday pay"));
+check("working gross includes the uniform allowance", () => has(WX.comp, "Uniform allowance"));
+check("working gross includes FLSA scheduled overtime", () => has(WX.comp, "FLSA scheduled overtime"));
+check("the corrected working gross is $16,561", () => has(WX.comp, "$16,561"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
