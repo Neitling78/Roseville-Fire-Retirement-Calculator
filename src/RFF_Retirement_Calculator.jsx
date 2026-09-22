@@ -266,6 +266,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v27)", items: [
+    "Pension tab now runs in the order you would actually work through it: <strong>when you plan to go</strong>, then <strong>future raises</strong>, then the whole drop from your pension to what lands in your bank.",
+    "Every line of that drop is shown. Federal income tax and California income tax are split apart instead of hidden inside one blended rate \u2014 and the California line says out loud that a CalPERS pension is fully taxable by this state.",
+    "Health insurance is shown in three lines instead of one: the full premium for your plan and tier, what the City pays toward it (the PEMHCA minimum plus your tier allowance), and what is left for you. If your share is $0, you can now see exactly why.",
+    "Added what <em>stops</em> the day you retire: the CalPERS member contribution, union dues, your 457 deferral, the active medical premium, and Medicare tax \u2014 a pension is not wages, so no Medicare or Social Security comes out of it.",
+    "The tax figures are still estimates off the current brackets and the standard deduction, and now say so in plain words: they do not know your deductions or your spouse\u2019s income, and they are a guide rather than something to budget against.",
+  ] },
   { date: "September 22, 2026 (v26)", items: [
     "Took the base-rate numbers off the Pension tab. They appeared in two places there \u2014 in Future raises and again at the top of the pension build-up \u2014 and sat next to a gross figure they do not match, which read as an error even though both numbers were right.",
     "The pension box now starts where it should: <strong>final compensation</strong>, then your percentage, then the allowance. The line-by-line build-up is on Current compensation, where the year picker already shows it for any year through 2029.",
@@ -2180,6 +2187,20 @@ export default function RFFRetirementCalculator() {
             )}
 
             {tab === "pension" && setupDone && (
+              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>When do you plan to go?</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                  The one date you can still change your mind about. Everything below moves with it.
+                </div>
+                <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
+                  onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
+                <div style={{ fontSize: "11px", color: COLORS.textDim }}>
+                  Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
+                  {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
+                </div>
+              </div>
+            )}
+            {tab === "pension" && setupDone && (
                 <div style={styles.card}>
                   {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
                   {openSections.startraises !== false && (<>
@@ -2236,20 +2257,6 @@ export default function RFFRetirementCalculator() {
                 </div>
             )}
             {/* ═══════════════ PENSION ═══════════════ */}
-            {tab === "pension" && setupDone && (
-              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>When do you plan to go?</p>
-                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                  The one date you can still change your mind about. Everything below moves with it.
-                </div>
-                <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
-                  onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
-                <div style={{ fontSize: "11px", color: COLORS.textDim }}>
-                  Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
-                  {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
-                </div>
-              </div>
-            )}
             {tab === "pension" && (
               <>
                 {!setupDone && (
@@ -2296,17 +2303,52 @@ export default function RFFRetirementCalculator() {
                           <span style={styles.tableValAccent}>{fmt(monthly457)}</span>
                         </div>
                       )}
+                      {(() => {
+                        // Split the blended rate back into federal and state so a member can see both,
+                        // in the same proportion the two taxes actually fall.
+                        const taxM = combinedPensionMonthly * retEffRate;
+                        const fedShare = retTaxAnnual > 0 ? retFedTax / retTaxAnnual : 1;
+                        const fedM = taxM * fedShare;
+                        const stM = taxM - fedM;
+                        return (<>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Federal income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {filingStatusRet === "single" ? "Single" : "Married filing jointly"}, standard deduction</span></span>
+                            <span style={styles.tableVal}>−{fmt(fedM)}</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>{stateName} income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· a CalPERS pension is fully taxable by California</span></span>
+                            <span style={styles.tableVal}>−{fmt(stM)}</span>
+                          </div>
+                        </>);
+                      })()}
                       <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· rough estimate only — flat {pct(retEffRate)}, {stateName}</span></span>
-                        <span style={styles.tableVal}>−{fmt(combinedPensionMonthly * retEffRate)}</span>
+                        <span style={styles.tableKey}>Retiree health premium <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {retireeMedicalPlan}, Tier {medicalTier}</span></span>
+                        <span style={styles.tableVal}>−{fmt(retireePremium)}</span>
                       </div>
                       <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket</span></span>
-                        <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
+                        <span style={styles.tableKey}>City pays toward it <span style={{ fontSize: "10px", color: COLORS.textDim }}>· PEMHCA minimum {fmt(PEMHCA_MIN_MONTHLY)} + {fmt(cityMedicalCheck)} tier allowance</span></span>
+                        <span style={{ ...styles.tableVal, color: COLORS.green }}>+{fmt(cityMedicalContribution)}</span>
+                      </div>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}><strong>Health insurance, your share</strong></span>
+                        <span style={{ ...styles.tableVal, color: retireeMedicalOOP > 0 ? COLORS.gold : COLORS.green, fontWeight: 700 }}>
+                          {retireeMedicalOOP > 0 ? "−" + fmt(retireeMedicalOOP) : "$0"}
+                        </span>
                       </div>
                       <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
                         <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
                         <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(totalMonthlyTakeHome)}/mo</span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                        <strong style={{ color: COLORS.textMuted }}>What stops the day you retire:</strong> the
+                        {memberType === "classic" ? " 9%" : " 11.5%"} CalPERS member contribution, union dues
+                        ({fmt(UNION_DUES_MONTHLY)}/mo), your 457 deferral, the active medical premium, and Medicare tax —
+                        a pension is not wages, so no Medicare or Social Security comes out of it.
+                        <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                          The tax figures are an estimate off the {new Date().getFullYear()} brackets and the standard deduction.
+                          They do not know your deductions, your spouse&rsquo;s income or anything else on your return. Treat
+                          them as a guide, not a number to budget against.
+                        </div>
                       </div>
 
                       <div style={{ marginTop: "16px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>

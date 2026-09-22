@@ -484,7 +484,7 @@ check("wait table leads with the gross allowance", () => has(GH.wait, "$14,430")
 // The full take-home chain survives on the pension breakdown, where it has context.
 check("breakdown still shows gross pension", () => has(GH.pension, "Gross CalPERS pension"));
 check("breakdown still shows what lands in the bank", () => has(GH.pension, "Lands in your bank"));
-check("the tax line says plainly that it is rough", () => has(GH.pension, "rough estimate only"));
+check("the tax figures say plainly that they are estimates", () => has(GH.pension, "not a number to budget against"));
 check("timeline gains a gross CalPERS column", () => has(GH.timeline, "(gross — CalPERS)"));
 
 
@@ -662,6 +662,28 @@ const PTC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ra
 check("final comp matches Current compensation for that year", () =>
   (PTC.comp.includes("$15,597") && PTC.pension.includes("$15,597"))
   || "the two tabs disagree on pensionable pay");
+
+
+// ── The Pension tab shows the whole drop to take-home ──────────────────────
+console.log("\n-- pension tab order and the take-home chain --");
+const PO = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+check("retirement date leads the tab", () => {
+  const d = PO.pension.indexOf("When do you plan to go?");
+  const r = PO.pension.indexOf("Future raises");
+  const n = PO.pension.indexOf("Your number");
+  return (d >= 0 && r > d && n > r) || `out of order: date ${d}, raises ${r}, number ${n}`;
+});
+check("federal tax is its own line", () => has(PO.pension, "Federal income tax"));
+check("state tax is its own line", () => has(PO.pension, "California income tax"));
+check("says CA taxes a CalPERS pension", () => has(PO.pension, "fully taxable by California"));
+check("shows the full health premium", () => has(PO.pension, "Retiree health premium"));
+check("shows what the City pays toward it", () => has(PO.pension, "City pays toward it"));
+check("names the PEMHCA minimum", () => has(PO.pension, "PEMHCA minimum"));
+check("shows the member's own share", () => has(PO.pension, "Health insurance, your share"));
+check("ends at take-home", () => has(PO.pension, "Lands in your bank"));
+check("says what stops at retirement", () => has(PO.pension, "What stops the day you retire"));
+check("names no Medicare on a pension", () => has(PO.pension, "no Medicare or Social Security"));
+check("admits the tax figures are estimates", () => has(PO.pension, "not a number to budget against"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
