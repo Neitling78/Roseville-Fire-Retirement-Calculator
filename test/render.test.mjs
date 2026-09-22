@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
+  for (const t of ["member","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -43,14 +43,14 @@ async function scenario(saved) {
 console.log("\n-- first visit: questions, not somebody else's numbers --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
-check("asks the five questions", () => has(A.start, "Five questions"));
-check("asks what you do", () => has(A.start, "What do you do?"));
-check("asks when Roseville hired you", () => has(A.start, "When did Roseville hire you?"));
+check("asks the five questions", () => has(A.member, "Your career, in the order it happened"));
+check("asks what you do", () => has(A.member, "Rank and pay step"));
+check("asks when Roseville hired you", () => has(A.member, "Roseville hire date"));
 check("asks for sick leave hours", () => has(A.start, "Sick leave hours on the books today"));
 check("withholds the answer", () => has(A.start, "each get their own tab"));
 check("shows NO take-home figure yet", () => lacks(A.start, "Lands in your bank"));
 check("says data stays in the browser", () => has(A.start, "leaves your browser"));
-check("'what if I wait' also waits", () => has(A.wait, "Answer the five questions"));
+check("'what if I wait' also waits", () => has(A.stayorgo, "Fill in"));
 
 // ── A 28-year Classic Captain, the actual audience ──────────────────────────
 console.log("\n-- returning member: Classic Captain, 28 yrs, retiring 2028 --");
@@ -270,9 +270,9 @@ const FF = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   currentSickLeaveHours:2600, retirementDateOverride:"2028-06-01",
   openSections:{ startincent:true, startprior:true, startextras:true } });
-check("asks rank and step", () => has(FF.start, "What do you do?"));
-check("asks hire date", () => has(FF.start, "When did Roseville hire you?"));
-check("asks retirement date", () => has(FF.start, "When do you plan to go?"));
+check("asks rank and step", () => has(FF.member, "Rank and pay step"));
+check("asks hire date", () => has(FF.member, "Roseville hire date"));
+check("asks retirement date", () => has(FF.pension, "When do you plan to go?"));
 check("asks sick leave", () => has(FF.start, "Sick leave hours on the books today"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.start, "Prior service and purchased credit"));
@@ -289,8 +289,8 @@ check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular r
 check("pay tab has the rates", () => has(FF.pay, "Your hourly rates"));
 check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
 check("pay tab has the cash-out card", () => has(FF.pay, "Cash-out at retirement"));
-check("four primary tabs", () => ["Working now","Retired","Stay or go?","Details"]
-  .every(x => FF.now.includes(x)) || "a primary tab is missing");
+check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
+  .every(x => FF.member.includes(x)) || "a primary tab is missing");
 check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
 
 // ── CalPERS service credit, straight off myCalPERS ──────────────────────────
@@ -428,9 +428,9 @@ check("compares pay growth against CPI", () => has(WDoff.wait, "beats inflation 
 check("no zero/zero banner when assumptions are set", () => lacks(WDoff.wait, "Nothing is assumed"));
 
 console.log("\n-- navigation --");
-check("four primary tabs", () => ["Working now","Retired","Stay or go?","Details"]
-  .every(x => B.now.includes(x)) || "a primary tab is missing");
-check("detail screens demoted, not deleted", () => ["Sick leave","Medical","All inputs","Pension detail","Timeline","Guide"]
+check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
+  .every(x => B.member.includes(x)) || "a primary tab is missing");
+check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","Pension detail","Timeline","Guide"]
   .every(x => B.inputs.includes(x)) || "a detail screen is missing");
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
@@ -532,6 +532,34 @@ check("no OT: says so and points at the input", () => has(OT0.stayorgo, "no over
 check("heavy OT: retiring reads as a pay cut", () => has(OT60.stayorgo, "The cut"));
 check("heavy OT: names overtime as the reason", () => has(OT60.stayorgo, "does not follow you out the door"));
 check("the gap is given per year too", () => has(OT60.stayorgo, "a year"));
+
+
+// ── The elected survivor option IS the pension ─────────────────────────────
+// It used to be a read-only table while every headline showed the unmodified allowance —
+// a figure any member leaving a spousal continuance will never receive.
+console.log("\n-- survivor option drives every figure --");
+const mkSurv = (survivorOption, survivorActualPct = "") => ({ ...mkCola("2028-12-31", 50),
+  beneficiaryAge: 48, survivorOption, survivorActualPct, openSections: { breakdown: true } });
+const S1  = await scenario(mkSurv("opt1"));
+const S3  = await scenario(mkSurv("opt3"));
+const S2  = await scenario(mkSurv("opt2"));
+const S2A = await scenario(mkSurv("opt2", "12"));
+check("Option 1 pays the unmodified allowance", () => has(S1.pension, "$14,355"));
+check("Option 3 reduces the allowance", () => has(S3.pension, "$13,020"));
+check("Option 2 reduces it further", () => has(S2.pension, "$12,115"));
+check("the reduction reaches take-home", () => has(S2.pension, "$9,350"));
+check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,845"));
+check("a myCalPERS figure overrides the estimate", () => has(S2A.pension, "$12,632"));
+check("it says it is using your figure", () => has(S2A.deductions, "Using your figure"));
+// The factors are invented. Every screen that shows one has to say so.
+check("the estimate is flagged as not a CalPERS figure", () => has(S2.deductions, "not a CalPERS figure"));
+check("it quotes CalPERS on why", () => has(S2.deductions, "contributed to the retirement plan"));
+check("it gives a band, not a point figure", () => has(S2.deductions, "rough band, not a number to plan on"));
+check("Option 1 warns you are seeing a pension you may not take", () => has(S1.deductions, "pension you do not plan to take"));
+check("the beneficiary continuance is shown", () => has(S2.deductions, "keeps, for life"));
+check("the option selector is on Deductions", () => has(S2.deductions, "Who gets it after you"));
+check("retirement date moved to Pension", () => has(S1.pension, "When do you plan to go?"));
+check("retirement date is off Member details", () => lacks(S1.member, "When do you plan to go?"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

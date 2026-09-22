@@ -243,6 +243,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v17)", items: [
+    "<strong>The survivor option now sets your pension.</strong> Until today it was a read-only table while every headline in the tool showed the <em>unmodified</em> allowance. If you plan to leave your spouse a continuance, the tool was showing you a pension you will never receive. Pick your option on Deductions and every figure follows it.",
+    "How much that moves: a Captain retiring in 2028 at the unmodified allowance shows $14,355/mo gross and $10,845 take-home. The same member electing Option 2 (100% joint &amp; survivor) shows $12,115 and $9,350.",
+    "<strong>An admission.</strong> The option reduction this tool shows you is an estimate I built, not a CalPERS option factor. CalPERS does not publish a table \u2014 they say the cost \u201cis specific to you and depends on factors such as your age, your beneficiary\u2019s age, life expectancies, and how much you\u2019ve contributed to the retirement plan.\u201d Your own contribution balance is in it, and nothing here can reproduce that.",
+    "So it is now labelled as what it is: a rough band, with a warning on the screen, and a box to type your real reduction straight off a myCalPERS estimate. Enter it and the estimate is ignored everywhere.",
+    "Rebuilt the tabs to follow a career instead of a filing cabinet. <strong>Member details</strong> \u2014 where you came from, Roseville hire date, rank, step, specialty pay, sick leave, overtime. <strong>Pension</strong> \u2014 your retirement date and what the formula pays. <strong>Deductions</strong> \u2014 the survivor election, tax and medical, all the things that come off. Then Stay or go, then More.",
+    "Your retirement date moved to the Pension tab, on its own, because it is the one input you get to change your mind about.",
+    "Old links still land: Start here and Working now go to Member details, Medical goes to Deductions, What if I wait goes to Stay or go.",
+  ] },
   { date: "September 22, 2026 (v16)", items: [
     "Rebuilt around four tabs instead of seven. <strong>Working now</strong> \u2014 what you earn and what you keep. <strong>Retired</strong> \u2014 what the pension pays and what you keep. <strong>Stay or go?</strong> \u2014 the comparison. <strong>Details</strong> \u2014 everything else, still there, out of the way.",
     "<strong>Overtime is on page one now.</strong> It was buried three screens deep under \u201cOther income &amp; tax\u201d and it defaulted to zero. That was the single worst thing about this tool: with no overtime entered it told members that retiring was a <em>raise</em>.",
@@ -511,6 +520,15 @@ function calcSickLeavePayoff(hours, hourlyRate) {
 //   - Younger member at retirement → larger reduction (longer expected payout)
 //   - Beneficiary younger than member → larger reduction (longer expected survivor period)
 //   - Pop-up options cost slightly more than non-pop-up (the pop-up insurance)
+// ⚠ THESE ARE ESTIMATES, NOT CalPERS OPTION FACTORS.
+// CalPERS does not publish a lookup table. Per CalPERS: "The cost of each option is specific to
+// you and depends on factors such as your age, your beneficiary's age, life expectancies, and how
+// much you've contributed to the retirement plan." Individual contribution balances cannot be
+// derived here, so no formula can reproduce the real number. The shape below (bigger reduction the
+// younger you retire, bigger again the younger your beneficiary) is directionally right; the exact
+// figure is not. Every screen that shows it must say so, and must point the member at myCalPERS.
+// A member who enters their real reduction from a myCalPERS estimate overrides all of this.
+const OPTION_ESTIMATE_BAND = 0.35;   // ± band shown to the member, as a fraction of the reduction
 function calcOptionFactors(memberAge, beneficiaryAge) {
   const ageDiff = memberAge - beneficiaryAge;          // + if beneficiary younger
   const youngFactor = Math.max(0, 60 - memberAge);     // how much younger than 60
@@ -679,16 +697,17 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["now", "retired", "stayorgo", "sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help", "updates"];
-  // Links sent out before the rebuild still have to land somewhere sensible.
-  const LEGACY_TABS = { start: "now", pay: "now", pension: "retired", wait: "stayorgo", advanced: "inputs" };
+  const VALID_TABS = ["member", "pension", "deductions", "stayorgo", "sickleave", "inputs", "pensiondetail", "income", "timeline", "help", "updates"];
+  // Links sent out before each rebuild still have to land somewhere sensible.
+  const LEGACY_TABS = { start: "member", pay: "member", now: "member", retired: "pension",
+                        wait: "stayorgo", medical: "deductions", advanced: "inputs" };
   const initialTab = (() => {
     try {
       const q = typeof window !== "undefined" && window.location
         ? new URLSearchParams(window.location.search).get("tab") : null;
       if (LEGACY_TABS[q]) return LEGACY_TABS[q];
-      return VALID_TABS.includes(q) ? q : "now";
-    } catch { return "now"; }
+      return VALID_TABS.includes(q) ? q : "member";
+    } catch { return "member"; }
   })();
   const [tab, setTab] = useState(initialTab);
   // The tool used to open on a brand-new hire's numbers. It now shows nothing until the
@@ -826,6 +845,13 @@ export default function RFFRetirementCalculator() {
   const [sickLeaveCustomCreditYears, setSickLeaveCustomCreditYears] = useState(SAVED.sickLeaveCustomCreditYears ?? 1.0);
   // Beneficiary age for CalPERS survivor benefit options (0 = same as member at retirement)
   const [beneficiaryAge, setBeneficiaryAge] = useState(SAVED.beneficiaryAge ?? 0);
+  // Which CalPERS allowance option the member intends to elect. Most members take a reduced
+  // allowance to leave a continuance to a spouse, so this has to drive every figure in the tool,
+  // not sit in a table nobody reads.
+  const [survivorOption, setSurvivorOption] = useState(SAVED.survivorOption ?? "opt1");
+  // The member's REAL reduction, off their myCalPERS estimate, as a percent. Blank = use the
+  // estimate above and label it as such.
+  const [survivorActualPct, setSurvivorActualPct] = useState(SAVED.survivorActualPct ?? "");
   // Promotion modeling
   const [modelPromotion, setModelPromotion] = useState(SAVED.modelPromotion ?? false);
   const [promotionAge, setPromotionAge] = useState(SAVED.promotionAge ?? 30);
@@ -996,7 +1022,7 @@ export default function RFFRetirementCalculator() {
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
-      unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections,
+      unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
@@ -1010,7 +1036,7 @@ export default function RFFRetirementCalculator() {
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
-    unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections,
+    unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults
   const resetAll = () => {
@@ -1284,8 +1310,8 @@ export default function RFFRetirementCalculator() {
   const pensionableForPension = memberType === "pepra" ? Math.min(finalCompMonthly, peraCapMonthly) : finalCompMonthly;
   const peraCapApplies = memberType === "pepra" && finalCompMonthly > peraCapMonthly;
   const pension50Monthly = pensionableForPension * pensionPct;     // Roseville-formula bucket (capped at 90%)
-  const monthlyPension = pensionableForPension * calpersTotalPct;   // full CalPERS allowance (other formulas stacked on top)
-  const annualPension = monthlyPension * 12;
+  // Option 1 / Unmodified — the maximum CalPERS will pay, and the figure myCalPERS quotes first.
+  const monthlyPensionUnmodified = pensionableForPension * calpersTotalPct;
   // CalPERS allowance option factors (member age + beneficiary age determine reduction)
   const effectiveBeneficiaryAge = beneficiaryAge > 0 ? beneficiaryAge : retirementAge;
   const optionFactors = calcOptionFactors(retirementAge, effectiveBeneficiaryAge);
@@ -1297,9 +1323,27 @@ export default function RFFRetirementCalculator() {
     { key: "opt3w", label: "Option 3W — 50% J&S with pop-up", factor: optionFactors.opt3w, survivorPct: 0.50, note: "50% to beneficiary; pops up to Unmodified if beneficiary dies first." },
   ].map(opt => ({
     ...opt,
-    memberMonthly: monthlyPension * opt.factor,
-    survivorMonthly: monthlyPension * opt.factor * opt.survivorPct,
+    memberMonthly: monthlyPensionUnmodified * opt.factor,
+    survivorMonthly: monthlyPensionUnmodified * opt.factor * opt.survivorPct,
   }));
+  // ── THE ELECTED OPTION IS THE PENSION ────────────────────────────────────
+  // Most members take a reduced allowance to leave a continuance to a spouse. Until now this
+  // sat in a read-only table while every headline showed the unmodified figure — a number
+  // those members will never receive. From here down, monthlyPension IS the elected allowance.
+  const survivorChosen = survivorOptions.find(o => o.key === survivorOption) || survivorOptions[0];
+  const survivorActualNum = survivorActualPct === "" || survivorActualPct === null
+    ? null : Math.max(0, Math.min(50, parseFloat(survivorActualPct) || 0));
+  const usingActualOptionPct = survivorActualNum !== null && survivorOption !== "opt1";
+  const appliedOptionFactor = survivorOption === "opt1" ? 1
+    : usingActualOptionPct ? (1 - survivorActualNum / 100)
+    : survivorChosen.factor;
+  const optionReductionPct = 1 - appliedOptionFactor;
+  // Band around OUR estimate, so an invented figure never reads as precise.
+  const optionBandLow = Math.max(0, optionReductionPct * (1 - OPTION_ESTIMATE_BAND));
+  const optionBandHigh = optionReductionPct * (1 + OPTION_ESTIMATE_BAND);
+  const monthlyPension = monthlyPensionUnmodified * appliedOptionFactor;
+  const annualPension = monthlyPension * 12;
+  const survivorContinuanceMonthly = monthlyPension * (survivorChosen.survivorPct || 0);
   // Promotion model
   let promotionPension = null;
   if (modelPromotion && promotionAge < retirementAge) {
@@ -1460,6 +1504,9 @@ export default function RFFRetirementCalculator() {
   // Separate reciprocal checks only (CalPERS rows — same- and other-formula — are inside monthlyPension).
   const priorPensionMonthly = priorServiceCalc.filter(r => !r.calpers).reduce((s, r) => s + r.monthly, 0);
   // Headline = full CalPERS allowance (90% bucket + stacked other-formula) + reciprocal checks.
+  // Prior-agency checks come from their own systems with their own option elections, so the
+  // CalPERS option factor is not applied to them.
+  const combinedPensionUnmodified = monthlyPensionUnmodified + priorPensionMonthly;
   const combinedPensionMonthly = monthlyPension + priorPensionMonthly;
   const priorTotalYears = priorServiceCalc.reduce((s, r) => s + r.yrs, 0);
   // What myCalPERS would show today: Roseville credit + every CalPERS prior-agency line.
@@ -1617,7 +1664,7 @@ export default function RFFRetirementCalculator() {
   const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
     && (parseFloat(inflationRate) || 0) === 0
     && (parseFloat(lmaPct) || 0) === 0;
-  const ADVANCED_TABS = ["sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help"];
+  const ADVANCED_TABS = ["sickleave", "inputs", "pensiondetail", "income", "timeline", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
@@ -1654,7 +1701,7 @@ export default function RFFRetirementCalculator() {
       : (pensionableForYear(y) + pensionableForYear(y - 1) + pensionableForYear(y - 2)) / 3;
     const capM = (PEPRA_COMP_CAP_2026 * Math.pow(1 + PEPRA_CAP_COLA, Math.max(0, y - 2026))) / 12;
     const fc = memberType === "pepra" ? Math.min(fcRaw, capM) : fcRaw;
-    const pension = fc * (pPct + priorOther);
+    const pension = fc * (pPct + priorOther) * appliedOptionFactor;
     const slRate = (projectedBaseForYear(y) * (1 + (showLongevity ? LONGEVITY(yos) : 0))) / FLSA_56HR_MONTHLY_HOURS;
     const sickCash = calcSickLeavePayoff(slHoursCash, slRate);
     const med = medicalTier === "4"
@@ -1839,16 +1886,17 @@ export default function RFFRetirementCalculator() {
       <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
         {datesInvalid && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
-            ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Working now — the numbers above aren't valid until then.
+            ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Member details — the numbers above aren't valid until then.
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
-          {["now", "retired", "stayorgo", "advanced"].map(t => {
+          {["member", "pension", "deductions", "stayorgo", "advanced"].map(t => {
             const active = t === "advanced" ? isAdvancedTab : tab === t;
             return (
-              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 45%" : 1, textAlign: "center", fontSize: isMobile ? "12px" : "14px", padding: isMobile ? "11px 2px" : "12px 8px", whiteSpace: "nowrap" }}
+              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
                 onClick={() => setTab(t === "advanced" ? "sickleave" : t)}>
-                {{ now: isMobile ? "Working" : "Working now", retired: "Retired", stayorgo: isMobile ? "Stay or go" : "Stay or go?", advanced: "Details" }[t]}
+                {{ member: isMobile ? "Member" : "Member details", pension: "Pension", deductions: isMobile ? "Deductions" : "Deductions",
+                   stayorgo: isMobile ? "Stay/go" : "Stay or go?", advanced: "More" }[t]}
               </button>
             );
           })}
@@ -1857,7 +1905,7 @@ export default function RFFRetirementCalculator() {
           <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
             {ADVANCED_TABS.map(t => (
               <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ sickleave: "Sick leave", medical: "Medical", inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
+                {{ sickleave: "Sick leave", inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
               </button>
             ))}
           </div>
@@ -1866,31 +1914,18 @@ export default function RFFRetirementCalculator() {
           {/* LEFT PANEL */}
           <div>
             {/* ═══════════════ WORKING NOW · inputs ═══════════════ */}
-            {tab === "now" && (
+            {tab === "member" && (
               <>
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Five questions</p>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Your career, in the order it happened</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
-                    Everything else in this tool is worked out from these. Answer them and you get a real number;
-                    leave them and you get nothing, which is better than getting somebody else's retirement.
+                    Prior service, then Roseville, then rank, pay step, specialty pay, sick leave and overtime.
+                    Everything in this tool is worked out from what you put here. Your retirement date lives on
+                    <strong style={{ color: COLORS.textMuted }}> Pension</strong>, because that is the one you get to change your mind about.
                   </div>
 
-                  <label style={styles.label}>1 · What do you do?</label>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "8px", marginBottom: "14px" }}>
-                    <select style={styles.select} value={classification} onChange={e => { setClassification(e.target.value); setSetupDone(true); }}>
-                      {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
-                    </select>
-                    <select style={styles.select} value={salaryStep} onChange={e => { setSalaryStep(e.target.value); setSetupDone(true); }}>
-                      {Object.keys(activeSchedule[classification]?.steps || {}).map(st =>
-                        <option key={st} value={st}>Step {st}</option>)}
-                    </select>
-                  </div>
-
-                  <label style={styles.label}>2 · When were you born?</label>
-                  <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
-                    onChange={e => { setDob(e.target.value); setSetupDone(true); }} />
-
-                  <label style={styles.label}>3 · When did Roseville hire you?</label>
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "8px" }}>Where you came from</div>
+                  <label style={styles.label}>Roseville hire date</label>
                   <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={hireDate}
                     onChange={e => { setHireDate(e.target.value); setSetupDone(true); }} />
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px" }}>
@@ -1901,15 +1936,24 @@ export default function RFFRetirementCalculator() {
                     <span style={{ ...styles.badge, ...styles.badgeGreen }}>{showLongevity ? "Longevity pay" : "Service term bonus"}</span>
                   </div>
 
-                  <label style={styles.label}>4 · When do you plan to go?</label>
-                  <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
-                    onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px" }}>
-                    Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
-                    {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
+                  <label style={styles.label}>Date of birth</label>
+                  <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
+                    onChange={e => { setDob(e.target.value); setSetupDone(true); }} />
+
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, margin: "6px 0 8px" }}>What you do</div>
+                  <label style={styles.label}>Rank and pay step</label>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "8px", marginBottom: "14px" }}>
+                    <select style={styles.select} value={classification} onChange={e => { setClassification(e.target.value); setSetupDone(true); }}>
+                      {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <select style={styles.select} value={salaryStep} onChange={e => { setSalaryStep(e.target.value); setSetupDone(true); }}>
+                      {Object.keys(activeSchedule[classification]?.steps || {}).map(st =>
+                        <option key={st} value={st}>Step {st}</option>)}
+                    </select>
                   </div>
 
-                  <label style={styles.label}>5 · Sick leave hours on the books today</label>
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, margin: "6px 0 8px" }}>What you have banked</div>
+                  <label style={styles.label}>Sick leave hours on the books today</label>
                   <input type="number" style={{ ...styles.input, marginBottom: "6px" }} value={currentSickLeaveHours || ""}
                     placeholder="e.g. 1800" onChange={e => { setCurrentSickLeaveHours(+e.target.value || 0); setSetupDone(true); }} />
                   <div style={{ fontSize: "11px", color: COLORS.textDim }}>
@@ -2177,13 +2221,27 @@ export default function RFFRetirementCalculator() {
               </>
             )}
 
-            {/* ═══════════════ RETIRED ═══════════════ */}
-            {tab === "retired" && (
+            {/* ═══════════════ PENSION ═══════════════ */}
+            {tab === "pension" && setupDone && (
+              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>When do you plan to go?</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                  The one date you can still change your mind about. Everything below moves with it.
+                </div>
+                <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
+                  onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
+                <div style={{ fontSize: "11px", color: COLORS.textDim }}>
+                  Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
+                  {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
+                </div>
+              </div>
+            )}
+            {tab === "pension" && (
               <>
                 {!setupDone && (
                   <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
-                      Answer the questions on <strong style={{ color: COLORS.text }}>Working now</strong> first.
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Member details</strong> first.
                       <br /><br />
                       <span style={{ fontSize: "12px", color: COLORS.textDim }}>
                         Nothing you type leaves your browser. There is no account and no server.
@@ -2367,12 +2425,12 @@ export default function RFFRetirementCalculator() {
             )}
 
             {/* ═══════════════ WORKING NOW · what you actually take home ═══════════════ */}
-            {tab === "now" && (
+            {tab === "member" && (
               <>
                 {!setupDone && (
                   <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
-                      Answer the questions on <strong style={{ color: COLORS.text }}>Working now</strong> first.
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Member details</strong> first.
                       <br /><br />
                       <span style={{ fontSize: "12px", color: COLORS.textDim }}>
                         Nothing you type leaves your browser. There is no account and no server.
@@ -2743,7 +2801,7 @@ export default function RFFRetirementCalculator() {
                 </div>
                 {!setupDone && (
                   <div style={{ fontSize: "13px", color: COLORS.textMuted, padding: "24px", textAlign: "center" }}>
-                    Answer the five questions on <strong>Working now</strong> first.
+                    Fill in <strong>Member details</strong> first.
                   </div>
                 )}
                 {setupDone && retireYearOptions.length === 0 && (
@@ -4068,7 +4126,89 @@ export default function RFFRetirementCalculator() {
                 </>)}
               </div>
             )}
-            {tab === "medical" && (
+            {tab === "deductions" && setupDone && (
+              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Who gets it after you</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                  Taking care of a spouse costs you every month you are alive. Pick the option you actually
+                  intend to elect — every figure in this tool follows it.
+                </div>
+                <label style={styles.label}>Your beneficiary&rsquo;s age at your retirement</label>
+                <input type="number" style={{ ...styles.input, marginBottom: "12px" }} value={beneficiaryAge || ""}
+                  min={18} max={100} placeholder={`${retirementAge}`}
+                  onChange={e => setBeneficiaryAge(+e.target.value || 0)} />
+                <label style={styles.label}>Allowance option</label>
+                <select style={{ ...styles.select, marginBottom: "10px" }} value={survivorOption}
+                  onChange={e => setSurvivorOption(e.target.value)}>
+                  {survivorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px", lineHeight: 1.6 }}>
+                  {survivorChosen.note}
+                </div>
+
+                {survivorOption !== "opt1" && (
+                  <div style={{ padding: "12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px", marginBottom: "14px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.gold, marginBottom: "6px" }}>
+                      ⚠ This reduction is an estimate, not a CalPERS figure
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7, marginBottom: "10px" }}>
+                      CalPERS does not publish option factors. They say the cost &ldquo;is specific to you and depends
+                      on factors such as your age, your beneficiary&rsquo;s age, life expectancies, and how much you&rsquo;ve
+                      contributed to the retirement plan&rdquo; — your own contribution balance is in it, which nothing here
+                      can reproduce. Treat this as a <strong style={{ color: COLORS.gold }}>rough band, not a number to plan on</strong>:
+                      somewhere around <strong style={{ color: COLORS.gold }}>{pct(optionBandLow)} to {pct(optionBandHigh)}</strong> for
+                      this option at your ages. Get the real one from a myCalPERS estimate and put it here.
+                    </div>
+                    <label style={styles.label}>Your actual reduction from myCalPERS <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input type="number" step="0.1" min={0} max={50} value={survivorActualPct}
+                        placeholder={(optionReductionPct * 100).toFixed(1)}
+                        onChange={e => setSurvivorActualPct(e.target.value)}
+                        style={{ ...styles.input, margin: 0, width: "120px" }} />
+                      <span style={{ fontSize: "12px", color: COLORS.textMuted }}>% reduction</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: usingActualOptionPct ? COLORS.green : COLORS.textDim, marginTop: "6px" }}>
+                      {usingActualOptionPct
+                        ? `✓ Using your figure — ${survivorActualNum}%. The estimate above is ignored.`
+                        : "Blank means the tool is using its own estimate. Anything you type here replaces it everywhere."}
+                    </div>
+                  </div>
+                )}
+
+                <div style={styles.tableRow}>
+                  <span style={styles.tableKey}>Unmodified allowance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· Option 1, the maximum</span></span>
+                  <span style={styles.tableVal}>{fmt(combinedPensionUnmodified)}/mo</span>
+                </div>
+                {survivorOption !== "opt1" && (
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Option reduction <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(optionReductionPct)}{usingActualOptionPct ? ", your figure" : ", estimated"}</span></span>
+                    <span style={{ ...styles.tableVal, color: COLORS.gold }}>−{fmt(combinedPensionUnmodified - combinedPensionMonthly)}/mo</span>
+                  </div>
+                )}
+                <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}` }}>
+                  <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Your allowance</span>
+                  <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}/mo</span>
+                </div>
+                <div style={{ ...styles.tableRowLast }}>
+                  <span style={styles.tableKey}>
+                    {survivorChosen.survivorPct > 0
+                      ? `Your beneficiary keeps, for life · ${pct(survivorChosen.survivorPct)}`
+                      : "Your beneficiary keeps"}
+                  </span>
+                  <span style={{ ...styles.tableVal, color: survivorContinuanceMonthly > 0 ? COLORS.green : COLORS.textDim }}>
+                    {survivorContinuanceMonthly > 0 ? fmt(survivorContinuanceMonthly) + "/mo" : "nothing"}
+                  </span>
+                </div>
+                {survivorOption === "opt1" && (
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                    Option 1 pays you the most and leaves your spouse nothing monthly after you die. If you intend
+                    to leave a continuance, change it here — otherwise every figure in this tool is showing you a
+                    pension you do not plan to take.
+                  </div>
+                )}
+              </div>
+            )}
+            {tab === "deductions" && (
               <div style={styles.card}>
                 {sectionHeader("medplan", "Medical, dental & vision (while working)")}
                 {openSections.medplan !== false && (<>
