@@ -1723,10 +1723,6 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.tableKey}>Contract overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5 × (base + longevity)</span></span>
                       <span style={styles.tableVal}>{fmtHr(contractOTHourly)}/hr</span>
                     </div>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>All-Call / emergency OT <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 2× base</span></span>
-                      <span style={styles.tableVal}>{fmtHr((baseSalary / FLSA_56HR_MONTHLY_HOURS) * 2)}/hr</span>
-                    </div>
                     <div style={styles.tableRowLast}>
                       <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, at retirement</span></span>
                       <span style={styles.tableValGreen}>{fmtHr(sickLeaveHourlyRate)}/hr</span>
