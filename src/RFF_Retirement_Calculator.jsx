@@ -243,6 +243,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v8)", items: [
+    "Removed the holiday cash-out. It was wrong \u2014 your holiday hours are already reported to CalPERS as special compensation (MOU Ch.3 Art.II.C, CCR \u00a7571) and sit in your pensionable compensation. They cannot be reported to CalPERS and paid out again at separation, so showing both was counting the same hours twice.",
+    "Holiday pay still appears where it belongs: in the pension build-up, as 168 hours of pensionable special compensation for Classic members.",
+    "Sick leave is now the only cash-out at retirement, which is what it always should have been.",
+  ] },
   { date: "September 22, 2026 (v7)", items: [
     "The \u201cyou are past the cap\u201d warning is now on the main pension screen, not buried on the detail tab. It tells you how many years of credit are paying you nothing \u2014 and if sick-leave conversion is part of that surplus, it says so and tells you to take the cash.",
     "The sick-leave screen now says the credit is worth $0 in plain dollars when you are already at the cap, alongside what the cash is worth.",
@@ -739,10 +744,6 @@ export default function RFFRetirementCalculator() {
   const [currentOTHours, setCurrentOTHours] = useState(SAVED.currentOTHours ?? 0);
   // Sick leave — user enters CURRENT hours; we project forward to retirement
   const [currentSickLeaveHours, setCurrentSickLeaveHours] = useState(SAVED.currentSickLeaveHours ?? 0);
-  // Unused holiday hours at separation. Shift members are granted 7 x 24-hr shifts each
-  // January 1 (MOU Ch.3 Art.II.B); unused hours are paid at base + longevity (Art.II.C, F).
-  // Defaults to 0 so it never silently inflates anyone's number.
-  const [unusedHolidayHours, setUnusedHolidayHours] = useState(SAVED.unusedHolidayHours ?? 0);
   // Which calendar year the hourly-rate card is showing.
   const [rateYear, setRateYear] = useState(SAVED.rateYear ?? new Date().getFullYear());
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
@@ -902,7 +903,7 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, unusedHolidayHours, rateYear, airtime,
+      currentSickLeaveHours, rateYear, airtime,
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -916,7 +917,7 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, unusedHolidayHours, rateYear, calpersCreditRoseville,
+    currentSickLeaveHours, rateYear, calpersCreditRoseville,
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
@@ -1330,10 +1331,6 @@ export default function RFFRetirementCalculator() {
   const depletionAge = effectiveDrawStartAge + years457Lasts;
   // Sick leave cash payout (uses hours NOT converted to credit)
   const sickLeavePayoff = calcSickLeavePayoff(sickLeaveHoursToCash, sickLeaveHourlyRate);
-  // Unused holiday paid at the same base + longevity hourly rate. Capped at the annual grant,
-  // since that is the most a member can be holding (MOU Ch.3 Art.II.B).
-  const holidayCashOutHours = Math.min(Math.max(0, parseFloat(unusedHolidayHours) || 0), HOLIDAY_HOURS);
-  const holidayCashOut = holidayCashOutHours * sickLeaveHourlyRate;
   // Hours the member holds that the MOU payoff table does not reach (above 2400).
   const sickLeaveHoursAbovePayCap = Math.max(0, sickLeaveHoursToCash - SICK_LEAVE_PAYOFF_MAX_HOURS);
   // Pension boost from sick leave credit (monthly)
@@ -2021,16 +2018,8 @@ export default function RFFRetirementCalculator() {
                 </div>
                 <div style={styles.card}>
                   {sectionHeaderValue("startextras", "A few more details",
-                    `${holidayCashOutHours || 0} hol hrs${beneficiaryAge > 0 ? ` \u00b7 beneficiary ${beneficiaryAge}` : ""}`)}
+                    beneficiaryAge > 0 ? `beneficiary ${beneficiaryAge}` : "optional")}
                   {openSections.startextras !== false && (<>
-                    <label style={styles.label}>Unused holiday hours at separation</label>
-                    <input type="number" style={styles.input} value={unusedHolidayHours || ""} placeholder="0"
-                      onChange={e => { setUnusedHolidayHours(+e.target.value || 0); setSetupDone(true); }} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "6px 0 14px", lineHeight: 1.6 }}>
-                      Shift members are granted seven 24-hour shifts ({HOLIDAY_HOURS} hrs) each January 1;
-                      anything unused is paid at base plus longevity (MOU Ch.3 Art.II.C and F). Leave at 0 if
-                      you plan to burn them. Confirm the City's separation practice with the Treasurer.
-                    </div>
                     <label style={styles.label}>Beneficiary's age at your retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>\u00b7 optional</span></label>
                     <input type="number" style={styles.input} value={beneficiaryAge || ""} min={18} max={100}
                       placeholder={`${Math.floor(retireAgeQ)} (same as you)`}
@@ -2179,12 +2168,6 @@ export default function RFFRetirementCalculator() {
                           {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && "—"}
                         </span>
                       </div>
-                      {holidayCashOut > 0 && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Unused holiday cashed out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs</span></span>
-                          <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
-                        </div>
-                      )}
                       {value457 > 0 && (
                         <div style={styles.tableRow}>
                           <span style={styles.tableKey}>457 balance</span>
@@ -2455,40 +2438,29 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 <div style={styles.card}>
-                  {sectionHeaderValue("startpayout", "Cash-outs at retirement", fmt(sickLeavePayoff + holidayCashOut))}
+                  {sectionHeaderValue("startpayout", "Cash-out at retirement", fmt(sickLeavePayoff))}
                   {openSections.startpayout !== false && (<>
-                    <div style={styles.tableRow}>
+                    <div style={styles.tableRowLast}>
                       <span style={styles.tableKey}>Sick leave <span style={{ fontSize: "10px", color: COLORS.textDim }}>· set on the Sick leave tab</span></span>
-                      <span style={styles.tableValGreen}>{fmt(sickLeavePayoff)}</span>
-                    </div>
-                    <label style={{ ...styles.label, marginTop: "10px" }}>Unused holiday hours at separation</label>
-                    <input type="number" style={styles.input} value={unusedHolidayHours || ""} placeholder="0"
-                      onChange={e => { setUnusedHolidayHours(+e.target.value || 0); setSetupDone(true); }} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "6px 0 10px", lineHeight: 1.6 }}>
-                      Shift members get seven 24-hour holiday shifts ({HOLIDAY_HOURS} hrs) in advance each
-                      January 1. Anything unused is paid at base hourly plus longevity (MOU Ch.3 Art.II.C
-                      and F). Enter what you expect to be holding on your last day — leave it at 0 if you
-                      plan to burn them. <strong>Confirm the City's separation practice with the Treasurer.</strong>
-                    </div>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs × {fmtHr(sickLeaveHourlyRate)}</span></span>
-                      <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
+                      <span style={{ ...styles.tableValGreen, fontWeight: 800, fontSize: "15px" }}>{fmt(sickLeavePayoff)}</span>
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                      Both are paid at <strong style={{ color: COLORS.text }}>base hourly plus longevity only</strong> — no
-                      education, certificate or specialty pay (MOU Ch.3 Art.III.A.1 and Art.II.C).
+                      Paid at <strong style={{ color: COLORS.text }}>base hourly plus longevity only</strong> — no
+                      education, certificate or specialty pay (MOU Ch.3 Art.III.A.1).
                       {Math.abs(sickLeaveHourlyRate - sickLeaveHourlyRateToday) > 0.01 && (
                         <> The rate used here is <strong style={{ color: COLORS.gold }}>{fmtHr(sickLeaveHourlyRate)}/hr</strong>, your
                         projected rate in {retirementYear}, not today's {fmtHr(sickLeaveHourlyRateToday)}/hr — you are paid out
                         at your rate on your last day.</>
                       )}
+                      <div style={{ marginTop: "8px" }}>
+                        It lands in one tax year and is taxed as wages, and it is not pensionable.
+                      </div>
                     </div>
-                    <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
-                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total cash at separation</span>
-                      <span style={{ ...styles.tableValGreen, fontWeight: 800, fontSize: "15px" }}>{fmt(sickLeavePayoff + holidayCashOut)}</span>
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
-                      Both land in one tax year and are taxed as wages. Neither is pensionable.
+                    <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                      <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
+                      {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
+                      (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
+                      They cannot be both reported to CalPERS and paid out again at separation.
                     </div>
                   </>)}
                 </div>

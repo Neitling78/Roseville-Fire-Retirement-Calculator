@@ -126,13 +126,12 @@ const Eo = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   classification:"Fire Captain", salaryStep:"H", currentSickLeaveHours:2600,
   retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit",
   hasBachelor:true, hasChiefFireOfficer:true, hasHazmat:true, hazmatLevel:"taskforce",
-  unusedHolidayHours:96,
   openSections:{ startpay:true, startincent:true, starthourly:true, startraises:true, startpayout:true } });
 check("shows specialty pay section", () => has(E.start, "Specialty pay and certificates"));
 check("collapsed header still shows the incentive total", () => /Specialty pay and certificates \s*[\d.]+%/.test(E.start) || "no total in the collapsed header");
 check("collapsed header still shows current pay", () => /Your pay right now \s*\$/.test(E.pay) || "no value in the collapsed header");
 check("collapsed header still shows the hourly rate", () => /Your hourly rates \s*\$/.test(E.pay) || "no value in the collapsed header");
-check("collapsed header still shows cash-out total", () => /Cash-outs at retirement \s*\$/.test(E.pay) || "no value in the collapsed header");
+check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.pay) || "no value in the collapsed header");
 check("offers the education incentive", () => has(Eo.start, "Bachelor's degree (10%)"));
 check("offers Chief Fire Officer for a Captain", () => has(Eo.start, "Chief Fire Officer cert (10%)"));
 check("offers hazmat", () => has(Eo.start, "Hazmat"));
@@ -149,13 +148,17 @@ check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
 check("shows future raises", () => has(E.pay, "Future raises"));
 check("shows the 2028 study is an assumption", () => has(Eo.pay, "study"));
-check("shows cash-outs at retirement", () => has(E.pay, "Cash-outs at retirement"));
+check("shows the cash-out card", () => has(E.pay, "Cash-out at retirement"));
+check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
+  && lacks(E.start, "Unused holiday hours") === true);
+check("explains holiday is special comp, not a payout", () => has(Eo.pay, "Holiday hours are not a separate cash-out"));
+check("cites the special-comp reporting", () => has(Eo.pay, "reported to CalPERS as special compensation"));
+check("says it cannot be both", () => has(Eo.pay, "cannot be both reported to CalPERS and paid out again"));
+check("holiday pay still counts as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
 check("cash-out rate says base + longevity, no incentives", () => has(Eo.pay, "base + longevity, no incentives"));
 check("cash-out card spells out the exclusion", () => has(Eo.pay, "base hourly plus longevity only"));
 check("cash-out card excludes specialty pay explicitly", () => has(Eo.pay, "no education, certificate or specialty pay"));
 check("cash-out card distinguishes projected rate from today's", () => has(Eo.pay, "not today's"));
-check("shows holiday cash-out", () => has(Eo.pay, "Unused holiday hours at separation"));
-check("tells them to confirm holiday practice", () => has(Eo.pay, "Confirm the City's separation practice"));
 check("shows what the pension is figured on", () => has(E.pension, "What the pension is figured on"));
 check("shows pensionable incentives in the build-up", () => has(E.pension, "Pensionable incentives"));
 check("Classic sees holiday pay as pensionable", () => has(E.pension, "Holiday pay (168 hrs)"));
@@ -238,7 +241,6 @@ check("asks sick leave", () => has(FF.start, "Sick leave hours on the books toda
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.start, "Prior service and purchased credit"));
 check("asks purchased service credit", () => has(FF.start, "Airtime / purchased service"));
-check("asks unused holiday hours", () => has(FF.start, "Unused holiday hours at separation"));
 check("asks beneficiary age", () => has(FF.start, "Beneficiary's age at your retirement"));
 check("offers the pension type override", () => has(FF.start, "CalPERS reciprocity"));
 check("no pension answer on Start here", () => lacks(FF.start, "Lands in your bank"));
@@ -251,7 +253,7 @@ check("pension tab has the answer", () => has(FF.pension, "Lands in your bank"))
 check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular rate"));
 check("pay tab has the rates", () => has(FF.pay, "Your hourly rates"));
 check("pay tab has no pension answer", () => lacks(FF.pay, "Lands in your bank"));
-check("pay tab has cash-outs", () => has(FF.pay, "Cash-outs at retirement"));
+check("pay tab has the cash-out card", () => has(FF.pay, "Cash-out at retirement"));
 check("seven primary tabs", () => ["Start here","Your pension","Your pay","What if I wait?","Sick leave","Medical","Everything else"]
   .every(x => FF.start.includes(x)) || "a primary tab is missing");
 check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
