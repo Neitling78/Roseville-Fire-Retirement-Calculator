@@ -535,6 +535,7 @@ const styles = {
 };
 // ─── HELPERS ───────────────────────────────────────────────────────────────
 const fmt = (n) => n?.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "$0";
+const fmtHr = (n) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
 // ─── LOCAL STORAGE PERSISTENCE ───────────────────────────────────────────
 // Saves user inputs to browser localStorage. Data NEVER leaves the device — no
@@ -1704,31 +1705,31 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 <div style={styles.card}>
-                  {sectionHeaderValue("starthourly", "Your hourly rates", `${fmt(flsaRegularHourly)}/hr`)}
+                  {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(flsaRegularHourly)}/hr`)}
                   {openSections.starthourly !== false && (<>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>Base hourly <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base ÷ 242.67</span></span>
-                      <span style={styles.tableVal}>{fmt(baseSalary / FLSA_56HR_MONTHLY_HOURS)}/hr</span>
+                      <span style={styles.tableVal}>{fmtHr(baseSalary / FLSA_56HR_MONTHLY_HOURS)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>FLSA regular rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + incentives</span></span>
-                      <span style={styles.tableValGold}>{fmt(flsaRegularHourly)}/hr</span>
+                      <span style={styles.tableValGold}>{fmtHr(flsaRegularHourly)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>FLSA overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5×</span></span>
-                      <span style={styles.tableValGold}>{fmt(otHourlyRate)}/hr</span>
+                      <span style={styles.tableValGold}>{fmtHr(otHourlyRate)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>Contract overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5 × (base + longevity)</span></span>
-                      <span style={styles.tableVal}>{fmt(contractOTHourly)}/hr</span>
+                      <span style={styles.tableVal}>{fmtHr(contractOTHourly)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>All-Call / emergency OT <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 2× base</span></span>
-                      <span style={styles.tableVal}>{fmt((baseSalary / FLSA_56HR_MONTHLY_HOURS) * 2)}/hr</span>
+                      <span style={styles.tableVal}>{fmtHr((baseSalary / FLSA_56HR_MONTHLY_HOURS) * 2)}/hr</span>
                     </div>
                     <div style={styles.tableRowLast}>
                       <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, at retirement</span></span>
-                      <span style={styles.tableValGreen}>{fmt(sickLeaveHourlyRate)}/hr</span>
+                      <span style={styles.tableValGreen}>{fmtHr(sickLeaveHourlyRate)}/hr</span>
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
                       The City pays the greater of FLSA or contract overtime. Education pay counts in the
@@ -1803,7 +1804,7 @@ export default function RFFRetirementCalculator() {
                       plan to burn them. <strong>Confirm the City's separation practice with the Treasurer.</strong>
                     </div>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {unusedHolidayHours || 0} hrs × {fmt(sickLeaveHourlyRate)}</span></span>
+                      <span style={styles.tableKey}>Holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {unusedHolidayHours || 0} hrs × {fmtHr(sickLeaveHourlyRate)}</span></span>
                       <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
                     </div>
                     <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>

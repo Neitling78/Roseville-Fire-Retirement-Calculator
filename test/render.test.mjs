@@ -141,6 +141,12 @@ check("offers fire investigation", () => has(Eo.start, "Fire investigation"));
 check("shows hourly rates", () => has(E.start, "Your hourly rates"));
 check("shows the FLSA regular rate", () => has(Eo.start, "FLSA regular rate"));
 check("shows All-Call 2x rate", () => has(Eo.start, "All-Call"));
+check("hourly rates carry cents", () => (Eo.start.match(/\$[\d,]+\.\d{2}\/hr/g) || []).length >= 6
+  || "expected 6 hourly rates with cents, found " + (Eo.start.match(/\$[\d,]+\.\d{2}\/hr/g) || []).length);
+check("collapsed hourly header carries cents", () => /Your hourly rates \s*\$[\d,]+\.\d{2}\/hr/.test(E.start)
+  || "collapsed header rate has no cents");
+check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.start)
+  || "monthly figures should not have gained cents");
 check("shows future raises", () => has(E.start, "Future raises"));
 check("shows the 2028 study is an assumption", () => has(Eo.start, "study"));
 check("shows cash-outs at retirement", () => has(E.start, "Cash-outs at retirement"));
