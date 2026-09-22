@@ -43,7 +43,10 @@ async function scenario(saved) {
 console.log("\n-- first visit: questions, not somebody else's numbers --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
-check("asks the five questions", () => has(A.member, "Your career, in the order it happened"));
+check("opens with prior service", () => has(A.member, "1 \u00b7 Before Roseville"));
+check("then Roseville", () => has(A.member, "2 \u00b7 Roseville"));
+check("then specialty pay", () => has(A.member, "3 \u00b7 Specialty pay and certificates"));
+// The overtime + gross-pay card only appears once the member has entered something.
 check("asks what you do", () => has(A.member, "Rank and pay step"));
 check("asks when Roseville hired you", () => has(A.member, "Roseville hire date"));
 check("asks for sick leave hours", () => has(A.start, "Sick leave hours on the books today"));
@@ -275,7 +278,7 @@ check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date", () => has(FF.pension, "When do you plan to go?"));
 check("asks sick leave", () => has(FF.start, "Sick leave hours on the books today"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
-check("asks prior agency service", () => has(FF.start, "Prior service and purchased credit"));
+check("asks prior agency service", () => has(FF.member, "Before Roseville"));
 check("asks purchased service credit", () => has(FF.start, "Airtime / purchased service"));
 check("asks beneficiary age", () => has(FF.start, "Beneficiary's age at your retirement"));
 check("offers the pension type override", () => has(FF.start, "CalPERS reciprocity"));
@@ -516,10 +519,16 @@ const mkOT = (currentOTHours) => ({ ...mkCola("2028-12-31", 50), currentOTHours 
 const OT0  = await scenario(mkOT(0));
 const OT40 = await scenario(mkOT(40));
 const OT60 = await scenario(mkOT(60));
-check("page one leads with gross and take-home", () => has(OT40.now, "What you make now"));
+check("page one leads with gross and take-home", () => has(OT40.member, "Overtime, and what it all adds up to"));
 check("the OT box is on page one", () => has(OT40.now, "Overtime you actually work"));
 check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
 check("page one says OT is not pensionable", () => has(OT40.now, "not pensionable"));
+check("overtime and gross pay is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
+check("the sections run in order down the page", () => {
+  const order = ["1 \u00b7 Before Roseville","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime","5 \u00b7 CalPERS service credit","6 \u00b7 A few more details"];
+  const at = order.map(x => OT40.member.indexOf(x));
+  return at.every((v,i) => v >= 0 && (i === 0 || v > at[i-1])) || "sections out of order: " + at.join(",");
+});
 check("page one shows the annual OT figure", () => has(OT40.now, "a year that stops the day you retire"));
 check("zero OT is called out as a problem", () => has(OT0.now, "makes retiring look far better than it is"));
 check("page one itemises what stops at retirement", () => has(OT40.now, "stops at retirement"));
