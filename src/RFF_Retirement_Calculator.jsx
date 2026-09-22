@@ -265,6 +265,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v23)", items: [
+    "<strong>Fixed a double-count on Current compensation.</strong> Longevity was being paid to you twice on that table \u2014 once inside the specialty-pay percentage, which already contains it, and again on its own row. A Captain with 25% of incentives was reading as 32.5% plus another 7.5%.",
+    "It now reads the way your check does: specialty and certificate pay with longevity taken out of it, then longevity on its own line. The two add up to your real incentive total.",
+    "This only ever affected the Current compensation table \u2014 your pension, final compensation and take-home were always figured on the correct single count, so no pension figure changes.",
+    "Reported by a member reading his own numbers, which is the only way this kind of thing gets caught.",
+  ] },
   { date: "September 22, 2026 (v22)", items: [
     "New tab: <strong>Current compensation</strong>. One table, no collapsing, no cards split across the page \u2014 every component of what Roseville pays you by the hour, the month and the year, ending at your gross. A Captain at step H with 40 hours of overtime: <strong>$18,663/mo, $223,950/yr</strong>.",
     "Each line says whether it is reported to CalPERS, and the table totals that separately \u2014 $15,395/mo of that gross is what your pension is actually figured on. The gap is your overtime.",
@@ -2495,14 +2501,20 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "comp" && setupDone && (() => {
               const H = FLSA_56HR_MONTHLY_HOURS;                       // 242.67 scheduled hrs/mo
-              const incPay = currentMonthlySalary - baseSalary;        // specialty + certificates
+              // calcIncentives already folds longevity INTO totalIncentivePct, so longevity must be
+              // pulled back out of the specialty figure before it is shown on its own row —
+              // otherwise it is counted twice (32.5% + 7.5% instead of 25% + 7.5%).
+              const lonPct = currentIncentives.breakdown
+                .filter(b => !b.note && /^Longevity/.test(b.label))
+                .reduce((t, b) => t + (b.pct || 0), 0);
+              const specialtyPct = Math.max(0, currentIncentives.totalIncentivePct - lonPct);
               const rows = [
                 { k: "Base salary", sub: `${classification}, Step ${salaryStep}, Schedule ${scheduleLetter}`,
                   m: baseSalary, hourly: true, pens: true },
-                incPay > 0.005 && { k: "Specialty and certificate pay", sub: pct(currentIncentives.totalIncentivePct) + " of base",
-                  m: incPay, hourly: true, pens: true },
-                longevityMonthlyNow > 0.005 && { k: "Longevity", sub: `${pct(LONGEVITY(yearsOfService))} at ${yearsOfService.toFixed(0)} yrs`,
-                  m: longevityMonthlyNow, hourly: true, pens: true },
+                specialtyPct > 0.00005 && { k: "Specialty and certificate pay", sub: pct(specialtyPct) + " of base",
+                  m: baseSalary * specialtyPct, hourly: true, pens: true },
+                lonPct > 0.00005 && { k: "Longevity", sub: `${pct(lonPct)} at ${yearsOfService.toFixed(0)} yrs`,
+                  m: baseSalary * lonPct, hourly: true, pens: true },
                 memberType === "classic" && { k: "Holiday pay", sub: `${HOLIDAY_HOURS} hrs, base + longevity`,
                   m: holidayPayMonthly, hourly: false, pens: true },
                 memberType === "classic" && { k: "Uniform allowance", sub: `$${UNIFORM_ALLOWANCE_ANNUAL.toLocaleString()}/yr`,

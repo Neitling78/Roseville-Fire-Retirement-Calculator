@@ -591,11 +591,25 @@ check("one consolidated table", () => has(CC.comp, "Current compensation"));
 check("hourly, monthly and annual", () => ["Hourly","Monthly","Annual"].every(x => CC.comp.includes(x)));
 check("base salary to the cent", () => has(CC.comp, "$50.67"));
 check("ends at gross pay", () => has(CC.comp, "Gross pay"));
-check("annual gross is shown", () => has(CC.comp, "$223,950"));
+check("annual gross is shown", () => has(CC.comp, "$212,885"));
 check("separates what CalPERS is told", () => has(CC.comp, "reported to CalPERS"));
 check("overtime is flagged as not pensionable", () => has(CC.comp, "Overtime you work"));
 check("explains the W-2 difference", () => has(CC.comp, "Box 1 will read lower"));
 check("it is off Member details now", () => lacks(CC.member, "Gross pay"));
+
+
+// ── Longevity must not be counted twice ────────────────────────────────────
+// calcIncentives folds longevity INTO totalIncentivePct. Showing longevity on its own
+// row means pulling it back out of the specialty figure first, or the table reads
+// 32.5% + 7.5% when the member only gets 25% + 7.5%.
+console.log("\n-- longevity is not double-counted --");
+const DBL = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
+  hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
+check("specialty pay excludes longevity", () => has(DBL.comp, "17.5% of base"));
+check("longevity is its own line", () => has(DBL.comp, "7.5% at 26 yrs"));
+check("the two together are the incentive total", () => lacks(DBL.comp, "25.0% of base"));
+check("gross reflects the corrected split", () => has(DBL.comp, "$20,424"));
+check("pensionable total is not inflated", () => has(DBL.comp, "$16,624"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
