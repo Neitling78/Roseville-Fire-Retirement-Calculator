@@ -266,6 +266,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v34)", items: [
+    "Removed two screens from More that nothing on the main calculator used: Pension detail and Timeline. Old links to them now land on Pension and Stay or go.",
+    "Moved the year-by-year pension growth table (up to the COLA cap, first raise May 1 of the second calendar year after you retire) onto the Pension tab, so that view is still one tap away.",
+    "Retired the promotion-scenario model that lived on Pension detail. It was never wired into any headline figure. Say the word and it comes back.",
+    "More now holds only Sick leave, All inputs, Other income & tax, and Guide \u2014 every one of which feeds the main numbers or explains them.",
+  ] },
   { date: "September 22, 2026 (v33)", items: [
     "Audited \u201cStay or go?\u201d properly after a member reported the numbers not matching. Four things were wrong, all of them mine.",
     "<strong>The card disagreed with the banner.</strong> With CPI above zero the banner showed your retirement take-home in the dollars you would actually be handed and the card right below it showed today\u2019s dollars \u2014 $10,904 against $10,195, same label, same screen. The card is month one, so it now uses the banner\u2019s figures, and says plainly that the tables below work in today\u2019s dollars and will not match.",
@@ -836,10 +842,11 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["member", "comp", "pension", "deductions", "stayorgo", "sickleave", "inputs", "pensiondetail", "income", "timeline", "help", "updates"];
+  const VALID_TABS = ["member", "comp", "pension", "deductions", "stayorgo", "sickleave", "inputs", "income", "help", "updates"];
   // Links sent out before each rebuild still have to land somewhere sensible.
   const LEGACY_TABS = { start: "member", pay: "member", now: "member", retired: "pension",
-                        wait: "stayorgo", medical: "deductions", advanced: "inputs" };
+                        wait: "stayorgo", medical: "deductions", advanced: "inputs",
+                        pensiondetail: "pension", timeline: "stayorgo" };
   const initialTab = (() => {
     try {
       const q = typeof window !== "undefined" && window.location
@@ -996,10 +1003,6 @@ export default function RFFRetirementCalculator() {
   // estimate above and label it as such.
   const [survivorActualPct, setSurvivorActualPct] = useState(SAVED.survivorActualPct ?? "");
   // Promotion modeling
-  const [modelPromotion, setModelPromotion] = useState(SAVED.modelPromotion ?? false);
-  const [promotionAge, setPromotionAge] = useState(SAVED.promotionAge ?? 30);
-  const [promotionClassification, setPromotionClassification] = useState(SAVED.promotionClassification ?? "Fire Engineer");
-  const [promotionStep, setPromotionStep] = useState(SAVED.promotionStep ?? "H");
   // Planned retirement year (works alongside age; 0 = derive from age inputs)
   const [plannedRetirementYear, setPlannedRetirementYear] = useState(SAVED.plannedRetirementYear ?? 0);
   // Projected raises — % values. The MOU (1/1/26–12/31/29) sets 2027=0% and 2029=1.75%; 2028 defaults to 3% (Treasurer est.).
@@ -1145,10 +1148,6 @@ export default function RFFRetirementCalculator() {
     const steps = Object.keys(activeSchedule[classification]?.steps || {});
     if (steps.length && !steps.includes(salaryStep)) setSalaryStep(steps[steps.length - 1]);
   }, [classification, salaryStep, activeSchedule]);
-  useEffect(() => {
-    const steps = Object.keys(activeSchedule[promotionClassification]?.steps || {});
-    if (steps.length && !steps.includes(promotionStep)) setPromotionStep(steps[steps.length - 1]);
-  }, [promotionClassification, promotionStep, activeSchedule]);
   // ── PERSIST INPUTS TO LOCAL STORAGE ─────────────────────────────────────
   // Auto-save every state change. Nothing leaves the browser.
   useEffect(() => {
@@ -1163,7 +1162,6 @@ export default function RFFRetirementCalculator() {
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
       sickLeaveDisposition, sickLeaveCustomCreditYears, sickCashHours, sickCreditHours,
       beneficiaryAge,
-      modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
       unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
     });
@@ -1178,7 +1176,6 @@ export default function RFFRetirementCalculator() {
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
     sickCashHours, sickCreditHours,
     beneficiaryAge,
-    modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
     unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
   ]);
@@ -1504,40 +1501,6 @@ export default function RFFRetirementCalculator() {
   const monthlyPension = monthlyPensionUnmodified * appliedOptionFactor;
   const annualPension = monthlyPension * 12;
   const survivorContinuanceMonthly = monthlyPension * (survivorChosen.survivorPct || 0);
-  // Promotion model
-  let promotionPension = null;
-  if (modelPromotion && promotionAge < retirementAge) {
-    const promBase = activeSchedule[promotionClassification]?.steps[promotionStep] || 0;
-    // Promotion changes PAY, not the retirement year — total CalPERS service is unchanged.
-    const promYOS = yearsOfServiceForPension;
-    // Project the promoted base to retirement the SAME way as the main path (raises + MOU rank separation),
-    // so the comparison is apples-to-apples (both in retirement-year dollars).
-    const ffParaIIAtPromStep = activeSchedule["Firefighter Paramedic II"]?.steps[promotionStep] || ffParaIIAtStep;
-    const promRankMultiplier = retirementYear < 2027 ? 1.0
-      : promotionClassification === "Fire Engineer" ? (retirementYear >= 2028 ? 1.10 : 1.075)
-      : promotionClassification === "Fire Captain" ? (retirementYear >= 2028 ? 1.10 * 1.10 : 1.075 * 1.10)
-      : 1.0;
-    const promProjectedBase = (retirementYear >= 2027 &&
-      (promotionClassification === "Fire Engineer" || promotionClassification === "Fire Captain") && ffParaIIAtPromStep > 0)
-      ? ffParaIIAtPromStep * cumulativeRaiseFactor * promRankMultiplier
-      : promBase * cumulativeRaiseFactor;
-    const promInc = calcIncentives(promProjectedBase, promotionClassification, memberType, yearsOfService, retirementDate, hireYear);
-    const promCashPensionable = promProjectedBase + promInc.pensionableAmt;
-    const promHoliday = memberType === "classic"
-      ? (promProjectedBase / FLSA_56HR_MONTHLY_HOURS * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) * HOLIDAY_HOURS / 12 : 0;
-    const promUniform = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
-    const promFlsaOT = memberType === "classic" ? promProjectedBase * FLSA_OT_PENSIONABLE_PCT : 0;
-    const promTotal = promCashPensionable + promHoliday + promUniform + promFlsaOT;
-    const promPct = Math.min(promYOS * rosevilleFactor + sameFormulaPriorPct, 0.90);
-    const promPensionable = memberType === "pepra" ? Math.min(promTotal, peraCapMonthly) : promTotal;
-    const promMonthly = promPensionable * (promPct + otherCalpersFormulaPct);
-    promotionPension = {
-      monthly: promMonthly, annual: promMonthly * 12,
-      diff: promMonthly - monthlyPension,
-      diffAnnual: (promMonthly - monthlyPension) * 12,
-      pensionPct: promPct,
-    };
-  }
   // Retiree medical
   const tier4RHS = calcTier4RHS({
     hireYear, retirementYear,
@@ -1821,7 +1784,7 @@ export default function RFFRetirementCalculator() {
   // hired on/after. 2% only for PEPRA members hired on/after. See COLA_TIER_DATE above.
   const colaRate = (hireDateObj < COLA_TIER_DATE || memberType === "classic") ? 0.03 : 0.02;
   // Realized COLA = the LESSER of the contracted cap and actual CPI. CalPERS pays up to your cap but never
-  // more than inflation (a 3% cap only delivers 3% if CPI ≥ 3%); a 2% cap is limited to 2%. The timeline
+  // more than inflation (a 3% cap only delivers 3% if CPI ≥ 3%); a 2% cap is limited to 2%. Stay or go
   // uses this realistic rate. (Banking of unused CPI in high-inflation years is not modeled.)
   const cpiRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
   const effectiveColaRate = Math.min(colaRate, cpiRate);
@@ -1840,7 +1803,7 @@ export default function RFFRetirementCalculator() {
   const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
     && (parseFloat(inflationRate) || 0) === 0
     && (parseFloat(lmaPct) || 0) === 0;
-  const ADVANCED_TABS = ["sickleave", "inputs", "pensiondetail", "income", "timeline", "help"];
+  const ADVANCED_TABS = ["sickleave", "inputs", "income", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
@@ -2069,7 +2032,7 @@ export default function RFFRetirementCalculator() {
           <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
             {ADVANCED_TABS.map(t => (
               <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ sickleave: "Sick leave", inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
+                {{ sickleave: "Sick leave", inputs: "All inputs", income: "Other income & tax", help: "Guide" }[t]}
               </button>
             ))}
           </div>
@@ -2550,6 +2513,50 @@ export default function RFFRetirementCalculator() {
                   </>
                 )}
               </>
+            )}
+
+            {tab === "pension" && setupDone && (
+              <div style={styles.card}>
+                  <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    onClick={() => toggleSection("cola")}>
+                    <span>Pension growth · up to {pct(colaRate)} COLA</span>
+                    <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.cola ? "▾" : "▸ tap to open"}</span>
+                  </p>
+                  {openSections.cola && (<>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: "1.6" }}>
+                    Best case — assumes the full {pct(colaRate)} cap every year. The CalPERS COLA tracks inflation and isn't guaranteed; some years are less.
+                    CalPERS starts COLAs in the second calendar year after retirement, so your first one is effective
+                    <strong>May 1, {firstColaYear}</strong> and your allowance is flat until then.
+                  </div>
+                  {(() => {
+                    const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, colasBy(yr)));
+                    const mx = Math.max(...pts), mn = Math.min(...pts), W = 300, H = 60, P = 6;
+                    const coords = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" ");
+                    return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="60" style={{ marginBottom: "10px" }} aria-hidden="true"><polyline points={coords} fill="none" stroke={COLORS.green} strokeWidth="2" /></svg>;
+                  })()}
+                  <table style={styles.colaTable}>
+                    <thead>
+                      <tr style={{ color: COLORS.textMuted, fontSize: "11px", textTransform: "uppercase" }}>
+                        <th style={{ textAlign: "left", padding: "6px 0", fontWeight: "600" }}>Age</th>
+                        <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Monthly</th>
+                        <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Annual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {colaYears.map(yr => {
+                        const grown = monthlyPension * Math.pow(1 + colaRate, colasBy(yr));
+                        return (
+                          <tr key={yr} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                            <td style={{ padding: "8px 0", color: COLORS.textMuted, fontSize: "13px" }}>Age {retirementAge + yr}</td>
+                            <td style={{ textAlign: "right", color: COLORS.green, fontWeight: "600", fontSize: "13px" }}>{fmt(grown)}</td>
+                            <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(grown * 12)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  </>)}
+              </div>
             )}
 
             {/* ═══════════════ WORKING NOW · what you actually take home ═══════════════ */}
@@ -3867,408 +3874,9 @@ export default function RFFRetirementCalculator() {
                 </div>
               </>
             )}
-            {tab === "pensiondetail" && (
-              <div style={styles.card}>
-                {sectionHeader("yourprofile", "Your profile")}
-                {openSections.yourprofile && (<>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Type</span><span style={styles.tableVal}>{memberType === "classic" ? "Classic 3%@50" : "PEPRA 2.7%@57"}</span></div>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Classification</span><span style={styles.tableVal}>{classification}</span></div>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Step {salaryStep} Base</span><span style={styles.tableValGold}>{fmt(baseSalary)}/mo</span></div>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Retire Age</span><span style={styles.tableVal}>{retirementAge} ({retirementYear})</span></div>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Years of Service</span><span style={styles.tableVal}>{priorTotalYears > 0 ? `${yearsOfService.toFixed(1)} Roseville + ${priorTotalYears} prior = ${(yearsOfService + priorTotalYears).toFixed(1)} yrs` : `${yearsOfService.toFixed(1)} yrs`}</span></div>
-                <div style={styles.tableRow}><span style={styles.tableKey}>Pension %</span><span style={styles.tableValAccent}>{combinedPctLabel}</span></div>
-                <div style={styles.tableRowLast}><span style={styles.tableKey}>Total Incentives</span><span style={styles.tableValGold}>{pct(incentives.totalIncentivePct)}</span></div>
-                </>)}
-              </div>
-            )}
           </div>
           {/* RIGHT PANEL */}
           <div>
-            {tab === "pensiondetail" && (
-              <div style={styles.card}>
-                {sectionHeader("penest", "Pension estimate")}
-                {openSections.penest !== false && (<>
-                <p style={{ ...styles.cardTitle, borderBottom: "none", paddingBottom: 0, marginBottom: "10px", fontSize: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                  onClick={() => toggleSection("breakdown")}>
-                  <span>How your pensionable pay builds</span>
-                  <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.breakdown ? "▾" : "▸ tap to open"}</span>
-                </p>
-                {openSections.breakdown && (
-                <div style={{ marginBottom: "20px" }}>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>
-                      Base at Retirement ({retirementYear}, Step {salaryStep})
-                      {projectedBaseSalary !== baseSalary && (
-                        <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "2px" }}>
-                          Today: {fmt(baseSalary)}/mo · Projected: {fmt(projectedBaseSalary)}/mo
-                          {(classification === "Fire Engineer" || classification === "Fire Captain") && retirementYear >= 2027 && (
-                            <span> (rank sep + raises)</span>
-                          )}
-                        </div>
-                      )}
-                    </span>
-                    <span style={styles.tableVal}>{fmt(projectedBaseSalary)}/mo</span>
-                  </div>
-                  {incentives.breakdown.map((item, i) => (
-                    !item.note && <div key={i} style={styles.tableRow}>
-                      <span style={styles.tableKey}>{item.label}</span>
-                      <span style={item.pensionable === false ? styles.tableValDim : styles.tableValGold}>
-                        +{fmt(projectedBaseSalary * item.pct)}/mo ({pct(item.pct)})
-                      </span>
-                    </div>
-                  ))}
-                  {memberType === "classic" && (
-                    <>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Holiday Pay (168 hrs, pensionable)</span>
-                        <span style={styles.tableValGold}>+{fmt(holidayPayMonthly)}/mo</span>
-                      </div>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Uniform Allowance (pensionable)</span>
-                        <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
-                      </div>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>FLSA OT (special comp, pensionable)</span>
-                        <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
-                      </div>
-                    </>
-                  )}
-                  <div style={styles.tableRow}>
-                    <span style={{ ...styles.tableKey, fontWeight: "700", color: COLORS.text }}>Total Pensionable Comp <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· final year</span></span>
-                    <span style={{ ...styles.tableValGold, fontSize: "15px" }}>{fmt(totalPensionableMonthly)}/mo</span>
-                  </div>
-                  <div style={styles.tableRow}>
-                    <span style={{ ...styles.tableKey, fontWeight: "700", color: COLORS.text }}>
-                      Final Compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>
-                        · {memberType === "classic" ? "highest 12 months" : "highest 36-month average"}</span>
-                    </span>
-                    <span style={{ ...styles.tableValAccent, fontSize: "15px" }}>{fmt(finalCompMonthly)}/mo</span>
-                  </div>
-                  {memberType !== "classic" && finalCompAveragingDrag > 1 && (
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "2px 0 8px", lineHeight: 1.6 }}>
-                      PEPRA pensions are figured on a <strong>36-month average</strong>, not your last year
-                      (Gov. Code §7522.32). With the MOU raises stacked in 2026–2028 your final year sits
-                      about <strong style={{ color: COLORS.gold }}>{fmt(finalCompAveragingDrag)}/mo</strong> above
-                      that average, so the pension is figured on the lower number. Classic members get
-                      one-year final comp instead (CalPERS contract ¶11.h — classic members only).
-                    </div>
-                  )}
-                  {sickLeaveCreditYears > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Sick Leave → Service Credit</span>
-                      <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs (+{fmt(sickLeavePensionBoostMonthly)}/mo)</span>
-                    </div>
-                  )}
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>
-                      Pension % ({yearsOfServiceForPension.toFixed(2)} yrs × {memberType === "classic" ? "3%" : "2.7%"})
-                      {sickLeaveCreditYears > 0 && <span style={{ fontSize: "10px", color: COLORS.textDim, marginLeft: "4px" }}>incl. sick leave credit</span>}
-                    </span>
-                    <span style={styles.tableValAccent}>{combinedPctLabel}</span>
-                  </div>
-                </div>
-                )}
-                <div style={{ textAlign: "center", padding: "24px", background: "rgba(210,31,51,0.08)", borderRadius: "10px", marginBottom: "20px" }}>
-                  <div style={styles.metricLabel}>Monthly PERS Benefit{priorPensionMonthly > 0 ? " (incl. prior service)" : ""}</div>
-                  <div style={styles.bigNumber}>{fmt(combinedPensionMonthly)}</div>
-                  <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "8px" }}>
-                    {fmt(combinedPensionMonthly * 12)} / year · up to {pct(colaRate)} COLA
-                    <span style={{ display: "block", fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>
-                      {hireDateObj < COLA_TIER_DATE
-                        ? "3% — you entered CalPERS membership before 12/16/2016 (MOU Ch.5 Art.I.F; CalPERS contract ¶11.j)"
-                        : (memberType === "classic"
-                          ? "3% — Classic member hired on/after 12/16/2016 (MOU Ch.5 Art.I.F)"
-                          : "2% — PEPRA member hired on/after 12/16/2016 (CalPERS contract ¶11.m)")}
-                    </span>
-                  </div>
-                  {priorPensionMonthly > 0 && (
-                    <div style={{ color: COLORS.textDim, fontSize: "12px", marginTop: "4px" }}>
-                      {fmt(monthlyPension)}/mo CalPERS + {fmt(priorPensionMonthly)}/mo reciprocal
-                    </div>
-                  )}
-                  {peraCapApplies && (
-                    <div style={{ color: COLORS.gold, fontSize: "11px", marginTop: "6px", lineHeight: "1.5" }}>
-                      ⚠ PEPRA pensionable pay is capped by state law (~{fmt(peraCapMonthly * 12)}/yr in {retirementYear}); your pension is figured on the cap, not your full projected pay.
-                    </div>
-                  )}
-                </div>
-                {priorService.length > 0 && (
-                  <div style={{ marginBottom: "20px" }}>
-                    <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "10px" }}>Pension by department</div>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} · {pct(pensionPct)}{benefitIsCapped && pensionPct >= benefitMaxPct ? " (at 90% cap)" : ""}</span>
-                      <span style={styles.tableValAccent}>{fmt(pension50Monthly)}/mo</span>
-                    </div>
-                    {priorServiceCalc.filter(r => r.sameFormula).map((r, i) => (
-                      <div key={r.id || i} style={{ ...styles.tableRow, paddingLeft: "14px" }}>
-                        <span style={{ ...styles.tableKey, color: COLORS.textDim, fontSize: "12px" }}>↳ {r.agencyName ? r.agencyName + " · " : ""}{(PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "Prior"} · {r.yrs} yrs × {pct(r.factor)}</span>
-                        <span style={{ ...styles.tableKey, color: COLORS.textDim, fontSize: "12px" }}>in 90% bucket</span>
-                      </div>
-                    ))}
-                    {priorServiceCalc.filter(r => r.otherCalpers).map((r, i) => (
-                      <div key={r.id || i} style={styles.tableRow}>
-                        <span style={styles.tableKey}>{r.agencyName ? r.agencyName + " · " : ""}{(PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "Prior"} · {r.yrs} yrs × {pct(r.factor)} <span style={{ color: COLORS.gold, fontSize: "11px" }}>· stacks on top</span></span>
-                        <span style={styles.tableValGreen}>+{fmt(r.monthly)}/mo</span>
-                      </div>
-                    ))}
-                    {priorServiceCalc.filter(r => !r.calpers).map((r, i) => (
-                      <div key={r.id || i} style={styles.tableRow}>
-                        <span style={styles.tableKey}>{r.agencyName ? r.agencyName + " · " : ""}{(PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "Prior"} · {r.yrs} yrs × {pct(r.factor)} <span style={{ color: COLORS.textDim, fontSize: "11px" }}>· separate check</span></span>
-                        <span style={styles.tableValGreen}>{fmt(r.monthly)}/mo</span>
-                      </div>
-                    ))}
-                    <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}><strong>Combined pension</strong></span>
-                      <span style={styles.tableValAccent}>{fmt(combinedPensionMonthly)}/mo</span>
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: "1.6" }}>
-                      Same-formula CalPERS service (e.g., another 3%@50 agency) consolidates with Roseville under one 90% cap. A different CalPERS formula (e.g., CalFire 3%@55) is figured separately and stacks on top of the 90%, so your CalPERS total can exceed 90%. A non-CalPERS reciprocal system (e.g., LACERA) pays its own separate check.
-                    </div>
-                  </div>
-                )}
-                {calpersComponents.length > 1 && (
-                  <div style={{ marginBottom: "20px" }}>
-                    <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "10px" }}>What counts toward your 90%</div>
-                    {calpersComponents.map((c, i) => (
-                      <div key={i} style={styles.tableRow}>
-                        <span style={styles.tableKey}>{c.label} · {c.yrs.toFixed(2).replace(/\.00$/, "")} yrs × {pct(c.factor)}</span>
-                        <span style={styles.tableVal}>{pct(c.pct)}</span>
-                      </div>
-                    ))}
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Total earned</span>
-                      <span style={styles.tableVal}>{pct(calpersRawPct)}</span>
-                    </div>
-                    <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}><strong>Counts toward pension (90% max)</strong></span>
-                      <span style={styles.tableValAccent}>{pct(pensionPct)}</span>
-                    </div>
-                    {calpersOverCap && (
-                      <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "6px", lineHeight: "1.6" }}>
-                        ⚠ You've earned {pct(calpersRawPct)} but CalPERS caps the benefit at 90%. About {(((calpersRawPct - 0.90) / rosevilleFactor)).toFixed(1)} years of this service sits above the cap and adds nothing to your pension.
-                      </div>
-                    )}
-                  </div>
-                )}
-                {(() => {
-                  const factor = memberType === "classic" ? 0.03 : Math.min(retireAgeQ >= 57 ? 0.027 : 0.020 + (retireAgeQ - 50) * (0.007 / 7), 0.027);
-                  const capTarget = benefitIsCapped ? benefitMaxPct : 1.00;
-                  const fillPct = Math.min(100, (pensionPct / capTarget) * 100);
-                  const yearsToCap = (benefitIsCapped && factor > 0) ? Math.max(0, (benefitMaxPct - pensionPct) / factor) : 0;
-                  return (
-                    <div style={{ marginBottom: "20px" }}>
-                      <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "10px" }}>Pension formula vs. the 90% cap</div>
-                      <div style={{ position: "relative", height: "30px" }}>
-                        <div style={{ position: "absolute", inset: 0, background: "#222228", borderRadius: "9px", overflow: "hidden" }}>
-                          <div className="rff-pulse" style={{ width: mounted ? `${fillPct}%` : "0%", height: "100%", background: COLORS.accent, boxShadow: "0 0 14px 1px rgba(210,31,51,0.7)", borderRadius: "9px", transition: "width 1.3s cubic-bezier(.2,.8,.2,1)" }} />
-                        </div>
-                        <div style={{ position: "absolute", right: 0, top: "-6px", bottom: "-6px", width: "2px", background: "#ffffff" }} />
-                        <div style={{ position: "absolute", right: 0, top: "-20px", fontSize: "10px", letterSpacing: "1px", color: "#ffffff" }}>90% CAP</div>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: COLORS.textDim, marginTop: "8px" }}>
-                        <span>{pct(pensionPct)} of final pay</span>
-                        <span>{!benefitIsCapped
-                          ? `no cap on 2.7% @ 57 — each added year is worth ${pct(factor)} more`
-                          : (pensionPct >= benefitMaxPct ? "at the cap — extra service adds nothing" : `~${yearsToCap.toFixed(1)} more yrs to the cap`)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Retiree Medical (Tier {medicalTier}{medicalTier === "4" ? "" : `, ${retirementYear}`})</span>
-                  <span style={styles.tableValGreen}>{medicalTier === "4" ? `${fmt(medical.rhsBalance)} (RHS acct)` : `${fmt(medical.monthly)}/mo`}</span>
-                </div>
-                {(medicalTier === "2" || medicalTier === "3") && (
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Vesting ({pct(medical.vested)})</span>
-                    <span style={styles.tableVal}>{medical.vested >= 1 ? "Fully Vested" : medical.vested > 0 ? `${pct(medical.vested)} vested` : "Not yet eligible"}</span>
-                  </div>
-                )}
-                {medicalTier === "4" && (
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Tier 4 note</span>
-                    <span style={styles.tableVal}>{medical.note}</span>
-                  </div>
-                )}
-                {tab === "pensiondetail" && (
-                  <div style={{ marginTop: "20px" }}>
-                    <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                      onClick={() => toggleSection("cola")}>
-                      <span>Pension growth · up to {pct(colaRate)} COLA</span>
-                      <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.cola ? "▾" : "▸ tap to open"}</span>
-                    </p>
-                    {openSections.cola && (<>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: "1.6" }}>
-                      Best case — assumes the full {pct(colaRate)} cap every year. The CalPERS COLA tracks inflation and isn't guaranteed; some years are less.
-                      CalPERS starts COLAs in the second calendar year after retirement, so your first one is effective
-                      <strong>May 1, {firstColaYear}</strong> and your allowance is flat until then.
-                    </div>
-                    {(() => {
-                      const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, colasBy(yr)));
-                      const mx = Math.max(...pts), mn = Math.min(...pts), W = 300, H = 60, P = 6;
-                      const coords = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" ");
-                      return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="60" style={{ marginBottom: "10px" }} aria-hidden="true"><polyline points={coords} fill="none" stroke={COLORS.green} strokeWidth="2" /></svg>;
-                    })()}
-                    <table style={styles.colaTable}>
-                      <thead>
-                        <tr style={{ color: COLORS.textMuted, fontSize: "11px", textTransform: "uppercase" }}>
-                          <th style={{ textAlign: "left", padding: "6px 0", fontWeight: "600" }}>Age</th>
-                          <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Monthly</th>
-                          <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Annual</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {colaYears.map(yr => {
-                          const grown = monthlyPension * Math.pow(1 + colaRate, colasBy(yr));
-                          return (
-                            <tr key={yr} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                              <td style={{ padding: "8px 0", color: COLORS.textMuted, fontSize: "13px" }}>Age {retirementAge + yr}</td>
-                              <td style={{ textAlign: "right", color: COLORS.green, fontWeight: "600", fontSize: "13px" }}>{fmt(grown)}</td>
-                              <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(grown * 12)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    </>)}
-                  </div>
-                )}
-                {sickLeavePayoff > 0 && (
-                  <div style={{ ...styles.tableRow, marginTop: "8px" }}>
-                    <span style={styles.tableKey}>Sick Leave Lump Sum at Retirement</span>
-                    <span style={styles.tableValGreen}>{fmt(sickLeavePayoff)}</span>
-                  </div>
-                )}
-                {/* CalPERS Survivor Benefit Options — Pension tab only */}
-                {tab === "pensiondetail" && (
-                  <div style={{ marginTop: "24px" }}>
-                    <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                      onClick={() => toggleSection("survivor")}>
-                      <span>CalPERS survivor benefit options <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: "11px" }}>· illustration only</span></span>
-                      <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.survivor ? "▾" : "▸ tap to open"}</span>
-                    </p>
-                    {openSections.survivor && (<>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Beneficiary age <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· leave 0 to use your retirement age</span></label>
-                      <input style={styles.input} type="number" value={beneficiaryAge || ""} onChange={e => setBeneficiaryAge(+e.target.value || 0)} min={18} max={100} placeholder={`${retirementAge}`} />
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px" }}>
-                      Based on beneficiary age {effectiveBeneficiaryAge}.
-                    </div>
-                    <table style={styles.colaTable}>
-                      <thead>
-                        <tr style={{ color: COLORS.textMuted, fontSize: "11px", textTransform: "uppercase" }}>
-                          <th style={{ textAlign: "left", padding: "6px 0", fontWeight: "600" }}>Option</th>
-                          <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Your Monthly</th>
-                          <th style={{ textAlign: "right", padding: "6px 0", fontWeight: "600" }}>Survivor Gets</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {survivorOptions.map(opt => (
-                          <tr key={opt.key} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                            <td style={{ padding: "10px 0", verticalAlign: "top" }}>
-                              <div style={{ color: COLORS.text, fontSize: "13px", fontWeight: "600" }}>{opt.label}</div>
-                              <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "2px", lineHeight: "1.4" }}>{opt.note}</div>
-                              <div style={{ color: COLORS.textDim, fontSize: "10px", marginTop: "2px" }}>
-                                {opt.factor === 1.0 ? "100% of unmodified" : `${(opt.factor * 100).toFixed(1)}% of unmodified`}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: "right", padding: "10px 0", verticalAlign: "top" }}>
-                              <span style={opt.key === "opt1" ? styles.tableValAccent : styles.tableValGold}>
-                                {fmt(opt.memberMonthly)}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: "right", padding: "10px 0", verticalAlign: "top" }}>
-                              <span style={opt.survivorPct === 0 ? styles.tableValDim : styles.tableValGreen}>
-                                {opt.survivorPct === 0 ? "—" : `${fmt(opt.survivorMonthly)}/mo`}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(210, 31, 51, 0.06)", borderRadius: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                      ⚠ Percentages above are <strong>approximations</strong> based on CalPERS Option Factor methodology (age-adjusted). Real numbers depend on CalPERS' proprietary actuarial tables. <strong style={{ color: COLORS.gold }}>Request a Retirement Allowance Estimate from CalPERS for your exact figures.</strong> Choice locks at retirement.
-                    </div>
-                    </>)}
-                  </div>
-                )}
-                {tab === "pensiondetail" && (
-                  <div style={{ marginTop: "20px" }}>
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={modelPromotion} onChange={e => setModelPromotion(e.target.checked)} />
-                      <span style={{ ...styles.checkLabel, fontWeight: "700" }}>Model a Promotion Scenario</span>
-                    </label>
-                    {modelPromotion && (
-                      <div style={{ marginLeft: "28px" }}>
-                        <div style={styles.row}>
-                          <div style={styles.fieldGroup}>
-                            <label style={styles.label}>Promote at Age</label>
-                            <input style={styles.input} type="number" value={promotionAge || ""}
-                              onChange={e => setPromotionAge(+e.target.value || 0)} min={currentAge} max={retirementAge - 1} />
-                          </div>
-                          <div style={styles.fieldGroup}>
-                            <label style={styles.label}>To Classification</label>
-                            <select style={styles.select} value={promotionClassification}
-                              onChange={e => setPromotionClassification(e.target.value)}>
-                              {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div style={styles.fieldGroup}>
-                          <label style={styles.label}>Step at Promotion</label>
-                          <select style={styles.select} value={promotionStep}
-                            onChange={e => setPromotionStep(e.target.value)}>
-                            {Object.keys(activeSchedule[promotionClassification]?.steps || {}).map(s =>
-                              <option key={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        {promotionPension && (
-                          <div style={styles.compareBox}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                              <div>
-                                <div style={styles.metricLabel}>Without Promotion</div>
-                                <div style={{ fontSize: "18px", fontWeight: "700", color: COLORS.textMuted }}>{fmt(monthlyPension)}/mo</div>
-                              </div>
-                              <div style={{ textAlign: "right" }}>
-                                <div style={styles.metricLabel}>With Promotion</div>
-                                <div style={{ fontSize: "18px", fontWeight: "700", color: COLORS.green }}>{fmt(promotionPension.monthly)}/mo</div>
-                              </div>
-                            </div>
-                            {(() => {
-                              const up = promotionPension.diff >= 0;
-                              const sign = up ? "+" : "";
-                              const gainColor = up ? COLORS.green : "#ef4444";
-                              return (
-                                <>
-                                  <div style={styles.tableRow}>
-                                    <span style={styles.tableKey}>Monthly {up ? "Gain" : "Change"}</span>
-                                    <span style={{ ...styles.tableValGreen, color: gainColor }}>{sign}{fmt(promotionPension.diff)}/mo</span>
-                                  </div>
-                                  <div style={styles.tableRow}>
-                                    <span style={styles.tableKey}>Annual {up ? "Gain" : "Change"}</span>
-                                    <span style={{ ...styles.tableValGreen, color: gainColor }}>{sign}{fmt(promotionPension.diffAnnual)}/yr</span>
-                                  </div>
-                                  <div style={styles.tableRow}>
-                                    <span style={styles.tableKey}>20-Year Lifetime Value</span>
-                                    <span style={{ ...styles.tableValGreen, color: gainColor }}>{sign}{fmt(promotionPension.diffAnnual * 20)}</span>
-                                  </div>
-                                  <div style={styles.tableRowLast}>
-                                    <span style={styles.tableKey}>401k Equiv. of {up ? "Gain" : "Change"} (4%)</span>
-                                    <span style={styles.tableValGold}>{sign}{fmt(promotionPension.diffAnnual / 0.04)}</span>
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                </>)}
-              </div>
-            )}
             {tab === "deductions" && setupDone && (
               <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Who gets it after you</p>
@@ -4906,70 +4514,6 @@ export default function RFFRetirementCalculator() {
                   </div>
                 ))}
                 </>)}
-              </div>
-            )}
-            {tab === "timeline" && (
-              <div style={styles.card}>
-                <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>Income timeline</div>
-                <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: "1.6" }}>
-                  Page-one-style take-home (PERS deposit after taxes &amp; medical) plus your 457 draw once it starts. Pension grows by the realized COLA — the lesser of your {pct(colaRate)} cap and CPI ({pct(cpiRate)}), so <strong>{pct(effectiveColaRate)}/yr</strong>, first effective May 1, {firstColaYear}. Medical out-of-pocket drops to $0 at 65 (Medicare).
-                </div>
-                {(() => {
-                  // Build the age set: retirement → 90 in 5-yr steps, plus 65 and the 457 draw-start age
-                  // if they land strictly after retirement. All integers, ascending, within [retirementAge, 90].
-                  const ages = new Set();
-                  for (let a = retirementAge; a <= 90; a += 5) ages.add(a);
-                  if (65 > retirementAge && 65 <= 90) ages.add(65);
-                  if (effectiveDrawStartAge > retirementAge && effectiveDrawStartAge <= 90) ages.add(Math.round(effectiveDrawStartAge));
-                  const ageList = Array.from(ages).filter(a => a >= retirementAge && a <= 90).sort((x, y) => x - y);
-                  const inflRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
-                  let depletedMarked = false;
-                  const rows = ageList.map(A => {
-                    const yrsSinceRetire = A - retirementAge;
-                    const pensionNominal = monthlyPension * Math.pow(1 + effectiveColaRate, colasBy(yrsSinceRetire));
-                    const medOOP = (A >= 65) ? 0 : retireeMedicalOOP; // Medicare at 65 → City covers supplement
-                    const pensionTakeHomeM = pensionNominal * (1 - retEffRate) - medOOP;
-                    const drawing = (A >= effectiveDrawStartAge) && (A < depletionAge);
-                    const draw457M = drawing ? monthly457 * (1 - retEffRate) : 0;
-                    const totalNominalM = Math.max(0, pensionTakeHomeM) + draw457M;
-                    const yrsFromNow = A - currentAge;
-                    const totalTodayM = totalNominalM / Math.pow(1 + inflRate, Math.max(0, yrsFromNow));
-                    const notes = [];
-                    if (effectiveDrawStartAge > retirementAge && A === Math.round(effectiveDrawStartAge)) notes.push("457 starts");
-                    if (A === 65) notes.push("Medicare — $0 medical");
-                    if (!depletedMarked && depletionAge <= 90 && A >= depletionAge) { notes.push("457 depleted"); depletedMarked = true; }
-                    return { A, pensionNominal, totalNominalM, totalTodayM, notes };
-                  });
-                  return (
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "12px" : "13px" }}>
-                        <thead>
-                          <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Age</th>
-                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Pension / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(gross — CalPERS)</span></th>
-                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(nominal)</span></th>
-                            <th style={{ textAlign: "right", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Take-home / mo<br /><span style={{ fontSize: "10px", color: COLORS.textDim }}>(today's $)</span></th>
-                            <th style={{ textAlign: "left", padding: "8px 6px", color: COLORS.textMuted, fontWeight: "600" }}>Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(r => (
-                            <tr key={r.A} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                              <td style={{ padding: "8px 6px", color: COLORS.text, fontWeight: "600" }}>{r.A}</td>
-                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.green, fontWeight: "700" }}>{fmt(r.pensionNominal)}</td>
-                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.text, fontWeight: "600" }}>{fmt(r.totalNominalM)}</td>
-                              <td style={{ padding: "8px 6px", textAlign: "right", color: COLORS.textMuted }}>{fmt(r.totalTodayM)}</td>
-                              <td style={{ padding: "8px 6px", color: COLORS.gold, fontSize: "11px" }}>{r.notes.join(" · ")}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "16px", lineHeight: "1.6" }}>
-                  Estimates only — not a benefit statement or financial advice. COLA is the lesser of your contracted cap and your CPI assumption (banking of unused inflation is not modeled), the 457 draw is steady, and returns/inflation are your assumptions. Actual results will vary. Confirm official numbers with CalPERS and your 457 provider.
-                </div>
               </div>
             )}
             {tab === "help" && (

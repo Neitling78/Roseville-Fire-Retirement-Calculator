@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["member","comp","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","pensiondetail","income","timeline","help"]) {
+  for (const t of ["member","comp","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -297,7 +297,7 @@ check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
 check("pay tab has the cash-out card", () => has(FF.sickleave, "Cash-out at retirement"));
 check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
-check("advanced pension detail still reachable", () => has(FF.pensiondetail, "Pension detail"));
+check("the retired pension-detail link lands on Pension", () => has(FF.pensiondetail, "When do you plan to go"));
 
 // ── CalPERS service credit, straight off myCalPERS ──────────────────────────
 console.log("\n-- CalPERS service credit override --");
@@ -436,8 +436,11 @@ check("no zero/zero banner when assumptions are set", () => lacks(WDoff.wait, "N
 console.log("\n-- navigation --");
 check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
   .every(x => B.member.includes(x)) || "a primary tab is missing");
-check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","Pension detail","Timeline","Guide"]
+check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","Other income & tax","Guide"]
   .every(x => B.inputs.includes(x)) || "a detail screen is missing");
+check("retired detail screens are gone from the More row", () => ["Pension detail","Timeline"]
+  .every(x => !B.inputs.includes(x)) || "a retired screen is still listed");
+check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("When do you plan to go") && B.timeline.includes("Stay or go"));
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
 // ── COLA starts the second calendar year after retirement, May 1 ────────────
@@ -455,17 +458,17 @@ const mkCola = (retirementDateOverride, retirementAge) => ({ setupDone:true,
 const CD = await scenario(mkCola("2028-12-31", 50));   // December 2028 -> May 1, 2030
 const CF = await scenario(mkCola("2028-02-15", 50));   // February 2028 -> also May 1, 2030
 const CL = await scenario(mkCola("2033-06-30", 55));   // June 2033     -> May 1, 2035
-check("December 2028 retiree: first COLA May 1, 2030", () => has(CD.pensiondetail, "May 1, 2030"));
-check("February 2028 retiree: same year, also May 1, 2030", () => has(CF.pensiondetail, "May 1, 2030"));
-check("the date is not hardcoded — 2033 retiree gets May 1, 2035", () => has(CL.pensiondetail, "May 1, 2035"));
-check("says the allowance is flat until then", () => has(CD.pensiondetail, "flat until then"));
+check("December 2028 retiree: first COLA May 1, 2030", () => has(CD.pension, "May 1, 2030"));
+check("February 2028 retiree: same year, also May 1, 2030", () => has(CF.pension, "May 1, 2030"));
+check("the date is not hardcoded — 2033 retiree gets May 1, 2035", () => has(CL.pension, "May 1, 2035"));
+check("says the allowance is flat until then", () => has(CD.pension, "flat until then"));
 // Golden figures. Five years out, the December retiree has banked FOUR COLAs (May 2030-2033),
 // not five. Drop the lag and every number here rises by one 3% step.
-check("5 years out = 4 COLAs, not 5", () => has(CD.pensiondetail, "$16,241"));
-check("10 years out = 9 COLAs", () => has(CD.pensiondetail, "$18,828"));
+check("5 years out = 4 COLAs, not 5", () => has(CD.pension, "$16,241"));
+check("10 years out = 9 COLAs", () => has(CD.pension, "$18,828"));
 // A February retiree reaches each anniversary BEFORE May 1, so at the same elapsed
 // years they have banked one fewer COLA than the December retiree.
-check("February retiree: 5 years out = 3 COLAs", () => has(CF.pensiondetail, "$13,435"));
+check("February retiree: 5 years out = 3 COLAs", () => has(CF.pension, "$13,435"));
 check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"));
 
 
@@ -490,7 +493,6 @@ check("wait table leads with the gross allowance", () => has(GH.wait, "$14,430")
 check("breakdown still shows gross pension", () => has(GH.pension, "Gross CalPERS pension"));
 check("breakdown still shows what lands in the bank", () => has(GH.pension, "Lands in your bank"));
 check("the tax figures say plainly that they are estimates", () => has(GH.pension, "not a number to budget against"));
-check("timeline gains a gross CalPERS column", () => has(GH.timeline, "(gross — CalPERS)"));
 
 
 // ── What waiting actually costs ────────────────────────────────────────────
