@@ -49,6 +49,7 @@ const isPreventionClass = (cls) => PREVENTION_CLASSES.indexOf(cls) !== -1;
 //        alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer.
 //   2029 (1st full pay period in Jan) — FF Para I/II and EMT I +1.75%; prevention +3.0%;
 //        alignment held at Captain = Engineer x1.10, Engineer = FF Para II x1.10.
+const MOU_TERM_END_YEAR = 2029;   // MOU term 1/1/26 – 12/31/29
 const MOU_GWI = {
   2027: { prevention: 0.025, suppression: 0 },
   2029: { prevention: 0.030, suppression: 0.0175 },
@@ -265,6 +266,14 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v25)", items: [
+    "Year picker on the Current compensation card. Pick 2026, 2027, 2028 or 2029 and the whole table moves \u2014 base, specialty pay, longevity, holiday pay, FLSA overtime, your overtime, the hourly rates and the annual gross.",
+    "It runs on the contract, not a guess: the January 2027 general wage increase, the rank separation (Engineer 7.5% above Paramedic in 2027, tightening to 10% in 2028; Captain 10% above Engineer), the 2028 Labor Market Adjustment you set, and the January 2029 increase \u2014 1.75% for suppression, 3.0% for prevention.",
+    "A Captain at step H: <strong>$212,125</strong> gross in 2026, <strong>$224,441</strong> in 2027, <strong>$229,630</strong> in 2028 with no LMA \u2014 and <strong>$241,047</strong> if the LMA lands at 5%.",
+    "<strong>2028 is called out for what it is.</strong> With the Labor Market Adjustment at zero the card says so in orange: that is the floor, not a forecast, because the 2027 Total Compensation Study has not been run and nobody can price that year yet. Put a number in and the warning clears.",
+    "Each future year lists what is in it, so the figure is checkable against the MOU rather than taken on trust.",
+    "Longevity now shows the service years you will have <em>in that year</em> rather than at retirement \u2014 24 years in 2026 for someone retiring with 26.",
+  ] },
   { date: "September 22, 2026 (v24)", items: [
     "Fixed holiday pay on Current compensation. It was being figured on your <em>retirement-year</em> base instead of what you earn today \u2014 a 2028 number on a page about this month. For a Captain at step H it read $9,910 a year; it should read <strong>$9,150</strong>.",
     "The rule it now follows is the MOU\u2019s own (Ch.3 Art.II.C): 168 hours at the base hourly rate plus the longevity rate, straight time. The row says which longevity percentage it used so you can check it against your own rate.",
@@ -1264,14 +1273,15 @@ export default function RFFRetirementCalculator() {
     const regular = (base * (1 + inc.totalIncentivePct)) / FLSA_56HR_MONTHLY_HOURS;
     const baseLonHourly = (base * (1 + lon)) / FLSA_56HR_MONTHLY_HOURS;
     return { year: y, base, baseHourly, regular, flsaOT: regular * 1.5,
-      contractOT: baseLonHourly * 1.5, cashOut: baseLonHourly,
+      contractOT: baseLonHourly * 1.5, cashOut: baseLonHourly, inc, yosThen,
       incentivePct: inc.totalIncentivePct, longevityPct: lon,
       rankSepApplied: y >= 2027 && (classification === "Fire Engineer" || classification === "Fire Captain"),
       studyAssumed: y >= 2028 && (parseFloat(lmaPct) || 0) > 0 };
   };
   const rateYearOptions = (() => {
     const out = [];
-    for (let y = NOW.getFullYear(); y <= Math.max(NOW.getFullYear(), retirementYear); y++) out.push(y);
+    const last = Math.max(NOW.getFullYear(), retirementYear, MOU_TERM_END_YEAR);
+    for (let y = NOW.getFullYear(); y <= last; y++) out.push(y);
     return out;
   })();
   const shownRateYear = rateYearOptions.indexOf(rateYear) !== -1 ? rateYear : NOW.getFullYear();
@@ -2512,39 +2522,70 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "comp" && setupDone && (() => {
               const H = FLSA_56HR_MONTHLY_HOURS;                       // 242.67 scheduled hrs/mo
-              // calcIncentives already folds longevity INTO totalIncentivePct, so longevity must be
-              // pulled back out of the specialty figure before it is shown on its own row —
-              // otherwise it is counted twice (32.5% + 7.5% instead of 25% + 7.5%).
-              const lonPct = currentIncentives.breakdown
+              // Every figure follows the year picker: MOU general wage increases, the 2028 Labor
+              // Market Adjustment you set, and the rank separation are all inside projectedBaseForYear.
+              const R = shownRates;
+              const yBase = R.base;
+              // calcIncentives folds longevity INTO totalIncentivePct, so it must be pulled back out
+              // before longevity gets its own row — otherwise it is counted twice.
+              const lonPct = R.inc.breakdown
                 .filter(b => !b.note && /^Longevity/.test(b.label))
                 .reduce((t, b) => t + (b.pct || 0), 0);
-              const specialtyPct = Math.max(0, currentIncentives.totalIncentivePct - lonPct);
+              const specialtyPct = Math.max(0, R.incentivePct - lonPct);
+              const yHoliday = memberType === "classic" ? (yBase / H) * (1 + lonPct) * HOLIDAY_HOURS / 12 : 0;
+              const yOT = otHoursMonthly * R.flsaOT;
               const rows = [
                 { k: "Base salary", sub: `${classification}, Step ${salaryStep}, Schedule ${scheduleLetter}`,
-                  m: baseSalary, hourly: true, pens: true },
+                  m: yBase, hourly: true, pens: true },
                 specialtyPct > 0.00005 && { k: "Specialty and certificate pay", sub: pct(specialtyPct) + " of base",
-                  m: baseSalary * specialtyPct, hourly: true, pens: true },
-                lonPct > 0.00005 && { k: "Longevity", sub: `${pct(lonPct)} at ${yearsOfService.toFixed(0)} yrs`,
-                  m: baseSalary * lonPct, hourly: true, pens: true },
+                  m: yBase * specialtyPct, hourly: true, pens: true },
+                lonPct > 0.00005 && { k: "Longevity", sub: `${pct(lonPct)} at ${R.yosThen.toFixed(0)} yrs`,
+                  m: yBase * lonPct, hourly: true, pens: true },
                 memberType === "classic" && { k: "Holiday pay",
-                  sub: `${HOLIDAY_HOURS} hrs at base + ${pct(showLongevity ? LONGEVITY(yearsOfService) : 0)} longevity`,
-                  m: holidayPayMonthlyNow, hourly: false, pens: true },
+                  sub: `${HOLIDAY_HOURS} hrs at base + ${pct(lonPct)} longevity`,
+                  m: yHoliday, hourly: false, pens: true },
                 memberType === "classic" && { k: "Uniform allowance", sub: `$${UNIFORM_ALLOWANCE_ANNUAL.toLocaleString()}/yr`,
                   m: uniformMonthly, hourly: false, pens: true },
                 memberType === "classic" && { k: "FLSA scheduled overtime", sub: `${pct(FLSA_OT_PENSIONABLE_PCT)} of base, built into 48/96`,
-                  m: baseSalary * FLSA_OT_PENSIONABLE_PCT, hourly: false, pens: true },
-                { k: "Overtime you work", sub: otHoursMonthly > 0 ? `${otHoursMonthly} hrs at ${fmtHr(otHourlyRate)}` : "none entered",
-                  m: otMonthly, hourly: false, pens: false },
+                  m: yBase * FLSA_OT_PENSIONABLE_PCT, hourly: false, pens: true },
+                { k: "Overtime you work", sub: otHoursMonthly > 0 ? `${otHoursMonthly} hrs at ${fmtHr(R.flsaOT)}` : "none entered",
+                  m: yOT, hourly: false, pens: false },
               ].filter(Boolean);
               const grossM = rows.reduce((t, r) => t + r.m, 0);
               const pensM = rows.filter(r => r.pens).reduce((t, r) => t + r.m, 0);
               return (
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Current compensation</p>
-                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <p style={{ ...styles.cardTitle, margin: 0 }}>
+                      {shownRateYear === NOW.getFullYear() ? "Current compensation" : `Compensation in ${shownRateYear}`}
+                    </p>
+                    <select value={shownRateYear} onChange={e => setRateYear(+e.target.value)}
+                      style={{ ...styles.select, margin: 0, width: "auto", minWidth: "96px", fontWeight: 700 }}>
+                      {rateYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.6 }}>
                     Everything Roseville pays you, by the hour, the month and the year. Scheduled hours
                     are {H}/mo (56 × 52 ÷ 12).
                   </div>
+                  {shownRateYear > NOW.getFullYear() && (
+                    <div style={{ fontSize: "11px", lineHeight: 1.7, marginBottom: "12px", padding: "10px 12px", borderRadius: "8px",
+                      background: shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(245,158,11,0.08)" : "rgba(37,99,235,0.08)",
+                      border: `1px solid ${shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(245,158,11,0.35)" : "rgba(37,99,235,0.28)"}`,
+                      color: COLORS.textMuted }}>
+                      <strong style={{ color: COLORS.text }}>What is in {shownRateYear}:</strong>
+                      {shownRateYear >= 2027 && <> Jan 2027 — {isPreventionClass(classification) ? "prevention +2.5%" : "no general wage increase for suppression"}{R.rankSepApplied ? `; rank separation (${shownRateYear >= 2028 ? "Engineer 10% above Paramedic, Captain 10% above Engineer" : "Engineer 7.5% above Paramedic, Captain 10% above Engineer"})` : ""}.</>}
+                      {shownRateYear >= 2028 && <> Jan 2028 — Labor Market Adjustment, shown at <strong style={{ color: (parseFloat(lmaPct) || 0) > 0 ? COLORS.gold : COLORS.textMuted }}>{lmaPct || 0}%</strong>.</>}
+                      {shownRateYear >= 2029 && <> Jan 2029 — {isPreventionClass(classification) ? "prevention +3.0%" : "+1.75%"}.</>}
+                      {shownRateYear >= 2028 && (parseFloat(lmaPct) || 0) === 0 && (
+                        <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                          ⚠ 2028 is the year nobody can price yet. The Labor Market Adjustment is set by the 2027
+                          Total Compensation Study and it is at zero here — so this is the floor, not a forecast.
+                          Put a number in on Pension › Future raises and every figure below moves.
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "13px" }}>
                       <thead>

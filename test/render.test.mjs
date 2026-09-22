@@ -606,7 +606,7 @@ console.log("\n-- longevity is not double-counted --");
 const DBL = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
   hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
 check("specialty pay excludes longevity", () => has(DBL.comp, "17.5% of base"));
-check("longevity is its own line", () => has(DBL.comp, "7.5% at 26 yrs"));
+check("longevity is its own line", () => has(DBL.comp, "7.5% at 24 yrs"));
 check("the two together are the incentive total", () => lacks(DBL.comp, "25.0% of base"));
 check("gross reflects the corrected split", () => has(DBL.comp, "$20,361"));
 check("pensionable total is not inflated", () => has(DBL.comp, "$16,561"));
@@ -615,6 +615,35 @@ check("pensionable total is not inflated", () => has(DBL.comp, "$16,561"));
 check("holiday pay is figured on today's base", () => has(DBL.comp, "$9,150"));
 check("holiday pay names the longevity rate", () => has(DBL.comp, "168 hrs at base + 7.5% longevity"));
 check("holiday pay is not the retirement-year figure", () => lacks(DBL.comp, "$9,910"));
+
+
+// ── The compensation table follows the year picker ─────────────────────────
+// MOU general wage increases, the 2028 Labor Market Adjustment and the rank
+// separation all move it. 2028 is the year nobody can price yet.
+console.log("\n-- compensation by year --");
+const mkY = (rateYear, lmaPct = 0) => ({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-12-31", retirementAge:50, currentOTHours:40, rateYear, lmaPct });
+const Y26 = await scenario(mkY(2026));
+const Y27 = await scenario(mkY(2027));
+const Y28 = await scenario(mkY(2028));
+const Y28L = await scenario(mkY(2028, 5));
+const Y29L = await scenario(mkY(2029, 5));
+check("the picker is on the compensation card", () => has(Y26.comp, "Current compensation"));
+check("a future year retitles the card", () => has(Y27.comp, "Compensation in 2027"));
+check("2026 is today's base", () => has(Y26.comp, "$12,295"));
+check("2027 adds the rank separation", () => has(Y27.comp, "$13,013"));
+check("2028 tightens the rank separation", () => has(Y28.comp, "$13,316"));
+check("the LMA moves 2028", () => has(Y28L.comp, "$13,982"));
+check("2029 compounds the MOU raise on the LMA", () => has(Y29L.comp, "$14,226"));
+check("gross follows the year", () => has(Y29L.comp, "$245,243"));
+check("it names what is in that year", () => has(Y27.comp, "What is in 2027"));
+check("2029 names the 1.75%", () => has(Y29L.comp, "+1.75%"));
+// 2028 with no LMA entered is a floor, and has to say so.
+check("2028 at zero LMA is flagged", () => has(Y28.comp, "the year nobody can price yet"));
+check("and called a floor, not a forecast", () => has(Y28.comp, "floor, not a forecast"));
+check("no warning once an LMA is set", () => lacks(Y28L.comp, "the year nobody can price yet"));
+check("this year carries no assumption banner", () => lacks(Y26.comp, "What is in"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
