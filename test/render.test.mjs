@@ -191,6 +191,40 @@ const G = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
 check("retiring before the cease date keeps it", () => has(G.start, "Engine Boss"));
 check("no cease warning when it does not apply", () => lacks(G.start, "it ends 1/9/2027"));
 
+// ── Year picker on the hourly-rate card ─────────────────────────────────────
+console.log("\n-- hourly rates by year --");
+const mkCapt = (rateYear) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2030-06-01", rateYear, raise2028:3,
+  openSections:{ starthourly:true } });
+const H26 = await scenario(mkCapt(2026));
+const H27 = await scenario(mkCapt(2027));
+const H28 = await scenario(mkCapt(2028));
+check("year picker is present", () => has(H26.start, "Show rates for"));
+check("2026 shows the published base", () => has(H26.start, "$12,295"));
+check("2027 shows the rank-separated base", () => has(H27.start, "$13,013"));
+check("2028 shows base after the study", () => has(H28.start, "$13,715"));
+check("2026 base hourly to the cent", () => has(H26.start, "$50.67/hr"));
+check("2027 base hourly to the cent", () => has(H27.start, "$53.63/hr"));
+check("picking a future year explains what moved", () => has(H27.start, "What moved between"));
+check("names the 2027 rank separation", () => has(H27.start, "rank separation sets"));
+check("names the ceasing incentives", () => has(H27.start, "end 1/9/2027"));
+check("flags 2028 as an assumption", () => has(H28.start, "not yet known"));
+check("warns the figure is assumed", () => has(H28.start, "include an assumed figure"));
+check("today's year shows no 'what moved' panel", () => lacks(H26.start, "What moved between"));
+
+console.log("\n-- MOU raises are shown, not typed --");
+check("2027 GWI stated", () => has(H26.start, "Jan 2027 general wage increase"));
+check("2029 GWI stated", () => has(H26.start, "Jan 2029 general wage increase"));
+check("cites the MOU article", () => has(H26.start, "MOU Ch.2 Art.I.A"));
+check("2028 is still editable", () => has(H26.start, "comp study"));
+const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
+  memberType:"classic", medicalTier:"2", classification:"Fire Plans Examiner", salaryStep:"H",
+  retirementDateOverride:"2030-06-01", rateYear:2029, openSections:{ starthourly:true, startraises:true } });
+check("prevention class gets its own 2027 figure", () => has(PREVp.start, "prevention +3.0%")
+  || has(PREVp.start, "2.5%"));
+check("prevention class renders", () => PREVp.start.length > 200 || "empty");
+
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
   .every(x => B.start.includes(x)) || "a primary tab is missing");

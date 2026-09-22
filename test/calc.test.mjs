@@ -133,5 +133,42 @@ eq("4000 hrs = 2.0 yrs of service credit", creditYrs, 2.0);
 console.log("         (cash capped at $"+cash.toFixed(0)+"; credit = "+creditYrs+" yrs)");
 eq("cash no longer counts unpayable hours", cash, 2400*slRate*0.70, 1);
 
+
+console.log("\n-- MOU general wage increases (Ch.2 Art.I.A) --");
+eq("2027 suppression = 0%", M.mouGwiFor(2027, "Fire Captain"), 0);
+eq("2027 prevention = 2.5%", M.mouGwiFor(2027, "Fire & Environmental Safety Inspector II"), 0.025);
+eq("2029 suppression = 1.75%", M.mouGwiFor(2029, "Firefighter Paramedic II"), 0.0175);
+eq("2029 prevention = 3.0%", M.mouGwiFor(2029, "Fire Plans Examiner"), 0.030);
+eq("2028 has no set GWI (comp study)", M.mouGwiFor(2028, "Fire Captain"), 0);
+eq("2026 already in the schedules", M.mouGwiFor(2026, "Fire Captain"), 0);
+eq("Captain is not prevention", M.isPreventionClass("Fire Captain"), false);
+eq("Inspection Supervisor is prevention", M.isPreventionClass("Fire & Environmental Inspection Supervisor"), true);
+eq("all four prevention classes listed", M.PREVENTION_CLASSES.length, 4);
+
+console.log("\n-- rank separation produces the MOU's alignment --");
+const DIV = 242.67, STUDY = 0.03;
+const captH = M.SALARY_SCHEDULE_A["Fire Captain"].steps.H;
+const ffp2H = M.SALARY_SCHEDULE_A["Firefighter Paramedic II"].steps.H;
+const raiseF = (y, cls) => { if (y < 2027) return 1; let f = 1;
+  if (y>=2027) f *= 1+M.mouGwiFor(2027,cls); if (y>=2028) f *= 1+STUDY;
+  if (y>=2029) f *= 1+M.mouGwiFor(2029,cls); return f; };
+const rank = (y, cls) => { if (y<2027) return 1;
+  if (cls==="Fire Engineer") return y>=2028 ? 1.10 : 1.075;
+  if (cls==="Fire Captain")  return y>=2028 ? 1.21 : 1.075*1.10; return 1; };
+const baseFor = (y, cls) => (y>=2027 && (cls==="Fire Engineer"||cls==="Fire Captain"))
+  ? ffp2H*raiseF(y,cls)*rank(y,cls) : (cls==="Fire Captain"?captH:ffp2H)*raiseF(y,cls);
+eq("2026 Captain = published schedule", baseFor(2026,"Fire Captain"), captH, 0.01);
+eq("2027 Captain = FFP2 x 1.075 x 1.10", baseFor(2027,"Fire Captain"), ffp2H*1.075*1.10, 0.01);
+eq("2027 Engineer = FFP2 x 1.075", baseFor(2027,"Fire Engineer"), ffp2H*1.075, 0.01);
+eq("2029 Captain = (FFP2 +1.75%, +study) x 1.21", baseFor(2029,"Fire Captain"), ffp2H*1.03*1.0175*1.21, 0.01);
+eq("FFP2 gets 0% in 2027", baseFor(2027,"Firefighter Paramedic II"), ffp2H, 0.01);
+eq("Captain base still rises in 2027 despite 0% GWI", baseFor(2027,"Fire Captain") > captH, true);
+// prevention class tracks its own GWI, not suppression's
+const prevH = M.SALARY_SCHEDULE_A["Fire & Environmental Safety Inspector II"].steps.H;
+eq("prevention 2027 = +2.5%", prevH*raiseF(2027,"Fire & Environmental Safety Inspector II"), prevH*1.025, 0.01);
+eq("prevention 2029 = +2.5%, study, +3.0%", prevH*raiseF(2029,"Fire & Environmental Safety Inspector II"),
+   prevH*1.025*1.03*1.03, 0.01);
+eq("prevention gets no rank separation", rank(2028,"Fire & Environmental Safety Inspector II"), 1);
+
 console.log("\n"+(fail?"!! ":"")+pass+" passed, "+fail+" failed\n");
 process.exit(fail?1:0);

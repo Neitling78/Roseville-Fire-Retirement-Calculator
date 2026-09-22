@@ -35,6 +35,29 @@ const SALARY_SCHEDULE_B = {
 const SCHEDULE_B_CUTOFF = new Date("2017-01-07");
 const scheduleForHire = (d) => (d < SCHEDULE_B_CUTOFF ? SALARY_SCHEDULE_A : SALARY_SCHEDULE_B);
 // Cutoff dates per MOU
+// Prevention classes get different general wage increases from suppression under the MOU.
+const PREVENTION_CLASSES = [
+  "Fire & Environmental Inspection Supervisor", "Fire Plans Examiner",
+  "Fire & Environmental Safety Inspector II", "Fire & Environmental Safety Inspector I",
+];
+const isPreventionClass = (cls) => PREVENTION_CLASSES.indexOf(cls) !== -1;
+// Contractual base-pay movement, MOU Ch.2 Art.I.A. These are not assumptions.
+//   2026 (eff. 3/21/26) — already baked into the salary schedules loaded above.
+//   2027 (1st full pay period in Jan) — prevention +2.5%; suppression 0% GWI; rank separation:
+//        Fire Engineer set 7.5% above Firefighter Paramedic II, Fire Captain 10% above Engineer.
+//   2028 (1st full pay period in Jan) — Total Compensation Study, amount NOT yet known; the
+//        alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer.
+//   2029 (1st full pay period in Jan) — FF Para I/II and EMT I +1.75%; prevention +3.0%;
+//        alignment held at Captain = Engineer x1.10, Engineer = FF Para II x1.10.
+const MOU_GWI = {
+  2027: { prevention: 0.025, suppression: 0 },
+  2029: { prevention: 0.030, suppression: 0.0175 },
+};
+const mouGwiFor = (year, cls) => {
+  const row = MOU_GWI[year];
+  if (!row) return 0;
+  return isPreventionClass(cls) ? row.prevention : row.suppression;
+};
 const CLASSIC_PEPRA_CUTOFF_YEAR = 2013;          // Hired before 1/1/2013 = Classic
 const LONGEVITY_CUTOFF_YEAR = 2017;              // Hired before 1/1/2017 = Longevity; on/after = Service Term Bonus
 const ENGINEER_CERT_CEASE_DATE = new Date("2027-01-09");
@@ -220,6 +243,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v3)", items: [
+    "Hourly rates now have a year picker. Choose 2026 through your retirement year and every rate \u2014 base, FLSA regular, FLSA overtime, contract overtime, cash-out \u2014 recalculates for that year.",
+    "Pick a future year and it tells you what moved: the January 2027 rank separation, the incentives that end 1/9/2027, the 2028 compensation study, and the 2029 increase.",
+    "2027 and 2029 raises are no longer typed in. They are set by the MOU (Ch.2 Art.I.A) and differ by classification, so the tool now reads them from the contract. Only the 2028 study and the post-2029 years are still assumptions you control.",
+    "Fixed: prevention classes were getting the suppression raises \u2014 0% in 2027 and 1.75% in 2029 \u2014 when the MOU gives them 2.5% and 3.0%. Inspectors, Plans Examiner and Inspection Supervisor were all projected low.",
+  ] },
   { date: "September 22, 2026 (later)", items: [
     "Put the pay detail back on the Start screen where it belongs \u2014 specialty pay and certificates, your hourly rates, future raises, and cash-outs at retirement. Each one is a collapsed section whose header still shows the total, so the page stays short but nothing is hidden.",
     "Fixed a real problem with the first version of the redesign: the incentive checkboxes had moved to a tab most members would never open, so the headline number was missing education, CSFM, paramedic, hazmat, rescue and investigation pay unless you went looking.",
@@ -690,6 +719,8 @@ export default function RFFRetirementCalculator() {
   // January 1 (MOU Ch.3 Art.II.B); unused hours are paid at base + longevity (Art.II.C, F).
   // Defaults to 0 so it never silently inflates anyone's number.
   const [unusedHolidayHours, setUnusedHolidayHours] = useState(SAVED.unusedHolidayHours ?? 0);
+  // Which calendar year the hourly-rate card is showing.
+  const [rateYear, setRateYear] = useState(SAVED.rateYear ?? new Date().getFullYear());
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
   // Sick leave disposition: "cash" | "credit" | "split"
   // "credit" = convert everything to CalPERS service credit (max possible)
@@ -706,9 +737,7 @@ export default function RFFRetirementCalculator() {
   // Planned retirement year (works alongside age; 0 = derive from age inputs)
   const [plannedRetirementYear, setPlannedRetirementYear] = useState(SAVED.plannedRetirementYear ?? 0);
   // Projected raises — % values. The MOU (1/1/26–12/31/29) sets 2027=0% and 2029=1.75%; 2028 defaults to 3% (Treasurer est.).
-  const [raise2027, setRaise2027] = useState(SAVED.raise2027 ?? 0);
   const [raise2028, setRaise2028] = useState(SAVED.raise2028 ?? 3);
-  const [raise2029, setRaise2029] = useState(SAVED.raise2029 ?? 1.75);
   // Contract ends 12/31/2029. Every year from 2030 on uses this assumed annual raise (compounds to retirement). ~3% historically steady.
   const [raiseAfterContract, setRaiseAfterContract] = useState(SAVED.raiseAfterContract ?? SAVED.raiseAfter2030 ?? 3.0);
   // Tier 4 RHS account assumed annual investment return (member-adjustable). Default 5% —
@@ -777,9 +806,11 @@ export default function RFFRetirementCalculator() {
   const raiseFactorForYear = (y) => {
     if (y < 2027) return 1.0;
     let f = 1.0;
-    if (y >= 2027) f *= (1 + (parseFloat(raise2027) || 0) / 100);
+    // 2027 and 2029 are set by the MOU and differ by class, so they are not user inputs.
+    if (y >= 2027) f *= (1 + mouGwiFor(2027, classification));
+    // 2028 is the Total Compensation Study — no number exists yet, so it stays an assumption.
     if (y >= 2028) f *= (1 + (parseFloat(raise2028) || 0) / 100);
-    if (y >= 2029) f *= (1 + (parseFloat(raise2029) || 0) / 100);
+    if (y >= 2029) f *= (1 + mouGwiFor(2029, classification));
     // Contract ends 12/31/2029 — every year from 2030 on uses the post-contract assumption.
     if (y >= 2030) f *= Math.pow(1 + (parseFloat(raiseAfterContract) || 0) / 100, y - 2029);
     return f;
@@ -835,11 +866,11 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, unusedHolidayHours, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
+      currentSickLeaveHours, unusedHolidayHours, rateYear, airtime, sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
-      raise2027, raise2028, raise2029, raiseAfterContract, rhsReturn, inflationRate, openSections,
+      raise2028, raiseAfterContract, rhsReturn, inflationRate, openSections,
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
@@ -848,11 +879,11 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, unusedHolidayHours, sickLeaveDisposition, sickLeaveCustomCreditYears,
+    currentSickLeaveHours, unusedHolidayHours, rateYear, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
-    raise2027, raise2028, raise2029, raiseAfterContract, rhsReturn, inflationRate, openSections,
+    raise2028, raiseAfterContract, rhsReturn, inflationRate, openSections,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults
   const resetAll = () => {
@@ -995,6 +1026,31 @@ export default function RFFRetirementCalculator() {
   // hourly column). Gross = hours × this rate, then the tier % (e.g. 60%) is applied.
   const sickLeaveHourlyRate = (projectedBaseSalary * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) / FLSA_56HR_MONTHLY_HOURS;
   const sickLeaveHourlyRateToday = (baseSalary * (1 + (showLongevity ? LONGEVITY(currentServiceYears) : 0))) / FLSA_56HR_MONTHLY_HOURS;
+  // Every hourly rate for a given calendar year: the year's base (MOU raises + rank
+  // separation), the incentives in force that year (Captain Paramedic and Engine Boss end
+  // 1/9/2027), and the longevity tier reached by then.
+  const ratesForYear = (y) => {
+    const base = projectedBaseForYear(y);
+    const yosThen = Math.max(0, yearsOfService - (retirementYear - y));
+    const midYear = new Date(y, 6, 1);
+    const inc = calcIncentives(base, classification, memberType, yosThen, midYear, hireYear);
+    const lon = showLongevity ? LONGEVITY(yosThen) : 0;
+    const baseHourly = base / FLSA_56HR_MONTHLY_HOURS;
+    const regular = (base * (1 + inc.totalIncentivePct)) / FLSA_56HR_MONTHLY_HOURS;
+    const baseLonHourly = (base * (1 + lon)) / FLSA_56HR_MONTHLY_HOURS;
+    return { year: y, base, baseHourly, regular, flsaOT: regular * 1.5,
+      contractOT: baseLonHourly * 1.5, cashOut: baseLonHourly,
+      incentivePct: inc.totalIncentivePct, longevityPct: lon,
+      rankSepApplied: y >= 2027 && (classification === "Fire Engineer" || classification === "Fire Captain"),
+      studyAssumed: y >= 2028 };
+  };
+  const rateYearOptions = (() => {
+    const out = [];
+    for (let y = NOW.getFullYear(); y <= Math.max(NOW.getFullYear(), retirementYear); y++) out.push(y);
+    return out;
+  })();
+  const shownRateYear = rateYearOptions.indexOf(rateYear) !== -1 ? rateYear : NOW.getFullYear();
+  const shownRates = ratesForYear(shownRateYear);
   // Holiday pay (Classic only, pensionable) — based on projected salary
   const holidayPayMonthly = memberType === "classic"
     ? (projectedBaseSalary / FLSA_56HR_MONTHLY_HOURS * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) * HOLIDAY_HOURS / 12
@@ -1719,28 +1775,72 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 <div style={styles.card}>
-                  {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(flsaRegularHourly)}/hr`)}
+                  {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(shownRates.regular)}/hr`)}
                   {openSections.starthourly !== false && (<>
+                    <label style={styles.label}>Show rates for</label>
+                    <select style={{ ...styles.select, marginBottom: "12px" }} value={shownRateYear}
+                      onChange={e => setRateYear(+e.target.value)}>
+                      {rateYearOptions.map(y => (
+                        <option key={y} value={y}>
+                          {y}{y === NOW.getFullYear() ? " (today)" : ""}{y === retirementYear ? " · retirement" : ""}
+                        </option>
+                      ))}
+                    </select>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Base hourly <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base ÷ 242.67</span></span>
-                      <span style={styles.tableVal}>{fmtHr(baseSalary / FLSA_56HR_MONTHLY_HOURS)}/hr</span>
+                      <span style={styles.tableKey}>Monthly base <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}</span></span>
+                      <span style={styles.tableVal}>{fmt(shownRates.base)}/mo</span>
                     </div>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>FLSA regular rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + incentives</span></span>
-                      <span style={styles.tableValGold}>{fmtHr(flsaRegularHourly)}/hr</span>
+                      <span style={styles.tableKey}>Base hourly <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base ÷ 242.67</span></span>
+                      <span style={styles.tableVal}>{fmtHr(shownRates.baseHourly)}/hr</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>FLSA regular rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + {pct(shownRates.incentivePct)} incentives</span></span>
+                      <span style={styles.tableValGold}>{fmtHr(shownRates.regular)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>FLSA overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5×</span></span>
-                      <span style={styles.tableValGold}>{fmtHr(otHourlyRate)}/hr</span>
+                      <span style={styles.tableValGold}>{fmtHr(shownRates.flsaOT)}/hr</span>
                     </div>
                     <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Contract overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5 × (base + longevity)</span></span>
-                      <span style={styles.tableVal}>{fmtHr(contractOTHourly)}/hr</span>
+                      <span style={styles.tableKey}>Contract overtime <span style={{ fontSize: "10px", color: COLORS.textDim }}>· 1.5 × (base + {pct(shownRates.longevityPct)} longevity)</span></span>
+                      <span style={styles.tableVal}>{fmtHr(shownRates.contractOT)}/hr</span>
                     </div>
                     <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}>Sick leave / holiday cash-out rate <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, no incentives</span></span>
-                      <span style={styles.tableValGreen}>{fmtHr(sickLeaveHourlyRateToday)}/hr</span>
+                      <span style={styles.tableKey}>Sick leave / holiday cash-out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· base + longevity, no incentives</span></span>
+                      <span style={styles.tableValGreen}>{fmtHr(shownRates.cashOut)}/hr</span>
                     </div>
+                    {shownRateYear !== NOW.getFullYear() && (
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                        <strong style={{ color: COLORS.text }}>What moved between {NOW.getFullYear()} and {shownRateYear}:</strong>
+                        <div style={{ marginTop: "4px" }}>
+                          {shownRateYear >= 2027 && (
+                            <>▸ <strong>Jan 2027</strong> — {isPreventionClass(classification)
+                              ? "prevention classes +2.5%"
+                              : "no general wage increase for suppression"}
+                              {shownRates.rankSepApplied && <>; rank separation sets {classification === "Fire Captain" ? "Captain 10% above Engineer, Engineer" : "Engineer"} 7.5% above Firefighter Paramedic II</>}
+                              {(classification === "Fire Captain" || classification === "Fire Engineer") && <>; Captain Paramedic, Engine Boss and Engineer cert pay all end 1/9/2027</>}
+                              <br /></>
+                          )}
+                          {shownRateYear >= 2028 && (
+                            <>▸ <strong>Jan 2028</strong> — Total Compensation Study (amount not yet known; shown here at your
+                              assumption of {raise2028 || 0}%); alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer<br /></>
+                          )}
+                          {shownRateYear >= 2029 && (
+                            <>▸ <strong>Jan 2029</strong> — {isPreventionClass(classification) ? "prevention +3.0%" : "Firefighter Paramedic I/II and EMT I +1.75%"}<br /></>
+                          )}
+                          {shownRateYear >= 2030 && (
+                            <>▸ <strong>2030 onward</strong> — contract expired 12/31/2029; {raiseAfterContract || 0}%/yr assumed<br /></>
+                          )}
+                          {shownRates.longevityPct > 0 && <>▸ Longevity at {pct(shownRates.longevityPct)} by {shownRateYear}<br /></>}
+                        </div>
+                        {shownRates.studyAssumed && (
+                          <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                            ⚠ 2028 and later include an assumed figure. Change it under Future raises.
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
                       The City pays the greater of FLSA or contract overtime. Education pay counts in the
                       FLSA regular rate but not in contract overtime (MOU Ch.2 Art.VI.D).
@@ -1756,21 +1856,35 @@ export default function RFFRetirementCalculator() {
                       it is an assumption you can change. After the contract ends 12/31/2029, everything is
                       an assumption.
                     </div>
+                    <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "12px" }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Set by the MOU — not assumptions</div>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Jan 2027 general wage increase</span>
+                        <span style={styles.tableVal}>{pct(mouGwiFor(2027, classification))}</span>
+                      </div>
+                      {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Jan 2027 rank separation</span>
+                          <span style={styles.tableValGold}>
+                            {classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}
+                          </span>
+                        </div>
+                      )}
+                      <div style={styles.tableRowLast}>
+                        <span style={styles.tableKey}>Jan 2029 general wage increase</span>
+                        <span style={styles.tableVal}>{pct(mouGwiFor(2029, classification))}</span>
+                      </div>
+                      <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
+                        MOU Ch.2 Art.I.A(2) and (4). Prevention classes get different figures from suppression,
+                        so these follow your classification.
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Your assumptions</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                       <div>
-                        <label style={styles.label}>Jan 2027 (%)</label>
-                        <input type="number" step="0.25" style={styles.input} value={raise2027 || ""}
-                          onChange={e => setRaise2027(+e.target.value || 0)} />
-                      </div>
-                      <div>
-                        <label style={styles.label}>Jan 2028 (%) · study</label>
+                        <label style={styles.label}>Jan 2028 (%) · comp study</label>
                         <input type="number" step="0.25" style={styles.input} value={raise2028 || ""}
                           onChange={e => setRaise2028(+e.target.value || 0)} />
-                      </div>
-                      <div>
-                        <label style={styles.label}>Jan 2029 (%) · MOU</label>
-                        <input type="number" step="0.25" style={styles.input} value={raise2029 || ""}
-                          onChange={e => setRaise2029(+e.target.value || 0)} />
                       </div>
                       <div>
                         <label style={styles.label}>2030 onward (%/yr)</label>
@@ -2676,36 +2790,42 @@ export default function RFFRetirementCalculator() {
                   {sectionHeader("raises", "7 · Projected raises (2027 → retirement)")}
                   {openSections.raises && (<>
                   <div style={{ marginBottom: "12px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                    Raises compound and apply based on your planned retirement year. MOU values (through 12/31/2029) are pre-filled. Every year from 2030 on uses the "After contract" assumption below.
+                    Raises compound and apply based on your planned retirement year. 2027 and 2029 are fixed by
+                    the MOU and follow your classification, so they are shown rather than typed. Only the 2028
+                    compensation study and the post-contract years are assumptions.
+                  </div>
+                  <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "12px" }}>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Jan 2027 general wage increase <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {isPreventionClass(classification) ? "prevention" : "suppression"}</span></span>
+                      <span style={styles.tableVal}>{pct(mouGwiFor(2027, classification))}</span>
+                    </div>
+                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Jan 2027 rank separation</span>
+                        <span style={styles.tableValGold}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}</span>
+                      </div>
+                    )}
+                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Jan 2028 alignment</span>
+                        <span style={styles.tableValGold}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP ×1.10" : "Eng = FFP ×1.10"}</span>
+                      </div>
+                    )}
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>Jan 2029 general wage increase</span>
+                      <span style={styles.tableVal}>{pct(mouGwiFor(2029, classification))}</span>
+                    </div>
+                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px" }}>MOU Ch.2 Art.I.A(2), (3) and (4).</div>
                   </div>
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>
-                        2027 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 0% (MOU)</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2027 || ""}
-                        placeholder="0"
-                        onChange={e => setRaise2027(parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        2028 <span style={{ color: COLORS.textDim, fontSize: "10px" }}>· 3% (est.)</span>
+                        2028 <span style={{ color: COLORS.textDim, fontSize: "10px" }}>· comp study, est.</span>
                       </label>
                       <input style={styles.input} type="number" step="0.01" min={0} max={20}
                         value={raise2028 || ""}
                         placeholder="0"
                         onChange={e => setRaise2028(parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        2029 <span style={{ color: COLORS.green, fontSize: "10px" }}>· 1.75% (MOU)</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2029 || ""}
-                        onChange={e => setRaise2029(parseFloat(e.target.value) || 0)} />
                     </div>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>
