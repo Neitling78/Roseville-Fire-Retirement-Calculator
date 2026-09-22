@@ -591,7 +591,7 @@ check("one consolidated table", () => has(CC.comp, "Current compensation"));
 check("hourly, monthly and annual", () => ["Hourly","Monthly","Annual"].every(x => CC.comp.includes(x)));
 check("base salary to the cent", () => has(CC.comp, "$50.67"));
 check("ends at gross pay", () => has(CC.comp, "Gross pay"));
-check("annual gross is shown", () => has(CC.comp, "$212,885"));
+check("annual gross is shown", () => has(CC.comp, "$212,125"));
 check("separates what CalPERS is told", () => has(CC.comp, "reported to CalPERS"));
 check("overtime is flagged as not pensionable", () => has(CC.comp, "Overtime you work"));
 check("explains the W-2 difference", () => has(CC.comp, "Box 1 will read lower"));
@@ -608,8 +608,13 @@ const DBL = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
 check("specialty pay excludes longevity", () => has(DBL.comp, "17.5% of base"));
 check("longevity is its own line", () => has(DBL.comp, "7.5% at 26 yrs"));
 check("the two together are the incentive total", () => lacks(DBL.comp, "25.0% of base"));
-check("gross reflects the corrected split", () => has(DBL.comp, "$20,424"));
-check("pensionable total is not inflated", () => has(DBL.comp, "$16,624"));
+check("gross reflects the corrected split", () => has(DBL.comp, "$20,361"));
+check("pensionable total is not inflated", () => has(DBL.comp, "$16,561"));
+// Holiday pay is 168 hrs at (base + longevity) on TODAY'S base — not the retirement-year
+// base. Using the projected base here read $9,910/yr instead of $9,150.
+check("holiday pay is figured on today's base", () => has(DBL.comp, "$9,150"));
+check("holiday pay names the longevity rate", () => has(DBL.comp, "168 hrs at base + 7.5% longevity"));
+check("holiday pay is not the retirement-year figure", () => lacks(DBL.comp, "$9,910"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);

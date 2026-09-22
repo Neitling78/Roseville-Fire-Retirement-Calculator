@@ -265,6 +265,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v24)", items: [
+    "Fixed holiday pay on Current compensation. It was being figured on your <em>retirement-year</em> base instead of what you earn today \u2014 a 2028 number on a page about this month. For a Captain at step H it read $9,910 a year; it should read <strong>$9,150</strong>.",
+    "The rule it now follows is the MOU\u2019s own (Ch.3 Art.II.C): 168 hours at the base hourly rate plus the longevity rate, straight time. The row says which longevity percentage it used so you can check it against your own rate.",
+    "Same root cause as the longevity double-count: a figure built for the pension projection got reused on a page describing today. Both are now tested, including a test that fails if the retirement-year figure ever reappears here.",
+    "Your pension is unaffected \u2014 the projected holiday figure is correct where it belongs, in the final-compensation build-up.",
+  ] },
   { date: "September 22, 2026 (v23)", items: [
     "<strong>Fixed a double-count on Current compensation.</strong> Longevity was being paid to you twice on that table \u2014 once inside the specialty-pay percentage, which already contains it, and again on its own row. A Captain with 25% of incentives was reading as 32.5% plus another 7.5%.",
     "It now reads the way your check does: specialty and certificate pay with longevity taken out of it, then longevity on its own line. The two add up to your real incentive total.",
@@ -1273,6 +1279,11 @@ export default function RFFRetirementCalculator() {
   // Holiday pay (Classic only, pensionable) — based on projected salary
   const holidayPayMonthly = memberType === "classic"
     ? (projectedBaseSalary / FLSA_56HR_MONTHLY_HOURS * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) * HOLIDAY_HOURS / 12
+    : 0;
+  // Same figure on TODAY'S base, for the Current compensation page. MOU Ch.3 Art.II.C:
+  // holiday pay = (base hourly rate + longevity hourly rate) × holiday hours, straight time.
+  const holidayPayMonthlyNow = memberType === "classic"
+    ? (baseSalary / FLSA_56HR_MONTHLY_HOURS * (1 + (showLongevity ? LONGEVITY(yearsOfService) : 0))) * HOLIDAY_HOURS / 12
     : 0;
   // Uniform allowance (Classic only, pensionable)
   const uniformMonthly = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
@@ -2515,8 +2526,9 @@ export default function RFFRetirementCalculator() {
                   m: baseSalary * specialtyPct, hourly: true, pens: true },
                 lonPct > 0.00005 && { k: "Longevity", sub: `${pct(lonPct)} at ${yearsOfService.toFixed(0)} yrs`,
                   m: baseSalary * lonPct, hourly: true, pens: true },
-                memberType === "classic" && { k: "Holiday pay", sub: `${HOLIDAY_HOURS} hrs, base + longevity`,
-                  m: holidayPayMonthly, hourly: false, pens: true },
+                memberType === "classic" && { k: "Holiday pay",
+                  sub: `${HOLIDAY_HOURS} hrs at base + ${pct(showLongevity ? LONGEVITY(yearsOfService) : 0)} longevity`,
+                  m: holidayPayMonthlyNow, hourly: false, pens: true },
                 memberType === "classic" && { k: "Uniform allowance", sub: `$${UNIFORM_ALLOWANCE_ANNUAL.toLocaleString()}/yr`,
                   m: uniformMonthly, hourly: false, pens: true },
                 memberType === "classic" && { k: "FLSA scheduled overtime", sub: `${pct(FLSA_OT_PENSIONABLE_PCT)} of base, built into 48/96`,
