@@ -256,8 +256,8 @@ check("a set LMA is named in the assumptions banner", () => has(L28.wait, "Labor
 check("today's year shows no 'what moved' panel", () => lacks(H26.comp, "What moved between"));
 
 console.log("\n-- MOU raises are shown, not typed --");
-check("2027 GWI stated", () => has(H26.pension, "Jan 2027 general wage increase"));
-check("2029 GWI stated", () => has(H26.pension, "Jan 2029 general wage increase"));
+check("2027 GWI stated", () => has(H26.pension, "In the contract:"));
+check("2029 GWI stated", () => has(H26.pension, "Jan 2029"));
 check("cites the MOU article", () => has(H26.pension, "MOU Ch.2 Art.I.A"));
 check("the bargaining lever is on the pay tab too", () => has(H26.pension, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",

@@ -266,6 +266,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v30)", items: [
+    "Shrank the Future raises card on the Pension tab without dropping anything. The contracted figures \u2014 the January 2027 increase, the rank separation and how it tightens in 2028, and the January 2029 increase \u2014 are now one line instead of a boxed table with its own heading and footnote.",
+    "The two inputs sit side by side instead of stacked, each with its helper text cut to a line and a half. The MOU citation, the 55th-percentile rule, the fact that the 2027 study sets the LMA, that it compounds into 2029, and that the bargaining dial only touches 2030 and later \u2014 all still there.",
+    "Roughly half the height it was, and every fact survived.",
+  ] },
   { date: "September 22, 2026 (v29)", items: [
     "<strong>Your working pay was understated by about $1,200 a month.</strong> Everywhere the tool said \u201cworking,\u201d it meant base plus specialty pay and nothing else \u2014 it was dropping your holiday pay, your uniform allowance and your FLSA scheduled overtime. All three are real cash, paid every year, and all three are reported to CalPERS.",
     "You could see it on one screen: the banner read $16,291 gross while the Current compensation table two inches below it read $17,483. Same member, same month, same word.",
@@ -2244,54 +2249,39 @@ export default function RFFRetirementCalculator() {
                 <div style={styles.card}>
                   {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
                   {openSections.startraises !== false && (<>
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
-                      The MOU sets 2027 and 2029. 2028 is a total-compensation study with no number yet, so
-                      it is an assumption you can change. After the contract ends 12/31/2029, everything is
-                      an assumption.
-                    </div>
-                    <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "12px" }}>
-                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Set by the MOU — not assumptions</div>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Jan 2027 general wage increase</span>
-                        <span style={styles.tableVal}>{pct(mouGwiFor(2027, classification))}</span>
-                      </div>
+                    {/* Everything the old card said, in about a third of the room. */}
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "10px" }}>
+                      <span style={{ color: COLORS.green, fontWeight: 700 }}>In the contract:</span>{" "}
+                      Jan 2027 <strong style={{ color: COLORS.text }}>{pct(mouGwiFor(2027, classification))}</strong>
                       {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Jan 2027 rank separation</span>
-                          <span style={styles.tableValGold}>
-                            {classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}
-                          </span>
-                        </div>
+                        <> + rank separation <strong style={{ color: COLORS.gold }}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}</strong>
+                        {retirementYear >= 2028 && <> (both ×1.10 from 2028)</>}</>
                       )}
-                      <div style={styles.tableRowLast}>
-                        <span style={styles.tableKey}>Jan 2029 general wage increase</span>
-                        <span style={styles.tableVal}>{pct(mouGwiFor(2029, classification))}</span>
+                      {" · "}Jan 2029 <strong style={{ color: COLORS.text }}>{pct(mouGwiFor(2029, classification))}</strong>
+                      <span style={{ color: COLORS.textDim }}> — MOU Ch.2 Art.I.A(2) &amp; (4), by classification. Prevention differs from suppression.</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
+                      <div>
+                        <label style={{ ...styles.label, marginBottom: "3px" }}>Labor Market Adjustment <span style={{ fontSize: "10px", color: COLORS.textDim }}>· one-time %, Jan 2028</span></label>
+                        <input type="number" step="0.25" min={0} max={30} style={{ ...styles.input, margin: 0 }} value={lmaPct || ""} placeholder="0"
+                          onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))} />
+                        <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "3px", lineHeight: 1.5 }}>
+                          Art.I.A.3 — City lifts any class below the market 55th percentile up to it. Set by the 2027
+                          study, so unknown. Raises base, so 2029 compounds on it.
+                        </div>
                       </div>
-                      <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
-                        MOU Ch.2 Art.I.A(2) and (4). Prevention classes get different figures from suppression,
-                        so these follow your classification.
+                      <div>
+                        <label style={{ ...styles.label, marginBottom: "3px" }}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
+                        <input type="number" step="0.25" min={0} max={20} style={{ ...styles.input, margin: 0 }} value={unionRaisePct || ""} placeholder="0"
+                          onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
+                        <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "3px", lineHeight: 1.5 }}>
+                          2030 and later, after the MOU expires 12/31/2029. At 0 you are credited with nothing
+                          beyond the signed contract. Same dial as on Stay or go?
+                        </div>
                       </div>
                     </div>
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Your assumption</div>
-                    <label style={styles.label}>Labor Market Adjustment <span style={{ fontSize: "10px", color: COLORS.textDim }}>· one-time %, Jan 2028</span></label>
-                    <input type="number" step="0.25" min={0} max={30} style={styles.input} value={lmaPct || ""} placeholder="0"
-                      onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                      MOU Ch.2 Art.I.A.3. The City raises any classification sitting below the 55th percentile
-                      of the market up to it, effective the first full pay period in January 2028. The 2027 Total
-                      Compensation Study sets the figure, so nobody knows it yet — put your own number in and see.
-                      It lifts base hourly rate, so the 2029 increase compounds on top of it.
-                    </div>
-                    <label style={{ ...styles.label, marginTop: "12px" }}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
-                    <input type="number" step="0.25" min={0} max={20} style={styles.input} value={unionRaisePct || ""} placeholder="0"
-                      onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                      Applies to 2030 and later, after the MOU expires 12/31/2029. At 0 the tool credits you
-                      with nothing beyond the signed contract. Same controls as on the "Stay or go?" tab.
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.6 }}>
-                      What these do to your actual pay, year by year, is on
-                      <strong style={{ color: COLORS.textMuted }}> Current compensation</strong> — set the year picker there.
+                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px" }}>
+                      Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Current compensation</strong>, using the year picker.
                     </div>
                   </>)}
                 </div>
