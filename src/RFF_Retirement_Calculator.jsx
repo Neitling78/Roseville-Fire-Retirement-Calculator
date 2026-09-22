@@ -243,6 +243,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v4)", items: [
+    "Start here is now purely fact-finding. It asks rank and step, date of birth, hire date, planned retirement date, specialty pay and certificates, sick leave hours, prior agency service, purchased service credit, unused holiday hours and your beneficiary's age \u2014 and nothing else.",
+    "Your pension is its own tab: gross benefit, what it is figured on, tax, retiree medical, and what actually lands in your bank.",
+    "Your pay is its own tab: what you are paid today, hourly rates by year, future raises, and cash-outs at separation.",
+    "Beneficiary age moved out of the buried Pension detail screen \u2014 it drives the survivor options and belonged with the other questions.",
+    "Prior agency service now appears on Start here and on the advanced inputs screen from a single definition, so the two cannot drift apart.",
+  ] },
   { date: "September 22, 2026 (v3)", items: [
     "Hourly rates now have a year picker. Choose 2026 through your retirement year and every rate \u2014 base, FLSA regular, FLSA overtime, contract overtime, cash-out \u2014 recalculates for that year.",
     "Pick a future year and it tells you what moved: the January 2027 rank separation, the incentives that end 1/9/2027, the 2028 compensation study, and the 2029 increase.",
@@ -594,7 +601,7 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["start", "wait", "sickleave", "medical", "inputs", "pension", "income", "timeline", "help"];
+  const VALID_TABS = ["start", "pension", "pay", "wait", "sickleave", "medical", "inputs", "pensiondetail", "income", "timeline", "help"];
   const initialTab = (() => {
     try {
       const q = typeof window !== "undefined" && window.location
@@ -611,7 +618,8 @@ export default function RFFRetirementCalculator() {
   const [menuOpen, setMenuOpen] = useState(false);
   // Collapsible input sections — tap a title to open/close (choice persists on device)
   const [openSections, setOpenSections] = useState(SAVED.openSections ?? { profile: true, prior: true, hiredate: true, rank: true, paystep: true, raises: false, incentives: false, sickleave: false, yourprofile: false, breakdown: false, cola: false, survivor: false,
-      startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false });
+      startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false,
+      startprior: false, startextras: false });
   const toggleSection = (k) => setOpenSections(s => ({ ...s, [k]: s[k] === false }));
   const sectionHeader = (key, title) => (
     <p
@@ -1454,7 +1462,7 @@ export default function RFFRetirementCalculator() {
   const cpiRate = Math.max(0, parseFloat(inflationRate) || 0) / 100;
   const effectiveColaRate = Math.min(colaRate, cpiRate);
   const colaYears = [5, 10, 15, 20, 25, 30];
-  const ADVANCED_TABS = ["inputs", "pension", "income", "timeline", "help"];
+  const ADVANCED_TABS = ["inputs", "pensiondetail", "income", "timeline", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
@@ -1514,6 +1522,107 @@ export default function RFFRetirementCalculator() {
   const earliestRow = retireYearOptions[0] || null;
   // The year the Classic 90% cap first binds — after this, more service adds nothing.
   const capYearRow = benefitIsCapped ? retireYearOptions.find(r => r.atCap) : null;
+  // Prior-agency service, pension-type override and purchased service credit. Defined once
+  // and rendered on both Start here and the advanced inputs tab, so the two never drift.
+  const priorServiceEditor = (<>
+                  {/* Pension Type (auto from hire date, manual override) */}
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
+                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
+                      value={memberType} disabled={!overridePensionType}
+                      onChange={e => setMemberType(e.target.value)}>
+                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
+                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
+                    </select>
+                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
+                      <input style={styles.checkbox} type="checkbox"
+                        checked={overridePensionType}
+                        onChange={e => setOverridePensionType(e.target.checked)} />
+                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
+                        Override (only if Classic via CalPERS reciprocity)
+                      </span>
+                    </label>
+                  </div>
+                  {/* Prior Agency Service — any prior agency (CalPERS or different system), each estimated by its own formula */}
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Prior Agency Service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· reciprocity (optional)</span></label>
+                    <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "0", marginBottom: "10px" }}>
+                      Worked at any agency before Roseville? Add one row per agency. Pick the formula it used — another CalPERS agency could be 3%@55, 3%@50, etc., or a different system entirely (LACERA, '37 Act counties, CalSTRS, FERS). We estimate each on its own formula, your years there, and (by default) your Roseville final pay (the highest-comp rule). Those years are calculated at that agency's formula — not merged into your Roseville years.
+                    </div>
+                    {priorService.map((r, i) => {
+                      const calc = priorServiceCalc[i] || {};
+                      return (
+                        <div key={r.id} style={{ background: "#121214", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                            <span style={{ fontSize: "12px", fontWeight: "700", color: COLORS.accent }}>Prior Agency #{i + 1}</span>
+                            <button onClick={() => removePriorRow(r.id)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontSize: "12px" }}>✕ remove</button>
+                          </div>
+                          <label style={styles.label}>Agency name <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· e.g. CalFire, LACERA</span></label>
+                          <input style={{ ...styles.input, marginBottom: "10px" }} type="text" value={r.agencyName || ""} placeholder="Agency name" onChange={e => updatePriorRow(r.id, { agencyName: e.target.value })} />
+                          <label style={styles.label}>Retirement formula</label>
+                          <select style={styles.select} value={r.formula} onChange={e => updatePriorRow(r.id, { formula: e.target.value, ...(e.target.value === "manual" ? { useRosevilleComp: false } : {}) })}>
+                            {PRIOR_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                          </select>
+                          {r.formula === "manual" && (
+                            <div style={{ marginTop: "10px" }}>
+                              <label style={styles.label}>Benefit factor per year of service (%)</label>
+                              <input style={styles.input} type="number" step="0.001" value={r.manualFactor} placeholder="e.g. 2.0"
+                                onChange={e => updatePriorRow(r.id, { manualFactor: e.target.value })} />
+                              <div style={{ ...styles.certNote, marginLeft: "0" }}>
+                                ⚠ For non-CalPERS systems (LACERA &amp; other '37 Act counties, CalSTRS, FERS) — read this per-year % off YOUR statement from that system.
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ ...styles.row, marginTop: "10px" }}>
+                            <div>
+                              <label style={styles.label}>Years of service there</label>
+                              <input style={styles.input} type="number" step="0.1" value={r.years} placeholder="e.g. 3"
+                                onChange={e => updatePriorRow(r.id, { years: e.target.value })} />
+                            </div>
+                            <div>
+                              <label style={styles.label}>Est. from this system</label>
+                              <div style={{ ...styles.input, display: "flex", alignItems: "center", color: COLORS.green, fontWeight: "700" }}>{fmt(calc.monthly || 0)}/mo</div>
+                            </div>
+                          </div>
+                          <label style={{ ...styles.checkRow, marginTop: "10px", marginBottom: "0" }}>
+                            <input style={styles.checkbox} type="checkbox" checked={r.useRosevilleComp !== false}
+                              onChange={e => updatePriorRow(r.id, { useRosevilleComp: e.target.checked })} />
+                            <span style={{ ...styles.checkLabel, fontSize: "12px" }}>Use my Roseville final pay (reciprocity highest-comp rule)</span>
+                          </label>
+                          {r.useRosevilleComp === false && (
+                            <div style={{ marginTop: "8px" }}>
+                              <label style={styles.label}>That system's final monthly comp</label>
+                              <input style={styles.input} type="number" value={r.customComp} placeholder="0"
+                                onChange={e => updatePriorRow(r.id, { customComp: e.target.value })} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button onClick={addPriorRow} style={{ width: "100%", background: "rgba(255,255,255,0.12)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add prior agency</button>
+                    {priorTotalYears > 0 && (
+                      <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(255,255,255,0.08)", border: `1px solid rgba(255,255,255,0.2)`, borderRadius: "8px", fontSize: "12px", color: COLORS.text, lineHeight: "1.7" }}>
+                        <strong style={{ color: COLORS.green }}>Your total time:</strong> {yearsOfService.toFixed(1)} yrs Roseville + {priorTotalYears} yrs prior = <strong>{(yearsOfService + priorTotalYears).toFixed(1)} years</strong>
+                        {priorPctOnRoseComp > 0 && (
+                          <> · combined ≈ <strong style={{ color: COLORS.gold }}>{pct(combinedPensionPct)}</strong> across systems (each system caps at 90% individually; reciprocal systems pay separately, so a combined total above 90% is possible)</>
+                        )}
+                        {" "}· prior service adds <strong style={{ color: COLORS.green }}>{fmt(priorPensionMonthly)}/mo</strong>
+                      </div>
+                    )}
+                    {priorService.length > 0 && (
+                      <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "10px" }}>
+                        ⚠ Estimates only. Each prior system calculates and pays your benefit independently — confirm exact amounts with that system. Reciprocity requires you established it on time and retire from all systems on the same day.
+                      </div>
+                    )}
+                  </div>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Airtime / purchased service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· years, if you bought CalPERS service credit</span></label>
+                    <input style={styles.input} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0" onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
+                    {airtimeYears > 0 && (
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Adds {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} of service credit toward your pension % (CalPERS max 5).</div>
+                    )}
+                  </div>
+  </>);
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={styles.app}>
@@ -1559,22 +1668,22 @@ export default function RFFRetirementCalculator() {
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Start here — the numbers above aren't valid until then.
           </div>
         )}
-        <div style={{ ...styles.tabRow, flexWrap: "nowrap", gap: isMobile ? "8px" : "10px" }}>
-          {["start", "wait", "sickleave", "medical", "advanced"].map(t => {
+        <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
+          {["start", "pension", "pay", "wait", "sickleave", "medical", "advanced"].map(t => {
             const active = t === "advanced" ? isAdvancedTab : tab === t;
             return (
-              <button key={t} style={{ ...styles.tab(active), flex: 1, textAlign: "center", fontSize: isMobile ? "11px" : "14px", padding: isMobile ? "10px 2px" : "11px 10px", whiteSpace: "nowrap" }}
+              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "9px 2px" : "11px 8px", whiteSpace: "nowrap" }}
                 onClick={() => setTab(t === "advanced" ? "inputs" : t)}>
-                {{ start: isMobile ? "Start" : "Start here", wait: isMobile ? "Wait?" : "What if I wait?", sickleave: isMobile ? "Sick" : "Sick leave", medical: isMobile ? "Med" : "Medical", advanced: isMobile ? "More" : "Everything else" }[t]}
+                {{ start: isMobile ? "Start" : "Start here", pension: isMobile ? "Pension" : "Your pension", pay: isMobile ? "Pay" : "Your pay", wait: isMobile ? "Wait?" : "What if I wait?", sickleave: isMobile ? "Sick" : "Sick leave", medical: isMobile ? "Med" : "Medical", advanced: isMobile ? "More" : "Everything else" }[t]}
               </button>
             );
           })}
         </div>
         {isAdvancedTab && (
           <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
-            {["inputs", "pension", "income", "timeline", "help"].map(t => (
+            {ADVANCED_TABS.map(t => (
               <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ inputs: "All inputs", pension: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
+                {{ inputs: "All inputs", pensiondetail: "Pension detail", income: "Other income & tax", timeline: "Timeline", help: "Guide" }[t]}
               </button>
             ))}
           </div>
@@ -1636,44 +1745,6 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 {/* ── Pay detail: collapsed, but every header shows its own total ── */}
-                <div style={styles.card}>
-                  {sectionHeaderValue("startpay", "Your pay right now", `${fmt(currentMonthlySalary)}/mo`)}
-                  {openSections.startpay !== false && (<>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}, Schedule {scheduleLetter}</span></span>
-                      <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
-                    </div>
-                    {currentIncentives.breakdown.filter(b => !b.note).map((b, i) => (
-                      <div key={i} style={styles.tableRow}>
-                        <span style={styles.tableKey}>{b.label}</span>
-                        <span style={b.pensionable === false ? styles.tableValDim : styles.tableValGold}>
-                          +{fmt(baseSalary * b.pct)}/mo ({pct(b.pct)})
-                        </span>
-                      </div>
-                    ))}
-                    {currentIncentives.breakdown.filter(b => b.note).map((b, i) => (
-                      <div key={"n" + i} style={styles.warningBox}>{b.label}</div>
-                    ))}
-                    <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
-                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total, all incentives</span>
-                      <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{pct(currentIncentives.totalIncentivePct)} · {fmt(currentMonthlySalary)}/mo</span>
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
-                      This is what you are paid today. Gold lines count toward your pension. Dim lines are
-                      paid but not pensionable — the Service Term Bonus, and longevity for PEPRA members.
-                    </div>
-                    {ceasingIncentives.length > 0 && (
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
-                        ⓘ You are paid {ceasingIncentives.map(c => c.label.replace(/\s*\(.*$/, "")).join(" and ")} now,
-                        but it is not in your pension projection — it ends 1/9/2027, before you retire in {retirementYear}.
-                        The MOU trades it for rank separation (Captain set 10% above Engineer). At every salary
-                        step that trade comes out ahead, so the higher base more than replaces it. Your pension
-                        is figured on what you earn in your final compensation period, not on what you earn today.
-                      </div>
-                    )}
-                  </>)}
-                </div>
-
                 <div style={styles.card}>
                   {sectionHeaderValue("startincent", "Specialty pay and certificates", `${pct(incentives.totalIncentivePct)} total`)}
                   {openSections.startincent !== false && (<>
@@ -1769,6 +1840,281 @@ export default function RFFRetirementCalculator() {
                         ⚠ Captain Paramedic and Engine Boss pay both cease 1/9/2027 in exchange for rank
                         separation (MOU Ch.2 Art.X.B.2.c). Your retirement is after that date, so they are
                         not counted — the rank separation is in your projected salary instead.
+                      </div>
+                    )}
+                  </>)}
+                </div>
+
+                <div style={styles.card}>
+                  {sectionHeaderValue("startprior", "Prior service and purchased credit",
+                    (priorTotalYears + airtimeYears) > 0 ? `+${(priorTotalYears + airtimeYears).toFixed(1)} yrs` : "none")}
+                  {openSections.startprior !== false && (<>
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.6 }}>
+                      Time at another agency, and any CalPERS service credit you bought. Both change your
+                      pension percentage. Skip this if Roseville is the only place you have worked.
+                    </div>
+                    {priorServiceEditor}
+                  </>)}
+                </div>
+                <div style={styles.card}>
+                  {sectionHeaderValue("startextras", "A few more details",
+                    `${holidayCashOutHours || 0} hol hrs${beneficiaryAge > 0 ? ` \u00b7 beneficiary ${beneficiaryAge}` : ""}`)}
+                  {openSections.startextras !== false && (<>
+                    <label style={styles.label}>Unused holiday hours at separation</label>
+                    <input type="number" style={styles.input} value={unusedHolidayHours || ""} placeholder="0"
+                      onChange={e => { setUnusedHolidayHours(+e.target.value || 0); setSetupDone(true); }} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, margin: "6px 0 14px", lineHeight: 1.6 }}>
+                      Shift members are granted seven 24-hour shifts ({HOLIDAY_HOURS} hrs) each January 1;
+                      anything unused is paid at base plus longevity (MOU Ch.3 Art.II.C and F). Leave at 0 if
+                      you plan to burn them. Confirm the City's separation practice with the Treasurer.
+                    </div>
+                    <label style={styles.label}>Beneficiary's age at your retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>\u00b7 optional</span></label>
+                    <input type="number" style={styles.input} value={beneficiaryAge || ""} min={18} max={100}
+                      placeholder={`${Math.floor(retireAgeQ)} (same as you)`}
+                      onChange={e => { setBeneficiaryAge(+e.target.value || 0); setSetupDone(true); }} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
+                      Drives the CalPERS survivor options (Option 2, 2W, 3, 3W) on the Pension detail screen.
+                      A younger beneficiary means a larger reduction to your own allowance.
+                    </div>
+                  </>)}
+                </div>
+                {setupDone && !datesInvalid && (
+                  <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}`, textAlign: "center" }}>
+                    <div style={{ fontSize: "13px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "12px" }}>
+                      That is everything your pension is built from.
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" }}>
+                      <button style={{ ...styles.tab(true), padding: "12px 20px", fontSize: "14px" }} onClick={() => setTab("pension")}>
+                        See your pension
+                      </button>
+                      <button style={{ ...styles.tab(false), padding: "12px 20px", fontSize: "14px" }} onClick={() => setTab("pay")}>
+                        See your pay
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!setupDone && (
+                  <div style={{ ...styles.card, textAlign: "center", padding: "28px 20px" }}>
+                    <div style={{ fontSize: "13px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
+                      Answer the questions above. Your pension and your pay each get their own tab.
+                      <br /><br />
+                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
+                        Nothing you type leaves your browser. There is no account and no server.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ═══════════════ YOUR PENSION ═══════════════ */}
+            {tab === "pension" && (
+              <>
+                {!setupDone && (
+                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Start here</strong> first.
+                      <br /><br />
+                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
+                        Nothing you type leaves your browser. There is no account and no server.
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {setupDone && !datesInvalid && (
+                  <>
+                    <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Your number</p>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
+                        Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
+                      </div>
+
+                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", marginBottom: "10px" }}>
+                        <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>What the pension is figured on</div>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Projected base at {retirementYear}</span>
+                          <span style={styles.tableVal}>{fmt(projectedBaseSalary)}/mo</span>
+                        </div>
+                        {incentives.pensionableAmt > 0 && (
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Pensionable incentives ({pct(incentives.pensionablePct)})</span>
+                            <span style={styles.tableValGold}>+{fmt(incentives.pensionableAmt)}/mo</span>
+                          </div>
+                        )}
+                        {memberType === "classic" && (<>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Holiday pay ({HOLIDAY_HOURS} hrs)</span>
+                            <span style={styles.tableValGold}>+{fmt(holidayPayMonthly)}/mo</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Uniform allowance</span>
+                            <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>FLSA overtime (special comp)</span>
+                            <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
+                          </div>
+                        </>)}
+                        <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
+                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
+                            Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}</span>
+                          </span>
+                          <span style={{ ...styles.tableValAccent, fontWeight: 800 }}>{fmt(finalCompMonthly)}/mo</span>
+                        </div>
+                      </div>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Gross CalPERS pension <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(combinedPensionPct)} of final comp</span></span>
+                        <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}</span>
+                      </div>
+                      {monthly457 > 0 && include457InTakeHome && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>457 draw <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {retireDrawRate}%/yr</span></span>
+                          <span style={styles.tableValAccent}>{fmt(monthly457)}</span>
+                        </div>
+                      )}
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· est. {pct(retEffRate)}, {stateName}</span></span>
+                        <span style={styles.tableVal}>−{fmt(combinedPensionMonthly * retEffRate)}</span>
+                      </div>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket</span></span>
+                        <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
+                      </div>
+                      <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
+                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
+                        <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(totalMonthlyTakeHome)}/mo</span>
+                      </div>
+
+                      <div style={{ marginTop: "16px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Working today, after everything</span>
+                          <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
+                        </div>
+                        <div style={styles.tableRowLast}>
+                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Difference</span>
+                          <span style={{ fontWeight: 800, fontSize: "17px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
+                            {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                          Both figures are take-home, not gross. In retirement you stop paying the
+                          {memberType === "classic" ? " 9% " : " 11.5% "} CalPERS member contribution,
+                          union dues, and the active medical premium — which is why the gap is smaller than
+                          the raw salary difference makes it look.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.card}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Also waiting for you at retirement</p>
+                      <div style={styles.tableRow}>
+                        <span style={styles.tableKey}>Sick leave — {sickLeaveDisposition === "cash" ? "cashed out" : sickLeaveDisposition === "credit" ? "converted to service credit" : "split"}</span>
+                        <span style={styles.tableValGreen}>
+                          {sickLeaveCreditYears > 0 && <>+{sickLeaveCreditYears.toFixed(2)} yrs</>}
+                          {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " · "}
+                          {sickLeavePayoff > 0 && fmt(sickLeavePayoff)}
+                          {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && "—"}
+                        </span>
+                      </div>
+                      {holidayCashOut > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Unused holiday cashed out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs</span></span>
+                          <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
+                        </div>
+                      )}
+                      {value457 > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>457 balance</span>
+                          <span style={styles.tableValGreen}>{fmt(value457)}</span>
+                        </div>
+                      )}
+                      {medicalTier === "4" && medical.rhsBalance > 0 && (
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>RHS account (Tier 4)</span>
+                          <span style={styles.tableValGreen}>{fmt(medical.rhsBalance)}</span>
+                        </div>
+                      )}
+                      <div style={styles.tableRowLast}>
+                        <span style={styles.tableKey}>Annual COLA on the pension</span>
+                        <span style={styles.tableValGreen}>up to {pct(colaRate)}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
+                      <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                        {benefitIsCapped ? (
+                          <div style={{ marginBottom: "8px" }}>
+                            ▸ Your formula caps at <strong style={{ color: COLORS.text }}>90% of final compensation</strong>, reached at 30 years.
+                            {capYearRow
+                              ? <> You hit it in <strong style={{ color: COLORS.gold }}>{capYearRow.year}</strong> — service past that point adds nothing to the pension.</>
+                              : <> You are at {pct(pensionPct)} and not there yet.</>}
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: "8px" }}>
+                            ▸ <strong style={{ color: COLORS.text }}>2.7% @ 57 has no cap.</strong> Every extra year is worth another
+                            {" "}{pct(rosevilleFactor)} of final compensation, for life. Older versions of this tool stopped you at 90% — that was wrong.
+                          </div>
+                        )}
+                        <div>
+                          ▸ {memberType === "classic"
+                            ? <>Your pension is figured on your <strong style={{ color: COLORS.text }}>highest 12 months</strong> of pensionable pay.</>
+                            : <>Your pension is figured on a <strong style={{ color: COLORS.text }}>36-month average</strong>, not your last year — so the MOU raises in 2026–2028 reach you slower than your paycheck suggests.</>}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ═══════════════ YOUR PAY ═══════════════ */}
+            {tab === "pay" && (
+              <>
+                {!setupDone && (
+                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
+                      Answer the questions on <strong style={{ color: COLORS.text }}>Start here</strong> first.
+                      <br /><br />
+                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
+                        Nothing you type leaves your browser. There is no account and no server.
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div style={styles.card}>
+                  {sectionHeaderValue("startpay", "Your pay right now", `${fmt(currentMonthlySalary)}/mo`)}
+                  {openSections.startpay !== false && (<>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Base salary <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {classification}, Step {salaryStep}, Schedule {scheduleLetter}</span></span>
+                      <span style={styles.tableVal}>{fmt(baseSalary)}/mo</span>
+                    </div>
+                    {currentIncentives.breakdown.filter(b => !b.note).map((b, i) => (
+                      <div key={i} style={styles.tableRow}>
+                        <span style={styles.tableKey}>{b.label}</span>
+                        <span style={b.pensionable === false ? styles.tableValDim : styles.tableValGold}>
+                          +{fmt(baseSalary * b.pct)}/mo ({pct(b.pct)})
+                        </span>
+                      </div>
+                    ))}
+                    {currentIncentives.breakdown.filter(b => b.note).map((b, i) => (
+                      <div key={"n" + i} style={styles.warningBox}>{b.label}</div>
+                    ))}
+                    <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "6px", paddingTop: "8px" }}>
+                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Total, all incentives</span>
+                      <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{pct(currentIncentives.totalIncentivePct)} · {fmt(currentMonthlySalary)}/mo</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      This is what you are paid today. Gold lines count toward your pension. Dim lines are
+                      paid but not pensionable — the Service Term Bonus, and longevity for PEPRA members.
+                    </div>
+                    {ceasingIncentives.length > 0 && (
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                        ⓘ You are paid {ceasingIncentives.map(c => c.label.replace(/\s*\(.*$/, "")).join(" and ")} now,
+                        but it is not in your pension projection — it ends 1/9/2027, before you retire in {retirementYear}.
+                        The MOU trades it for rank separation (Captain set 10% above Engineer). At every salary
+                        step that trade comes out ahead, so the higher base more than replaces it. Your pension
+                        is figured on what you earn in your final compensation period, not on what you earn today.
                       </div>
                     )}
                   </>)}
@@ -1950,163 +2296,6 @@ export default function RFFRetirementCalculator() {
                   </>)}
                 </div>
 
-                {!setupDone && (
-                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
-                    <div style={{ fontSize: "40px", marginBottom: "8px", opacity: 0.35 }}>—</div>
-                    <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
-                      Answer the five questions above and your number appears here.
-                      <br /><br />
-                      <span style={{ fontSize: "12px", color: COLORS.textDim }}>
-                        Nothing you type leaves your browser. There is no account and no server.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {setupDone && !datesInvalid && (
-                  <>
-                    <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                      <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Your number</p>
-                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
-                        Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
-                      </div>
-
-                      <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: "8px", marginBottom: "10px" }}>
-                        <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>What the pension is figured on</div>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Projected base at {retirementYear}</span>
-                          <span style={styles.tableVal}>{fmt(projectedBaseSalary)}/mo</span>
-                        </div>
-                        {incentives.pensionableAmt > 0 && (
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Pensionable incentives ({pct(incentives.pensionablePct)})</span>
-                            <span style={styles.tableValGold}>+{fmt(incentives.pensionableAmt)}/mo</span>
-                          </div>
-                        )}
-                        {memberType === "classic" && (<>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Holiday pay ({HOLIDAY_HOURS} hrs)</span>
-                            <span style={styles.tableValGold}>+{fmt(holidayPayMonthly)}/mo</span>
-                          </div>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>Uniform allowance</span>
-                            <span style={styles.tableValGold}>+{fmt(uniformMonthly)}/mo</span>
-                          </div>
-                          <div style={styles.tableRow}>
-                            <span style={styles.tableKey}>FLSA overtime (special comp)</span>
-                            <span style={styles.tableValGold}>+{fmt(flsaOTPensionableMonthly)}/mo</span>
-                          </div>
-                        </>)}
-                        <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
-                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
-                            Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}</span>
-                          </span>
-                          <span style={{ ...styles.tableValAccent, fontWeight: 800 }}>{fmt(finalCompMonthly)}/mo</span>
-                        </div>
-                      </div>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Gross CalPERS pension <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(combinedPensionPct)} of final comp</span></span>
-                        <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}</span>
-                      </div>
-                      {monthly457 > 0 && include457InTakeHome && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>457 draw <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {retireDrawRate}%/yr</span></span>
-                          <span style={styles.tableValAccent}>{fmt(monthly457)}</span>
-                        </div>
-                      )}
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Income tax <span style={{ fontSize: "10px", color: COLORS.textDim }}>· est. {pct(retEffRate)}, {stateName}</span></span>
-                        <span style={styles.tableVal}>−{fmt(combinedPensionMonthly * retEffRate)}</span>
-                      </div>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket</span></span>
-                        <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
-                      </div>
-                      <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "10px", paddingTop: "12px" }}>
-                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
-                        <span style={{ fontWeight: 800, color: COLORS.green, fontSize: "22px" }}>{fmt(totalMonthlyTakeHome)}/mo</span>
-                      </div>
-
-                      <div style={{ marginTop: "16px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Working today, after everything</span>
-                          <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
-                        </div>
-                        <div style={styles.tableRowLast}>
-                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Difference</span>
-                          <span style={{ fontWeight: 800, fontSize: "17px", color: takeHomeDiff >= 0 ? COLORS.green : COLORS.gold }}>
-                            {takeHomeDiff >= 0 ? "+" : "−"}{fmt(Math.abs(takeHomeDiff))}/mo
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
-                          Both figures are take-home, not gross. In retirement you stop paying the
-                          {memberType === "classic" ? " 9% " : " 11.5% "} CalPERS member contribution,
-                          union dues, and the active medical premium — which is why the gap is smaller than
-                          the raw salary difference makes it look.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={styles.card}>
-                      <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Also waiting for you at retirement</p>
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Sick leave — {sickLeaveDisposition === "cash" ? "cashed out" : sickLeaveDisposition === "credit" ? "converted to service credit" : "split"}</span>
-                        <span style={styles.tableValGreen}>
-                          {sickLeaveCreditYears > 0 && <>+{sickLeaveCreditYears.toFixed(2)} yrs</>}
-                          {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " · "}
-                          {sickLeavePayoff > 0 && fmt(sickLeavePayoff)}
-                          {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && "—"}
-                        </span>
-                      </div>
-                      {holidayCashOut > 0 && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Unused holiday cashed out <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {holidayCashOutHours} hrs</span></span>
-                          <span style={styles.tableValGreen}>{fmt(holidayCashOut)}</span>
-                        </div>
-                      )}
-                      {value457 > 0 && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>457 balance</span>
-                          <span style={styles.tableValGreen}>{fmt(value457)}</span>
-                        </div>
-                      )}
-                      {medicalTier === "4" && medical.rhsBalance > 0 && (
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>RHS account (Tier 4)</span>
-                          <span style={styles.tableValGreen}>{fmt(medical.rhsBalance)}</span>
-                        </div>
-                      )}
-                      <div style={styles.tableRowLast}>
-                        <span style={styles.tableKey}>Annual COLA on the pension</span>
-                        <span style={styles.tableValGreen}>up to {pct(colaRate)}</span>
-                      </div>
-                    </div>
-
-                    <div style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
-                      <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
-                      <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
-                        {benefitIsCapped ? (
-                          <div style={{ marginBottom: "8px" }}>
-                            ▸ Your formula caps at <strong style={{ color: COLORS.text }}>90% of final compensation</strong>, reached at 30 years.
-                            {capYearRow
-                              ? <> You hit it in <strong style={{ color: COLORS.gold }}>{capYearRow.year}</strong> — service past that point adds nothing to the pension.</>
-                              : <> You are at {pct(pensionPct)} and not there yet.</>}
-                          </div>
-                        ) : (
-                          <div style={{ marginBottom: "8px" }}>
-                            ▸ <strong style={{ color: COLORS.text }}>2.7% @ 57 has no cap.</strong> Every extra year is worth another
-                            {" "}{pct(rosevilleFactor)} of final compensation, for life. Older versions of this tool stopped you at 90% — that was wrong.
-                          </div>
-                        )}
-                        <div>
-                          ▸ {memberType === "classic"
-                            ? <>Your pension is figured on your <strong style={{ color: COLORS.text }}>highest 12 months</strong> of pensionable pay.</>
-                            : <>Your pension is figured on a <strong style={{ color: COLORS.text }}>36-month average</strong>, not your last year — so the MOU raises in 2026–2028 reach you slower than your paycheck suggests.</>}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
               </>
             )}
 
@@ -2377,103 +2566,7 @@ export default function RFFRetirementCalculator() {
                 <div style={styles.card}>
                   {sectionHeader("prior", "2 · Prior agency service")}
                   {openSections.prior !== false && (<>
-                  {/* Pension Type (auto from hire date, manual override) */}
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
-                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
-                      value={memberType} disabled={!overridePensionType}
-                      onChange={e => setMemberType(e.target.value)}>
-                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
-                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
-                    </select>
-                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
-                      <input style={styles.checkbox} type="checkbox"
-                        checked={overridePensionType}
-                        onChange={e => setOverridePensionType(e.target.checked)} />
-                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
-                        Override (only if Classic via CalPERS reciprocity)
-                      </span>
-                    </label>
-                  </div>
-                  {/* Prior Agency Service — any prior agency (CalPERS or different system), each estimated by its own formula */}
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Prior Agency Service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· reciprocity (optional)</span></label>
-                    <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "0", marginBottom: "10px" }}>
-                      Worked at any agency before Roseville? Add one row per agency. Pick the formula it used — another CalPERS agency could be 3%@55, 3%@50, etc., or a different system entirely (LACERA, '37 Act counties, CalSTRS, FERS). We estimate each on its own formula, your years there, and (by default) your Roseville final pay (the highest-comp rule). Those years are calculated at that agency's formula — not merged into your Roseville years.
-                    </div>
-                    {priorService.map((r, i) => {
-                      const calc = priorServiceCalc[i] || {};
-                      return (
-                        <div key={r.id} style={{ background: "#121214", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "12px", marginBottom: "10px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                            <span style={{ fontSize: "12px", fontWeight: "700", color: COLORS.accent }}>Prior Agency #{i + 1}</span>
-                            <button onClick={() => removePriorRow(r.id)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontSize: "12px" }}>✕ remove</button>
-                          </div>
-                          <label style={styles.label}>Agency name <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· e.g. CalFire, LACERA</span></label>
-                          <input style={{ ...styles.input, marginBottom: "10px" }} type="text" value={r.agencyName || ""} placeholder="Agency name" onChange={e => updatePriorRow(r.id, { agencyName: e.target.value })} />
-                          <label style={styles.label}>Retirement formula</label>
-                          <select style={styles.select} value={r.formula} onChange={e => updatePriorRow(r.id, { formula: e.target.value, ...(e.target.value === "manual" ? { useRosevilleComp: false } : {}) })}>
-                            {PRIOR_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                          </select>
-                          {r.formula === "manual" && (
-                            <div style={{ marginTop: "10px" }}>
-                              <label style={styles.label}>Benefit factor per year of service (%)</label>
-                              <input style={styles.input} type="number" step="0.001" value={r.manualFactor} placeholder="e.g. 2.0"
-                                onChange={e => updatePriorRow(r.id, { manualFactor: e.target.value })} />
-                              <div style={{ ...styles.certNote, marginLeft: "0" }}>
-                                ⚠ For non-CalPERS systems (LACERA &amp; other '37 Act counties, CalSTRS, FERS) — read this per-year % off YOUR statement from that system.
-                              </div>
-                            </div>
-                          )}
-                          <div style={{ ...styles.row, marginTop: "10px" }}>
-                            <div>
-                              <label style={styles.label}>Years of service there</label>
-                              <input style={styles.input} type="number" step="0.1" value={r.years} placeholder="e.g. 3"
-                                onChange={e => updatePriorRow(r.id, { years: e.target.value })} />
-                            </div>
-                            <div>
-                              <label style={styles.label}>Est. from this system</label>
-                              <div style={{ ...styles.input, display: "flex", alignItems: "center", color: COLORS.green, fontWeight: "700" }}>{fmt(calc.monthly || 0)}/mo</div>
-                            </div>
-                          </div>
-                          <label style={{ ...styles.checkRow, marginTop: "10px", marginBottom: "0" }}>
-                            <input style={styles.checkbox} type="checkbox" checked={r.useRosevilleComp !== false}
-                              onChange={e => updatePriorRow(r.id, { useRosevilleComp: e.target.checked })} />
-                            <span style={{ ...styles.checkLabel, fontSize: "12px" }}>Use my Roseville final pay (reciprocity highest-comp rule)</span>
-                          </label>
-                          {r.useRosevilleComp === false && (
-                            <div style={{ marginTop: "8px" }}>
-                              <label style={styles.label}>That system's final monthly comp</label>
-                              <input style={styles.input} type="number" value={r.customComp} placeholder="0"
-                                onChange={e => updatePriorRow(r.id, { customComp: e.target.value })} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <button onClick={addPriorRow} style={{ width: "100%", background: "rgba(255,255,255,0.12)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add prior agency</button>
-                    {priorTotalYears > 0 && (
-                      <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(255,255,255,0.08)", border: `1px solid rgba(255,255,255,0.2)`, borderRadius: "8px", fontSize: "12px", color: COLORS.text, lineHeight: "1.7" }}>
-                        <strong style={{ color: COLORS.green }}>Your total time:</strong> {yearsOfService.toFixed(1)} yrs Roseville + {priorTotalYears} yrs prior = <strong>{(yearsOfService + priorTotalYears).toFixed(1)} years</strong>
-                        {priorPctOnRoseComp > 0 && (
-                          <> · combined ≈ <strong style={{ color: COLORS.gold }}>{pct(combinedPensionPct)}</strong> across systems (each system caps at 90% individually; reciprocal systems pay separately, so a combined total above 90% is possible)</>
-                        )}
-                        {" "}· prior service adds <strong style={{ color: COLORS.green }}>{fmt(priorPensionMonthly)}/mo</strong>
-                      </div>
-                    )}
-                    {priorService.length > 0 && (
-                      <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "10px" }}>
-                        ⚠ Estimates only. Each prior system calculates and pays your benefit independently — confirm exact amounts with that system. Reciprocity requires you established it on time and retire from all systems on the same day.
-                      </div>
-                    )}
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Airtime / purchased service <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· years, if you bought CalPERS service credit</span></label>
-                    <input style={styles.input} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0" onChange={e => setAirtime(Math.min(5, Math.max(0, +e.target.value || 0)))} />
-                    {airtimeYears > 0 && (
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px" }}>Adds {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} of service credit toward your pension % (CalPERS max 5).</div>
-                    )}
-                  </div>
+                  {priorServiceEditor}
                   </>)}
                 </div>
                 {/* Box 3 — Rank */}
@@ -2951,7 +3044,7 @@ export default function RFFRetirementCalculator() {
                 </div>
               </>
             )}
-            {tab === "pension" && (
+            {tab === "pensiondetail" && (
               <div style={styles.card}>
                 {sectionHeader("yourprofile", "Your profile")}
                 {openSections.yourprofile && (<>
@@ -2968,7 +3061,7 @@ export default function RFFRetirementCalculator() {
           </div>
           {/* RIGHT PANEL */}
           <div>
-            {tab === "pension" && (
+            {tab === "pensiondetail" && (
               <div style={styles.card}>
                 {sectionHeader("penest", "Pension estimate")}
                 {openSections.penest !== false && (<>
@@ -3174,7 +3267,7 @@ export default function RFFRetirementCalculator() {
                     <span style={styles.tableVal}>{medical.note}</span>
                   </div>
                 )}
-                {tab === "pension" && (
+                {tab === "pensiondetail" && (
                   <div style={{ marginTop: "20px" }}>
                     <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                       onClick={() => toggleSection("cola")}>
@@ -3222,7 +3315,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                 )}
                 {/* CalPERS Survivor Benefit Options — Pension tab only */}
-                {tab === "pension" && (
+                {tab === "pensiondetail" && (
                   <div style={{ marginTop: "24px" }}>
                     <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                       onClick={() => toggleSection("survivor")}>
@@ -3275,7 +3368,7 @@ export default function RFFRetirementCalculator() {
                     </>)}
                   </div>
                 )}
-                {tab === "pension" && (
+                {tab === "pensiondetail" && (
                   <div style={{ marginTop: "20px" }}>
                     <label style={styles.checkRow}>
                       <input style={styles.checkbox} type="checkbox" checked={modelPromotion} onChange={e => setModelPromotion(e.target.checked)} />
