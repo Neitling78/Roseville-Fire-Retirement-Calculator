@@ -170,5 +170,31 @@ eq("prevention 2029 = +2.5%, study, +3.0%", prevH*raiseF(2029,"Fire & Environmen
    prevH*1.025*1.03*1.03, 0.01);
 eq("prevention gets no rank separation", rank(2028,"Fire & Environmental Safety Inspector II"), 1);
 
+
+console.log("\n-- exact age by calendar, not ms/365.25 --");
+const exactAgeOn = (birth, on) => {
+  const anniv = new Date(on.getFullYear(), birth.getMonth(), birth.getDate());
+  const before = on < anniv;
+  const whole = on.getFullYear() - birth.getFullYear() - (before ? 1 : 0);
+  const last = new Date(on.getFullYear() - (before ? 1 : 0), birth.getMonth(), birth.getDate());
+  const next = new Date(last.getFullYear() + 1, birth.getMonth(), birth.getDate());
+  return whole + (on - last) / (next - last);
+};
+const dobT = new Date(1978, 8, 28);
+eq("exactly 53 on the birthday", exactAgeOn(dobT, new Date(2031, 8, 28)), 53, 1e-9);
+eq("exactly 50 on the birthday", exactAgeOn(dobT, new Date(2028, 8, 28)), 50, 1e-9);
+eq("exactly 57 on the birthday", exactAgeOn(dobT, new Date(2035, 8, 28)), 57, 1e-9);
+eq("day before 53 is under 53", exactAgeOn(dobT, new Date(2031, 8, 27)) < 53, true);
+// the old ms/365.25 method drifted below the true age on long spans
+const oldWay = (b, o) => (o - b) / (365.25 * 24 * 3600 * 1000);
+eq("old method read 53rd birthday as under 53", oldWay(dobT, new Date(2031, 8, 28)) < 53, true);
+eq("quarter-floor of the new method is exactly 53", Math.floor(exactAgeOn(dobT, new Date(2031,8,28)) * 4) / 4, 53);
+eq("quarter-floor of the old method was 52.75", Math.floor(oldWay(dobT, new Date(2031,8,28)) * 4) / 4, 52.75);
+// that quarter matters for PEPRA: factor steps per quarter-year
+const pepraFactor = a => Math.min(a >= 57 ? 0.027 : 0.020 + (a - 50) * (0.007 / 7), 0.027);
+eq("PEPRA factor at a true 53", pepraFactor(53), 0.023, 1e-9);
+eq("PEPRA factor at the drifted 52.75", pepraFactor(52.75), 0.02275, 1e-9);
+eq("the drift cost 0.025% per year of service", pepraFactor(53) - pepraFactor(52.75), 0.00025, 1e-9);
+
 console.log("\n"+(fail?"!! ":"")+pass+" passed, "+fail+" failed\n");
 process.exit(fail?1:0);

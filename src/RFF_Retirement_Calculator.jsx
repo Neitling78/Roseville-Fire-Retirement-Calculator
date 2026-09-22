@@ -243,6 +243,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v9)", items: [
+    "\u201cWhat if I wait\u201d now has a today\u2019s-dollars column, and the \u201cvs. earliest\u201d gain is measured on it. The take-home column was in each future year\u2019s own dollars, so it climbed whether or not you were actually better off.",
+    "Fixed an age bug. Age was computed as milliseconds divided by 365.25 days, which drifts over decades \u2014 someone exactly 53 could read as 52.9993 and get floored to 52.75. For PEPRA members that quarter reaches the benefit factor, so it cost real money. Age is now worked out by the calendar.",
+    "Fixed the year range. A member more than 12 years from age 50 got an empty table. It now starts at the year you become eligible and runs through your chosen retirement year.",
+    "The 90% cap note now says plainly that the percentage stops moving, and that what still raises the number is pay growth and service under a different CalPERS formula.",
+  ] },
   { date: "September 22, 2026 (v8)", items: [
     "Removed the holiday cash-out. It was wrong \u2014 your holiday hours are already reported to CalPERS as special compensation (MOU Ch.3 Art.II.C, CCR \u00a7571) and sit in your pensionable compensation. They cannot be reported to CalPERS and paid out again at separation, so showing both was counting the same hours twice.",
     "Holiday pay still appears where it belongs: in the pension build-up, as 168 hours of pensionable special compensation for Classic members.",
@@ -795,7 +801,19 @@ export default function RFFRetirementCalculator() {
   // Date of birth drives exact age (to the quarter-year) for CalPERS benefit factors.
   const dobValid = /^\d{4}-\d{2}-\d{2}$/.test(dob || "");
   const dobDate = dobValid ? new Date(parseInt(dob.slice(0, 4), 10), parseInt(dob.slice(5, 7), 10) - 1, parseInt(dob.slice(8, 10), 10)) : null;
-  const currentAge = dobDate ? Math.max(0, Math.floor((NOW - dobDate) / MS_PER_YEAR)) : 40;
+  // Exact age on a date, by the calendar — NOT (ms / 365.25), which drifts by a day or more
+  // over 50+ years and can read 52.9993 for someone who is exactly 53. That drift reaches the
+  // PEPRA benefit factor, which steps by quarter-year, so it changed real money.
+  const exactAgeOn = (birth, on) => {
+    if (!birth) return null;
+    const annivThisYear = new Date(on.getFullYear(), birth.getMonth(), birth.getDate());
+    const before = on < annivThisYear;
+    const whole = on.getFullYear() - birth.getFullYear() - (before ? 1 : 0);
+    const last = new Date(on.getFullYear() - (before ? 1 : 0), birth.getMonth(), birth.getDate());
+    const next = new Date(last.getFullYear() + 1, birth.getMonth(), birth.getDate());
+    return whole + (on - last) / (next - last);
+  };
+  const currentAge = dobDate ? Math.max(0, Math.floor(exactAgeOn(dobDate, NOW))) : 40;
   const integerYearsToRetirement = Math.max(0, retirementAge - currentAge);
   const derivedRetirementYear = NOW.getFullYear() + integerYearsToRetirement;
   // Retirement timing: default to the date the member reaches the chosen retirement age
@@ -811,7 +829,7 @@ export default function RFFRetirementCalculator() {
   const retirementDate = new Date(retirementYear, retMonthNum - 1, retDayNum);
   const hireDateObj = new Date(hireYear, hireMonth - 1, hireDay);
   // Exact age at retirement, snapped down to the completed quarter-year (CalPERS method).
-  const exactRetireAge = dobDate ? (retirementDate - dobDate) / MS_PER_YEAR : retirementAge;
+  const exactRetireAge = dobDate ? exactAgeOn(dobDate, retirementDate) : retirementAge;
   const retireAgeQ = dobDate ? Math.max(0, Math.floor(exactRetireAge * 4) / 4) : retirementAge;
   // "Normal retirement age" as Roseville's CalPERS contract defines it (para 1):
   // age 50 for classic local safety, age 57 for new (PEPRA) local safety.
@@ -1526,7 +1544,7 @@ export default function RFFRetirementCalculator() {
     const retDate = new Date(y, retMonthNum - 1, retDayNum);
     const yos = (retDate - hireDateObj) / MS_PER_YEAR;
     if (yos <= 0) return null;
-    const ageExact = dobDate ? (retDate - dobDate) / MS_PER_YEAR : retirementAge + (y - retirementYear);
+    const ageExact = dobDate ? exactAgeOn(dobDate, retDate) : retirementAge + (y - retirementYear);
     const ageQ = Math.max(0, Math.floor(ageExact * 4) / 4);
     if (ageQ < 50) return null;                 // CalPERS safety minimum retirement age
     const yrsToRet = Math.max(0, (retDate - NOW) / MS_PER_YEAR);
@@ -1563,12 +1581,22 @@ export default function RFFRetirementCalculator() {
     const medOOP = Math.max(0, retireePremium - cityContrib);
     const tax = pension * retEffRate;
     const takeHome = Math.max(0, pension - tax - medOOP);
+    // Same figure with inflation taken back out, so later years are comparable with today.
+    const yearsOut = Math.max(0, y - NOW.getFullYear());
+    const takeHomeToday = takeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsOut);
     return { year: y, age: ageQ, yos, pensionPct: pPct + priorOther, finalComp: fc,
-      pension, tax, medOOP, takeHome, sickCash, slCreditYrs, slHours, atCap: benefitIsCapped && pPct >= benefitMaxPct - 1e-9 };
+      pension, tax, medOOP, takeHome, takeHomeToday, sickCash, slCreditYrs, slHours,
+      atCap: benefitIsCapped && pPct >= benefitMaxPct - 1e-9 };
   };
   const retireYearOptions = (() => {
+    // Start at the first year the member can actually draw a benefit (safety minimum age 50),
+    // not at today — otherwise anyone more than 12 years from eligibility saw an empty table.
+    // Always run far enough to include their chosen retirement year.
+    const firstEligible = dobDate ? dobDate.getFullYear() + 50 : NOW.getFullYear();
+    const from = Math.max(NOW.getFullYear(), firstEligible);
+    const to = Math.max(from + 10, retirementYear + 2);
     const out = [];
-    for (let y = NOW.getFullYear(); y <= NOW.getFullYear() + 12; y++) {
+    for (let y = from; y <= to && out.length < 15; y++) {
       const p = projectForYear(y);
       if (p) out.push(p);
     }
@@ -2497,6 +2525,7 @@ export default function RFFRetirementCalculator() {
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Yrs</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>%</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>Take-home</th>
+                            <th style={{ padding: "6px 4px", fontWeight: 600 }}>In today's $</th>
                             <th style={{ padding: "6px 4px", fontWeight: 600 }}>vs. earliest</th>
                           </tr>
                         </thead>
@@ -2504,6 +2533,8 @@ export default function RFFRetirementCalculator() {
                           {retireYearOptions.map(r => {
                             const isSel = r.year === retirementYear;
                             const delta = earliestRow ? r.takeHome - earliestRow.takeHome : 0;
+                            // Compare like with like: the "vs. earliest" gain is in today's dollars.
+                            const deltaToday = earliestRow ? r.takeHomeToday - earliestRow.takeHomeToday : 0;
                             return (
                               <tr key={r.year}
                                 onClick={() => { setRetirementDateOverride(`${r.year}-${String(retMonthNum).padStart(2, "0")}-${String(retDayNum).padStart(2, "0")}`); setSetupDone(true); }}
@@ -2517,8 +2548,9 @@ export default function RFFRetirementCalculator() {
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.yos.toFixed(1)}</td>
                                 <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{pct(r.pensionPct)}</td>
                                 <td style={{ padding: "9px 4px", fontWeight: 700, color: COLORS.green }}>{fmt(r.takeHome)}</td>
-                                <td style={{ padding: "9px 4px", color: delta > 0 ? COLORS.green : COLORS.textDim }}>
-                                  {delta > 0 ? "+" : ""}{delta === 0 ? "—" : fmt(delta)}
+                                <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{fmt(r.takeHomeToday)}</td>
+                                <td style={{ padding: "9px 4px", color: deltaToday > 0 ? COLORS.green : COLORS.textDim }}>
+                                  {deltaToday > 0 ? "+" : ""}{Math.abs(deltaToday) < 1 ? "—" : fmt(deltaToday)}
                                 </td>
                               </tr>
                             );
@@ -2527,12 +2559,18 @@ export default function RFFRetirementCalculator() {
                       </table>
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
-                      {benefitIsCapped && capYearRow && <>▪ marks the year you reach the 90% cap. Waiting past {capYearRow.year} raises your pension only through pay increases and COLA, not service.<br /></>}
+                      {benefitIsCapped && capYearRow && <>▪ marks the year you reach the {pct(benefitMaxPct)} cap. From {capYearRow.year} on, the percentage stops moving — what still raises the number is your pay growing, and any service under a different CalPERS formula. Extra years in the capped bucket add nothing.<br /></>}
                       {!benefitIsCapped && <>Your formula has no cap, so every row keeps climbing.<br /></>}
                       Take-home is gross pension less estimated income tax and your retiree medical
                       out-of-pocket. The tax rate is the one computed for your selected year, applied
-                      across all rows — good enough to rank the years, not a tax return. These are
-                      future dollars, not today's.
+                      across all rows — good enough to rank the years, not a tax return.
+                      <div style={{ marginTop: "8px", color: COLORS.textMuted }}>
+                        <strong style={{ color: COLORS.text }}>Read the "today's $" column, not the take-home column.</strong>
+                        {" "}Take-home is in the dollars of that future year, so it climbs whether or not you
+                        are better off — a later year buys less per dollar. The third column strips
+                        {" "}{inflationRate}% a year back out so the rows are comparable, and "vs. earliest"
+                        is measured on it. Change the inflation assumption under Everything else.
+                      </div>
                     </div>
                   </>
                 )}

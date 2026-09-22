@@ -74,7 +74,7 @@ console.log("\n-- 'what if I wait' with real numbers --");
 check("table header present", () => has(B.wait, "Go in"));
 check("lists candidate years", () => has(B.wait, "2028"));
 check("explains the tax approximation", () => has(B.wait, "rank the years"));
-check("warns they are future dollars", () => has(B.wait, "future dollars"));
+check("warns later dollars buy less", () => has(B.wait, "a later year buys less per dollar"));
 
 console.log("\n-- sick leave decision screen --");
 check("frames the decision", () => has(B.sickleave, "Cash or credit?"));
@@ -346,6 +346,27 @@ const UNDER = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-
   memberType:"pepra", medicalTier:"3", classification:"Firefighter Paramedic II", salaryStep:"H",
   retirementDateOverride:"2047-01-01", currentSickLeaveHours:500 });
 check("no cap warning when well under it", () => lacks(UNDER.pension, "You are past the cap"));
+
+// ── "What if I wait" columns and year range ────────────────────────────────
+console.log("\n-- what if I wait: columns, ages, eligibility range --");
+const WW = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-09-28",
+  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+  priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }] });
+check("has a today's-dollars column", () => has(WW.wait, "In today's $"));
+check("tells you which column to read", () => has(WW.wait, "Read the \"today's $\" column"));
+check("explains that later dollars buy less", () => has(WW.wait, "a later year buys less per dollar"));
+check("age is right on the birthday year", () => /2031\s*\u25aa?\s*53/.test(WW.wait) || has(WW.wait, "53"));
+check("cap note says the percentage stops moving", () => has(WW.wait, "the percentage stops moving"));
+check("cap note says what still raises it", () => has(WW.wait, "your pay growing"));
+// a member whose eligibility is more than 12 years out used to get an empty table
+const YOUNG = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-06-01",
+  memberType:"pepra", medicalTier:"4", classification:"Fire Engineer", salaryStep:"H",
+  retirementDateOverride:"2047-06-01" });
+check("young member gets rows, not an empty table", () => lacks(YOUNG.wait, "No eligible years"));
+check("first row is the year they turn 50", () => has(YOUNG.wait, "2040"));
+check("range reaches their chosen retirement year", () => has(YOUNG.wait, "2047"));
 
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]
