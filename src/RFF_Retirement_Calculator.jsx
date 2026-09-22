@@ -266,6 +266,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v31)", items: [
+    "<strong>Fixed a rounding error on a contract figure.</strong> The January 2029 increase was printing as 1.8%. It is <strong>1.75%</strong>. Percentages were being rounded to one decimal everywhere, which is fine for an estimate and wrong for a bargained number — members check these against the MOU.",
+    "Future raises is now a list by year. <strong>2027</strong>: the general wage increase and your rank separation. <strong>2028</strong>: a box to put the Labor Market Adjustment in, with the alignment tightening noted, flagged in orange while it is empty. <strong>2029</strong>: 1.75% for suppression, 3% for prevention. <strong>2030+</strong>: the bargaining dial. Each line cites its own MOU article.",
+    "Retired the old sick-leave dropdown. It lived under More in two places and still used the cash / credit / split model, while Member details used the two boxes \u2014 three controls for one decision is how screens start disagreeing. The two boxes are now the only way to set it; both More screens show what you chose and point back.",
+    "The cash-versus-credit comparison stays where it was, including the warning that the credit is worth <strong>$0</strong> when you are already at the cap.",
+    "<strong>The 457 is out of the headline.</strong> A 457 draw starts when you decide to start it, so folding it into the retirement take-home at the top made the pension look bigger than it is. The 457 keeps its own projections under More \u203a Other income &amp; tax.",
+  ] },
   { date: "September 22, 2026 (v30)", items: [
     "Shrank the Future raises card on the Pension tab without dropping anything. The contracted figures \u2014 the January 2027 increase, the rank separation and how it tightens in 2028, and the January 2029 increase \u2014 are now one line instead of a boxed table with its own heading and footnote.",
     "The two inputs sit side by side instead of stacked, each with its helper text cut to a line and a half. The MOU citation, the 55th-percentile rule, the fact that the 2027 study sets the LMA, that it compounds into 2029, and that the bargaining dial only touches 2030 and later \u2014 all still there.",
@@ -779,6 +786,13 @@ const styles = {
 const fmt = (n) => n?.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) || "$0";
 const fmtHr = (n) => (n ?? 0).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
+// A bargained figure has to print exactly as bargained: 1.75% is not 1.8%. Shows up to two
+// decimals and trims what is not needed, so 0 reads "0%", 0.025 reads "2.5%", 0.0175 reads "1.75%".
+const pctExact = (n) => {
+  const v = n * 100;
+  const near = (x) => Math.abs(x - Math.round(x)) < 1e-9;
+  return (near(v) ? String(Math.round(v)) : near(v * 10) ? v.toFixed(1) : v.toFixed(2)) + "%";
+};
 // ─── LOCAL STORAGE PERSISTENCE ───────────────────────────────────────────
 // Saves user inputs to browser localStorage. Data NEVER leaves the device — no
 // server, no analytics, no tracking. Stored under a single key as JSON.
@@ -1759,7 +1773,10 @@ export default function RFFRetirementCalculator() {
   const retireeMedicalOOP = Math.max(0, retireePremium - cityMedicalContribution);
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
   // check + (only when folded in) the net of any extra household income.
-  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly + (include457InTakeHome ? monthly457 * (1 - retEffRate) : 0);
+  // The headline retirement figure is the PENSION, full stop. A 457 draw is money you choose to
+  // start when you choose to start it — folding it in makes the pension look bigger than it is.
+  // The 457 has its own projections under More › Other income & tax.
+  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly;
   // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
   const ledgerExtraIncome = foldExtraIncome ? extraIncomeAnnual / 12 : 0;
   const ledgerTotalIncome = monthlyPension + monthly457 + ledgerExtraIncome;
@@ -2249,37 +2266,61 @@ export default function RFFRetirementCalculator() {
                 <div style={styles.card}>
                   {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
                   {openSections.startraises !== false && (<>
-                    {/* Everything the old card said, in about a third of the room. */}
-                    <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "10px" }}>
-                      <span style={{ color: COLORS.green, fontWeight: 700 }}>In the contract:</span>{" "}
-                      Jan 2027 <strong style={{ color: COLORS.text }}>{pct(mouGwiFor(2027, classification))}</strong>
-                      {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                        <> + rank separation <strong style={{ color: COLORS.gold }}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}</strong>
-                        {retirementYear >= 2028 && <> (both ×1.10 from 2028)</>}</>
-                      )}
-                      {" · "}Jan 2029 <strong style={{ color: COLORS.text }}>{pct(mouGwiFor(2029, classification))}</strong>
-                      <span style={{ color: COLORS.textDim }}> — MOU Ch.2 Art.I.A(2) &amp; (4), by classification. Prevention differs from suppression.</span>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
-                      <div>
-                        <label style={{ ...styles.label, marginBottom: "3px" }}>Labor Market Adjustment <span style={{ fontSize: "10px", color: COLORS.textDim }}>· one-time %, Jan 2028</span></label>
-                        <input type="number" step="0.25" min={0} max={30} style={{ ...styles.input, margin: 0 }} value={lmaPct || ""} placeholder="0"
-                          onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))} />
-                        <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "3px", lineHeight: 1.5 }}>
-                          Art.I.A.3 — City lifts any class below the market 55th percentile up to it. Set by the 2027
-                          study, so unknown. Raises base, so 2029 compounds on it.
+                    {/* Year by year, in the order the contract lays them out. */}
+                    {(() => {
+                      const sep2027 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075"
+                        : classification === "Fire Engineer" ? "Eng = FFP2 ×1.075" : null;
+                      const sep2028 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP ×1.10"
+                        : classification === "Fire Engineer" ? "Eng = FFP ×1.10" : null;
+                      const Row = ({ year, children }) => (
+                        <div style={{ display: "grid", gridTemplateColumns: "54px 1fr", gap: "10px",
+                          padding: "8px 0", borderTop: `1px solid ${COLORS.border}`, alignItems: "start" }}>
+                          <div style={{ fontWeight: 800, color: COLORS.text, fontSize: "13px" }}>{year}</div>
+                          <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>{children}</div>
                         </div>
-                      </div>
-                      <div>
-                        <label style={{ ...styles.label, marginBottom: "3px" }}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
-                        <input type="number" step="0.25" min={0} max={20} style={{ ...styles.input, margin: 0 }} value={unionRaisePct || ""} placeholder="0"
-                          onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
-                        <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "3px", lineHeight: 1.5 }}>
-                          2030 and later, after the MOU expires 12/31/2029. At 0 you are credited with nothing
-                          beyond the signed contract. Same dial as on Stay or go?
-                        </div>
-                      </div>
-                    </div>
+                      );
+                      return (<>
+                        <Row year="2027">
+                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2027, classification))}</strong> general wage increase
+                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
+                          {sep2027 && <> · rank separation <strong style={{ color: COLORS.gold }}>{sep2027}</strong></>}
+                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(2) · first full pay period in January</div>
+                        </Row>
+                        <Row year="2028">
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
+                            <span>Labor Market Adjustment</span>
+                            <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
+                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
+                            <span style={{ color: COLORS.textMuted }}>%</span>
+                            {(parseFloat(lmaPct) || 0) === 0 && <span style={{ color: COLORS.gold, fontSize: "10px" }}>⚠ nobody knows this one yet</span>}
+                          </div>
+                          {sep2028 && <>Alignment tightens to <strong style={{ color: COLORS.gold }}>{sep2028}</strong><br /></>}
+                          <span style={{ color: COLORS.textDim }}>
+                            Art.I.A.3 · the City lifts any class below the market 55th percentile up to it, set by the
+                            2027 Total Compensation Study. It raises base hourly rate, so 2029 compounds on top of it.
+                          </span>
+                        </Row>
+                        <Row year="2029">
+                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2029, classification))}</strong> general wage increase
+                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
+                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(4) · alignment maintained · contract ends 12/31/2029</div>
+                        </Row>
+                        <Row year="2030+">
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
+                            <span>Raises Local 1592 bargains</span>
+                            <input type="number" step="0.25" min={0} max={20} value={unionRaisePct || ""} placeholder="0"
+                              onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
+                            <span style={{ color: COLORS.textMuted }}>%/yr</span>
+                          </div>
+                          <span style={{ color: COLORS.textDim }}>
+                            No contract past 12/31/2029. At 0 you are credited with nothing beyond what is signed.
+                            Same dial as on Stay or go?
+                          </span>
+                        </Row>
+                      </>);
+                    })()}
                     <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px" }}>
                       Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Current compensation</strong>, using the year picker.
                     </div>
@@ -2609,9 +2650,9 @@ export default function RFFRetirementCalculator() {
                       border: `1px solid ${shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(245,158,11,0.35)" : "rgba(37,99,235,0.28)"}`,
                       color: COLORS.textMuted }}>
                       <strong style={{ color: COLORS.text }}>What is in {shownRateYear}:</strong>
-                      {shownRateYear >= 2027 && <> Jan 2027 — {isPreventionClass(classification) ? "prevention +2.5%" : "no general wage increase for suppression"}{R.rankSepApplied ? `; rank separation (${shownRateYear >= 2028 ? "Engineer 10% above Paramedic, Captain 10% above Engineer" : "Engineer 7.5% above Paramedic, Captain 10% above Engineer"})` : ""}.</>}
+                      {shownRateYear >= 2027 && <> Jan 2027 — {isPreventionClass(classification) ? `prevention +${pctExact(mouGwiFor(2027, classification))}` : "no general wage increase for suppression"}{R.rankSepApplied ? `; rank separation (${shownRateYear >= 2028 ? "Engineer 10% above Paramedic, Captain 10% above Engineer" : "Engineer 7.5% above Paramedic, Captain 10% above Engineer"})` : ""}.</>}
                       {shownRateYear >= 2028 && <> Jan 2028 — Labor Market Adjustment, shown at <strong style={{ color: (parseFloat(lmaPct) || 0) > 0 ? COLORS.gold : COLORS.textMuted }}>{lmaPct || 0}%</strong>.</>}
-                      {shownRateYear >= 2029 && <> Jan 2029 — {isPreventionClass(classification) ? "prevention +3.0%" : "+1.75%"}.</>}
+                      {shownRateYear >= 2029 && <> Jan 2029 — {isPreventionClass(classification) ? "prevention " : ""}+{pctExact(mouGwiFor(2029, classification))}.</>}
                       {shownRateYear >= 2028 && (parseFloat(lmaPct) || 0) === 0 && (
                         <div style={{ marginTop: "6px", color: COLORS.gold }}>
                           ⚠ 2028 is the year nobody can price yet. The Labor Market Adjustment is set by the 2027
@@ -3087,74 +3128,59 @@ export default function RFFRetirementCalculator() {
                     become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
                     out instead, on a sliding scale. You cannot do both with the same hours.
                   </div>
-                  <label style={styles.label}>Sick leave hours today</label>
-                  <input type="number" style={{ ...styles.input, marginBottom: "10px" }} value={currentSickLeaveHours || ""}
-                    placeholder="e.g. 1800" onChange={e => { setCurrentSickLeaveHours(+e.target.value || 0); setSetupDone(true); }} />
-                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
-                    Projected to <strong style={{ color: COLORS.gold }}>{sickLeaveHours.toFixed(0)} hrs</strong> by {retirementYear},
-                    accruing at {SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr.
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
-                    <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "10px", padding: "16px", border: `1px solid ${COLORS.border}` }}>
-                      <div style={styles.metricLabel}>All cash</div>
-                      <div style={{ fontSize: "24px", fontWeight: 800, color: COLORS.green, margin: "4px 0" }}>{fmt(altCashIfAllCash)}</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>
-                        One-time payment. Taxable in the year you get it.
-                        {sickLeaveHours > SICK_LEAVE_PAYOFF_MAX_HOURS && (
-                          <div style={{ color: COLORS.gold, marginTop: "6px" }}>
-                            ⚠ Only {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} of your {sickLeaveHours.toFixed(0)} hours
-                            are payable — the MOU table stops there.
-                          </div>
-                        )}
-                      </div>
+                  {/* The two boxes on Member details are the only way to set this now. Leaving a
+                      second control here is how two screens start disagreeing with each other. */}
+                  <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "14px" }}>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Hours today</span>
+                      <span style={styles.tableVal}>{(splitEntered ? splitTotalToday : currentSickLeaveHours).toFixed(0)} hrs</span>
                     </div>
-                    <div style={{ background: "rgba(16,185,129,0.06)", borderRadius: "10px", padding: "16px", border: `1px solid rgba(16,185,129,0.25)` }}>
-                      <div style={styles.metricLabel}>All service credit</div>
-                      <div style={{ fontSize: "24px", fontWeight: 800, color: COLORS.green, margin: "4px 0" }}>{fmt(altCreditMonthlyIfAllCredit)}/mo</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>
-                        +{sickLeaveMaxCreditYears.toFixed(2)} years of service, for life, with COLA.
-                        {benefitIsCapped && altCreditMonthlyIfAllCredit <= 0 && (
-                          <div style={{ color: COLORS.gold, marginTop: "6px", lineHeight: 1.7 }}>
-                            ⚠ <strong>Worth $0 to you.</strong> You are already at the {pct(benefitMaxPct)} cap without
-                            converting a single hour, so every hour you convert produces no extra pension.
-                            {altCashIfAllCash > 0 && <> Taking it as cash is worth <strong>{fmt(altCashIfAllCash)}</strong> instead.</>}
-                          </div>
-                        )}
-                      </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Projected at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr accrual</span></span>
+                      <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>→ converted to service credit</span>
+                      <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
+                    </div>
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>→ cashed out</span>
+                      <span style={styles.tableValGold}>{sickLeaveHoursToCash.toFixed(0)} hrs · {fmt(sickLeavePayoff)}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      Set the split on <strong style={{ color: COLORS.textMuted }}>Member details</strong> — the two boxes
+                      under section 2. Hours can be cashed <em>or</em> converted, never both.
                     </div>
                   </div>
-
-                  {altCreditMonthlyIfAllCredit > 0 && altCashIfAllCash > 0 && (
-                    <div style={{ marginTop: "14px", padding: "14px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
-                      <strong style={{ color: COLORS.text }}>Break-even:</strong> the credit overtakes the cash after
-                      {" "}<strong style={{ color: COLORS.gold }}>{(altCashIfAllCash / (altCreditMonthlyIfAllCredit * 12)).toFixed(1)} years</strong> of
-                      retirement — around age {Math.floor(retireAgeQ + altCashIfAllCash / (altCreditMonthlyIfAllCredit * 12))}.
-                      Live past that and the credit wins, and it keeps winning, because it has a COLA and
-                      the cash does not. Before that, the cash is ahead.
-                      <div style={{ marginTop: "8px", color: COLORS.textDim }}>
-                        This ignores what you could earn by investing the cash, and it ignores tax — the lump sum
-                        lands in one year and may push you into a higher bracket.
+                  {/* The comparison that decides it — kept, minus the controls. */}
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.10)",
+                      border: `1px solid ${sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.35)"}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: sickLeavePensionBoostMonthly > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
+                        {sickLeavePensionBoostMonthly > 0 ? fmt(sickLeavePensionBoostMonthly) + "/mo" : "Worth $0 to you"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        {sickLeavePensionBoostMonthly > 0
+                          ? <>+{sickLeaveCreditYears.toFixed(2)} yrs of credit, for life, growing with your COLA.</>
+                          : <>You are already at the {pct(benefitMaxPct)} cap, so converting hours adds nothing to the pension.
+                            Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(sickLeavePayoff)}</strong> instead.</>}
                       </div>
                     </div>
-                  )}
-
-                  <label style={{ ...styles.label, marginTop: "18px" }}>What do you want to do?</label>
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    {[["credit", "All credit"], ["cash", "All cash"], ["split", "Split them"]].map(([k, lbl]) => (
-                      <button key={k} onClick={() => { setSickLeaveDisposition(k); setSetupDone(true); }}
-                        style={{ ...styles.tab(sickLeaveDisposition === k), flex: "1 1 30%", padding: "10px", fontSize: "13px" }}>
-                        {lbl}
-                      </button>
-                    ))}
+                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(sickLeavePayoff)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        One payment at separation, taxed as wages in that year. Paid at base hourly plus longevity only —
+                        no education, certificate or specialty pay.
+                      </div>
+                    </div>
                   </div>
-                  {sickLeaveDisposition === "split" && (
-                    <div style={{ marginTop: "12px" }}>
-                      <label style={styles.label}>Years to service credit: {sickLeaveCustomCreditYears.toFixed(2)} of {sickLeaveMaxCreditYears.toFixed(2)}</label>
-                      <input type="range" min={0} max={Math.max(0.01, sickLeaveMaxCreditYears)} step={0.05}
-                        value={Math.min(sickLeaveCustomCreditYears, sickLeaveMaxCreditYears)}
-                        onChange={e => setSickLeaveCustomCreditYears(+e.target.value)}
-                        style={{ width: "100%", accentColor: COLORS.accent }} />
+                  {sickLeaveHoursAbovePayCap > 0 && (
+                    <div style={{ ...styles.certNote, marginLeft: 0, marginBottom: "12px" }}>
+                      ⚠ Only the first {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours are payable under the MOU table as I read it,
+                      so about {sickLeaveHoursAbovePayCap.toFixed(0)} of your hours would be cashed at nothing. This ceiling is my
+                      reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
                     </div>
                   )}
                   <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
@@ -3596,115 +3622,20 @@ export default function RFFRetirementCalculator() {
                 {/* Box 7 — Sick leave at retirement */}
                 <div style={styles.card}>
                   {sectionHeader("sickleave", "6 · Sick leave at retirement")}
-                  {openSections.sickleave && (<>
-                  <div style={{ ...styles.certNote, marginLeft: "0", marginTop: "0" }}>
-                    ⚠ Service credit from sick leave generally applies only if you retire within ~120 days of leaving City service, and it can't be used to reach the 5-year vesting or minimum retirement age.
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Current Sick Leave Hours</label>
-                    <input style={styles.input} type="number" value={currentSickLeaveHours || ""}
-                      onChange={e => setCurrentSickLeaveHours(+e.target.value || 0)} min={0} max={2400}
-                      placeholder="0" />
-                    <div style={{ marginTop: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                      Accrual: <strong>144 hrs/yr</strong> (6 shifts × 24 hrs). Projected at retirement:
-                      {" "}<strong style={{ color: COLORS.gold }}>
-                        {Math.round(sickLeaveHours).toLocaleString()} hrs
-                      </strong>
-                      {" "}<span style={{ color: COLORS.textDim }}>(current {currentSickLeaveHours.toLocaleString()} + {yearsToRetirement.toFixed(1)} yrs × 144)</span>
+                  {openSections.sickleave && (
+                    <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                      Set on <strong style={{ color: COLORS.text }}>Member details</strong>, section 2 — two boxes,
+                      hours to cash out and hours to convert. As it stands:{" "}
+                      <strong style={{ color: COLORS.green }}>{sickLeaveCreditYears.toFixed(2)} yrs</strong> of service credit
+                      and <strong style={{ color: COLORS.gold }}>{sickLeaveHoursToCash.toFixed(0)} hrs</strong> cashed
+                      ({fmt(sickLeavePayoff)}), from {sickLeaveHours.toFixed(0)} projected hours.
+                      <div style={{ ...styles.certNote, marginLeft: 0, marginTop: "8px" }}>
+                        ⚠ Service credit from sick leave generally applies only if you retire within ~120 days of leaving
+                        City service, and it cannot be used to reach the 5-year vesting or the minimum retirement age.
+                      </div>
                     </div>
-                    {sickLeaveHours > 0 && (
-                      <div style={{ marginTop: "8px", fontSize: "11px", color: COLORS.textMuted }}>
-                        {Math.round(sickLeaveHours).toLocaleString()} hrs ÷ 8 = <strong>{(sickLeaveHours / 8).toFixed(0)} days</strong> →
-                        max <strong style={{ color: COLORS.gold }}>{sickLeaveMaxCreditYears.toFixed(2)} yrs</strong> of CalPERS service credit
-                      </div>
-                    )}
-                  </div>
-                  {sickLeaveHours > 0 && (
-                    <>
-                      <label style={{ ...styles.label, marginTop: "8px" }}>Convert to:</label>
-                      <label style={styles.checkRow}>
-                        <input type="radio" name="sickLeaveDispo"
-                          checked={sickLeaveDisposition === "cash"}
-                          onChange={() => setSickLeaveDisposition("cash")} />
-                        <span style={styles.checkLabel}>All Cash Payout</span>
-                      </label>
-                      <label style={styles.checkRow}>
-                        <input type="radio" name="sickLeaveDispo"
-                          checked={sickLeaveDisposition === "credit"}
-                          onChange={() => setSickLeaveDisposition("credit")} />
-                        <span style={styles.checkLabel}>All Service Credit (boosts pension forever)</span>
-                      </label>
-                      <label style={styles.checkRow}>
-                        <input type="radio" name="sickLeaveDispo"
-                          checked={sickLeaveDisposition === "split"}
-                          onChange={() => setSickLeaveDisposition("split")} />
-                        <span style={styles.checkLabel}>Split — some credit, rest as cash</span>
-                      </label>
-                      {sickLeaveDisposition === "split" && (
-                        <div style={{ marginLeft: "28px", marginBottom: "12px" }}>
-                          <label style={styles.label}>Years to convert (max {sickLeaveMaxCreditYears.toFixed(2)})</label>
-                          <input style={styles.input} type="number" step="0.05"
-                            min={0} max={sickLeaveMaxCreditYears}
-                            value={sickLeaveCustomCreditYears || ""}
-                            onChange={e => setSickLeaveCustomCreditYears(+e.target.value || 0)} />
-                        </div>
-                      )}
-                      <div style={{ marginTop: "8px", padding: "10px 12px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                        ⓘ <strong style={{ color: COLORS.blue }}>No double-dipping</strong> — per CalPERS, hours can be <em>either</em> cashed out <em>or</em> converted to service credit, not both. The Split option above lets you choose how many hours go to each bucket.
-                      </div>
-                      <div style={{ marginTop: "8px", padding: "12px", background: "rgba(255,255,255,0.06)", borderRadius: "8px" }}>
-                        {sickLeaveCreditYears > 0 && (
-                          <>
-                            <div style={styles.tableRow}>
-                              <span style={styles.tableKey}>→ Service Credit</span>
-                              <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
-                            </div>
-                            <div style={styles.tableRow}>
-                              <span style={styles.tableKey}>→ Pension Boost</span>
-                              <span style={styles.tableValGreen}>+{fmt(sickLeavePensionBoostMonthly)}/mo for life</span>
-                            </div>
-                          </>
-                        )}
-                        {sickLeaveHoursToCash > 0 && (
-                          <>
-                            <div style={styles.tableRow}>
-                              <span style={styles.tableKey}>→ Cash Hours ({Math.min(sickLeaveHoursToCash, SICK_LEAVE_PAYOFF_MAX_HOURS).toFixed(0)} hrs at {pct(SICK_LEAVE_TIERS.find(t => sickLeaveHoursToCash >= t.min && sickLeaveHoursToCash <= t.max)?.pct || 0)})</span>
-                              <span style={styles.tableValGreen}>{fmt(sickLeavePayoff)}</span>
-                            </div>
-                            {sickLeaveHoursAbovePayCap > 0 && (
-                              <div style={{ fontSize: "11px", color: COLORS.gold, padding: "8px", marginTop: "4px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "6px", lineHeight: 1.6 }}>
-                                ⚠ <strong>{sickLeaveHoursAbovePayCap.toFixed(0)} hours are not being cashed out.</strong> The MOU payoff
-                                table (Ch. 3, Art. III) tops out at {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours for 24-hour shift
-                                employees — the band reads "1800 to 2400" under a column headed "Max." Hours above that are worth
-                                nothing as cash, but they still convert to service credit at
-                                2,000 hrs = 1 year. Confirm the City's reading with the Treasurer before you rely on either number.
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {sickLeaveCreditYears === 0 && sickLeaveHoursToCash === 0 && (
-                          <div style={{ fontSize: "12px", color: COLORS.textMuted, textAlign: "center", padding: "8px" }}>
-                            Enter accrued hours above to see options
-                          </div>
-                        )}
-                      </div>
-                      {/* Side-by-side comparison */}
-                      {sickLeaveDisposition !== "credit" && (
-                        <div style={{ marginTop: "8px", fontSize: "11px", color: COLORS.textDim, padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
-                          <strong>Compare — all credit:</strong> +{altCreditIfAllCredit.toFixed(3)} pension% → +{fmt(altCreditMonthlyIfAllCredit)}/mo for life
-                          <br /><span style={{ color: COLORS.textDim }}>(at 25-year retirement: ~{fmt(altCreditMonthlyIfAllCredit * 12 * 25)} lifetime)</span>
-                        </div>
-                      )}
-                      {sickLeaveDisposition !== "cash" && (
-                        <div style={{ marginTop: "6px", fontSize: "11px", color: COLORS.textDim, padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
-                          <strong>Compare — all cash:</strong> {fmt(altCashIfAllCash)} lump sum
-                        </div>
-                      )}
-                    </>
                   )}
-                  </>)}
                 </div>
-                {/* Box 8 — Projected raises */}
                 <div style={styles.card}>
                   {sectionHeader("raises", "7 · Projected raises (2027 → retirement)")}
                   {openSections.raises && (<>

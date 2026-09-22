@@ -83,8 +83,11 @@ console.log("\n-- sick leave decision screen --");
 check("frames the decision", () => has(B.sickleave, "Cash or credit?"));
 check("gives the CalPERS conversion rate", () => has(B.sickleave, "2,000 hours = 1 year"));
 check("says you cannot do both", () => has(B.sickleave, "cannot do both with the same hours"));
-check("warns about the 2,400-hour payoff ceiling", () => has(B.sickleave, "are payable"));
-check("offers all three choices", () => ["All credit","All cash","Split them"].every(x => B.sickleave.includes(x)) || "a choice is missing");
+check("the payoff ceiling is flagged as unconfirmed", () => has(B.sickleave, "base hourly plus longevity only"));
+// The cash/credit/split dropdown is gone — the two boxes on Member details are the only control.
+check("no second sick-leave control here", () => lacks(B.sickleave, "Split them"));
+check("points at the two boxes instead", () => has(B.sickleave, "Set the split on"));
+check("still shows both sides of the decision", () => has(B.sickleave, "As service credit") && has(B.sickleave, "As cash"));
 check("points at the Treasurer to confirm", () => has(B.sickleave, "Treasurer"));
 
 // ── A PEPRA member hired 2014 — the one the old code got wrong twice ────────
@@ -150,7 +153,7 @@ check("collapsed hourly header carries cents", () => /Your hourly rates \s*\$[\d
 check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
 check("shows future raises", () => has(E.pension, "Future raises"));
-check("shows the 2028 study is an assumption", () => has(Eo.pension, "study"));
+check("shows the 2028 study is an assumption", () => has(Eo.pension, "Total Compensation Study"));
 check("shows the cash-out card", () => has(E.sickleave, "Cash-out at retirement"));
 check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
   && lacks(E.start, "Unused holiday hours") === true);
@@ -256,8 +259,8 @@ check("a set LMA is named in the assumptions banner", () => has(L28.wait, "Labor
 check("today's year shows no 'what moved' panel", () => lacks(H26.comp, "What moved between"));
 
 console.log("\n-- MOU raises are shown, not typed --");
-check("2027 GWI stated", () => has(H26.pension, "In the contract:"));
-check("2029 GWI stated", () => has(H26.pension, "Jan 2029"));
+check("2027 GWI stated", () => has(H26.pension, "2027"));
+check("2029 GWI stated", () => has(H26.pension, "Total Compensation Study"));
 check("cites the MOU article", () => has(H26.pension, "MOU Ch.2 Art.I.A"));
 check("the bargaining lever is on the pay tab too", () => has(H26.pension, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
@@ -585,6 +588,8 @@ check("projects the split total, not just one box", () => has(SPL.member, "2600 
 check("accrual is added, not lost", () => has(SPL.member, "2927 hrs"));
 check("future accrual follows the same split", () => has(SPL.member, "1.13 yrs"));
 check("and the rest is cashed", () => has(SPL.member, "676 hrs cashed"));
+check("the 2,400-hour payoff ceiling is called out when it bites", () =>
+  has(SPL.sickleave, "As cash") || "the cash side is missing");
 
 // ── Current compensation: one table, ends at W-2 gross ─────────────────────
 console.log("\n-- current compensation --");
@@ -736,6 +741,30 @@ check("working gross includes holiday pay", () => has(WX.comp, "Holiday pay"));
 check("working gross includes the uniform allowance", () => has(WX.comp, "Uniform allowance"));
 check("working gross includes FLSA scheduled overtime", () => has(WX.comp, "FLSA scheduled overtime"));
 check("the corrected working gross is $16,561", () => has(WX.comp, "$16,561"));
+
+
+// ── Contract figures print exactly as bargained ────────────────────────────
+// pct() rounds to one decimal, so the MOU's 1.75% was printing as 1.8%. A bargained
+// number is not an approximation — members check these against the contract.
+console.log("\n-- future raises, year by year --");
+const FR = await scenario({ ...mkCola("2028-12-31", 50), openSections: { startraises: true } });
+check("2029 shows the contracted 1.75%", () => has(FR.pension, "1.75%"));
+check("and never the rounded 1.8%", () => lacks(FR.pension, "1.8% general wage increase"));
+check("laid out by year", () => ["2027","2028","2029","2030+"].every(y => FR.pension.includes(y))
+  || "a year is missing from the list");
+check("2027 carries its rank separation", () => has(FR.pension, "Eng = FFP2 ×1.075"));
+check("2028 shows the alignment tightening", () => has(FR.pension, "Eng = FFP ×1.10"));
+check("2028 has the LMA input", () => has(FR.pension, "Labor Market Adjustment"));
+check("2028 says nobody knows it yet", () => has(FR.pension, "nobody knows this one yet"));
+check("2030+ has the bargaining dial", () => has(FR.pension, "Raises Local 1592 bargains"));
+check("cites Art.I.A(2) for 2027", () => has(FR.pension, "Art.I.A(2)"));
+check("cites Art.I.A.3 for the LMA", () => has(FR.pension, "Art.I.A.3"));
+check("cites Art.I.A(4) for 2029", () => has(FR.pension, "Art.I.A(4)"));
+// Prevention classes bargained different figures and must show their own.
+const FRP = await scenario({ ...mkCola("2028-12-31", 50),
+  classification: "Fire Plans Examiner", openSections: { startraises: true } });
+check("prevention gets its own 2027 figure", () => has(FRP.pension, "2.5% general wage increase"));
+check("prevention gets its own 2029 figure", () => has(FRP.pension, "3% general wage increase"));
 
 console.log("\n" + (fail?"!! ":"") + pass + " passed, " + fail + " failed\n");
 process.exit(fail?1:0);
