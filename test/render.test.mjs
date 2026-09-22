@@ -198,20 +198,18 @@ check("no cease warning when it does not apply", () => lacks(G.pay, "it ends 1/9
 console.log("\n-- hourly rates by year --");
 const mkCapt = (rateYear) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear, raise2028:3, ignoreSpeculativeRaises:false,
-  openSections:{ starthourly:true } });
+  retirementDateOverride:"2030-06-01", rateYear, unionRaisePct:3, openSections:{ starthourly:true } });
 const H26 = await scenario(mkCapt(2026));
 const H27 = await scenario(mkCapt(2027));
 const H28 = await scenario(mkCapt(2028));
 check("year picker is present", () => has(H26.pay, "Show rates for"));
 check("2026 shows the published base", () => has(H26.pay, "$12,295"));
 check("2027 shows the rank-separated base", () => has(H27.pay, "$13,013"));
-check("2028 shows base after the assumed study", () => has(H28.pay, "$13,715"));
+check("2028 base reflects the bargaining assumption", () => has(H28.pay, "$13,715"));
 const H28c = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear:2028, ignoreSpeculativeRaises:true,
-  openSections:{ starthourly:true } });
-check("contract-only 2028 drops the assumed study", () => has(H28c.pay, "$13,316"));
+  retirementDateOverride:"2030-06-01", rateYear:2028, openSections:{ starthourly:true } });
+check("zero bargaining drops the assumed study from 2028", () => has(H28c.pay, "$13,316"));
 check("2026 base hourly to the cent", () => has(H26.pay, "$50.67/hr"));
 check("2027 base hourly to the cent", () => has(H27.pay, "$53.63/hr"));
 check("picking a future year explains what moved", () => has(H27.pay, "What moved between"));
@@ -225,7 +223,7 @@ console.log("\n-- MOU raises are shown, not typed --");
 check("2027 GWI stated", () => has(H26.pay, "Jan 2027 general wage increase"));
 check("2029 GWI stated", () => has(H26.pay, "Jan 2029 general wage increase"));
 check("cites the MOU article", () => has(H26.pay, "MOU Ch.2 Art.I.A"));
-check("2028 is still editable", () => has(H26.pay, "comp study"));
+check("the bargaining lever is on the pay tab too", () => has(H26.pay, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
   memberType:"classic", medicalTier:"2", classification:"Fire Plans Examiner", salaryStep:"H",
   retirementDateOverride:"2030-06-01", rateYear:2029, openSections:{ starthourly:true, startraises:true } });
@@ -377,25 +375,23 @@ check("range reaches their chosen retirement year", () => has(YOUNG.wait, "2047"
 console.log("\n-- what if I wait: no future-dollar headline --");
 const WD = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2028-09-28", ignoreSpeculativeRaises:true,
-  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+  retirementDateOverride:"2028-09-28", calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
   priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }] });
 check("take-home column is labelled today's dollars", () => has(WD.wait, "Take-home"));
 check("says every figure is in today's dollars", () => has(WD.wait, "Every figure here is in"));
 check("explains why raw future numbers are not shown", () => has(WD.wait, "would make waiting look better than it is"));
-check("offers the contract-only switch", () => has(WD.wait, "Only count raises that are actually in the contract"));
-check("switch is on by default", () => has(WD.wait, "Using the signed MOU increases for 2027 and 2029"));
-check("inflation rate is editable on the tab", () => has(WD.wait, "Inflation used to convert"));
-check("warns zero raises is itself a guess", () => has(WD.wait, "It is the floor, not"));
-check("tells you how to model flat real pay", () => has(WD.wait, "roughly keeps pace with inflation"));
+check("offers the bargaining lever", () => has(WD.wait, "Raises Local 1592 bargains"));
+check("offers the CPI lever", () => has(WD.wait, "CPI / inflation"));
+check("zero/zero says nothing is assumed", () => has(WD.wait, "Nothing is assumed"));
+check("zero/zero names what still moves", () => has(WD.wait, "service credit you earn"));
+check("keeps the contracted MOU raises in", () => has(WD.wait, "signed MOU increases for 2027 and 2029 are still in"));
 // switched off, it says what it is crediting you with
 const WDoff = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2028-09-28", ignoreSpeculativeRaises:false, raise2028:3, raiseAfterContract:3,
-  calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21" });
-check("off state names the unagreed raises", () => has(WDoff.wait, "neither of which has been agreed"));
-check("off state warns it flatters later years", () => has(WDoff.wait, "look better than the contract guarantees"));
-check("no floor warning when assumptions are on", () => lacks(WDoff.wait, "It is the floor, not"));
+  retirementDateOverride:"2028-09-28", unionRaisePct:3, inflationRate:2.5, calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21" });
+check("non-zero state states the assumptions", () => has(WDoff.wait, "What you are assuming"));
+check("compares pay growth against CPI", () => has(WDoff.wait, "beats inflation by") === true || has(WDoff.wait, "falls behind inflation by") === true || has(WDoff.wait, "keeps pace with inflation exactly") === true);
+check("no zero/zero banner when assumptions are set", () => lacks(WDoff.wait, "Nothing is assumed"));
 
 console.log("\n-- navigation --");
 check("five primary tabs", () => ["Start here","What if I wait?","Sick leave","Medical","Everything else"]

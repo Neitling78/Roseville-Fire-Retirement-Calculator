@@ -243,6 +243,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 22, 2026 (v11)", items: [
+    "Replaced the \u201conly count contracted raises\u201d checkbox with two dials you control, at the top of \u201cWhat if I wait\u201d: raises Local 1592 bargains (percent per year) and CPI / inflation (percent per year). Both start at zero.",
+    "At zero and zero, nothing is assumed. The only things moving those rows are the service credit you earn and, for PEPRA members, your age factor. The 2027 and 2029 increases stay in because they are in the signed MOU.",
+    "Set them equal \u2014 say 3 and 3 \u2014 and you are modeling pay that keeps pace with inflation. Set the raise lower than CPI and you are modeling falling behind. The panel tells you which of the three you are looking at.",
+    "The bargained-raise dial covers the 2028 compensation study and every year after the contract ends on 12/31/2029. It feeds the hourly-rate year picker too, so a 2031 rate reflects the same assumption.",
+    "The CPI dial does two jobs: it converts future dollars back to today\u2019s dollars, and it caps your retiree COLA, since the CalPERS COLA is limited by actual CPI.",
+  ] },
   { date: "September 22, 2026 (v10)", items: [
     "\u201cWhat if I wait\u201d is now in today\u2019s dollars only. The future-dollar figure is gone. A pension paid in 2035 arrives in 2035 dollars that buy less, and showing that number as the headline made waiting look better than it is.",
     "New switch, on by default: only count raises that are actually in the contract. The 2027 and 2029 increases are in the signed MOU. The 2028 compensation study has no number yet and there is no contract past 12/31/2029, so those are no longer credited to you unless you ask for them.",
@@ -758,10 +765,6 @@ export default function RFFRetirementCalculator() {
   const [currentSickLeaveHours, setCurrentSickLeaveHours] = useState(SAVED.currentSickLeaveHours ?? 0);
   // Which calendar year the hourly-rate card is showing.
   const [rateYear, setRateYear] = useState(SAVED.rateYear ?? new Date().getFullYear());
-  // The 2027 and 2029 increases are in the signed MOU. The 2028 compensation study has no
-  // number yet, and everything past 12/31/2029 has no contract at all. On by default so the
-  // tool does not quietly credit you with raises nobody has agreed to.
-  const [ignoreSpeculativeRaises, setIgnoreSpeculativeRaises] = useState(SAVED.ignoreSpeculativeRaises ?? true);
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
   // Service credit exactly as myCalPERS reports it, which is the authoritative number.
   // CalPERS service credit is earned on reported hours, so it does not have to equal calendar
@@ -790,14 +793,19 @@ export default function RFFRetirementCalculator() {
   // Planned retirement year (works alongside age; 0 = derive from age inputs)
   const [plannedRetirementYear, setPlannedRetirementYear] = useState(SAVED.plannedRetirementYear ?? 0);
   // Projected raises — % values. The MOU (1/1/26–12/31/29) sets 2027=0% and 2029=1.75%; 2028 defaults to 3% (Treasurer est.).
-  const [raise2028, setRaise2028] = useState(SAVED.raise2028 ?? 3);
+  // What Local 1592 wins at the table, as an annual percentage. Covers the 2028 compensation
+  // study (no figure agreed yet) and every year after the MOU expires 12/31/2029. Defaults to
+  // 0 so nothing is credited that has not been bargained.
+  const [unionRaisePct, setUnionRaisePct] = useState(SAVED.unionRaisePct ?? 0);
   // Contract ends 12/31/2029. Every year from 2030 on uses this assumed annual raise (compounds to retirement). ~3% historically steady.
-  const [raiseAfterContract, setRaiseAfterContract] = useState(SAVED.raiseAfterContract ?? SAVED.raiseAfter2030 ?? 3.0);
   // Tier 4 RHS account assumed annual investment return (member-adjustable). Default 5% —
   // moderate-conservative for a health/VEBA account that de-risks toward retirement.
   const [rhsReturn, setRhsReturn] = useState(SAVED.rhsReturn ?? 5);
   // Inflation assumption for the "today's dollars" view of retirement income.
-  const [inflationRate, setInflationRate] = useState(SAVED.inflationRate ?? 2.5);
+  // CPI. Drives the conversion to today's dollars and caps the retiree COLA (CalPERS pays the
+  // lesser of your contracted cap and actual CPI). Defaults to 0 so the tool starts with no
+  // assumptions at all — at 0 and 0, only service credit moves the numbers.
+  const [inflationRate, setInflationRate] = useState(SAVED.inflationRate ?? 0);
   // ── DERIVED VALUES ────────────────────────────────────────────────────────
   const hireYear = parseInt(hireDate.slice(0, 4), 10) || new Date().getFullYear();
   const hireMonth = parseInt(hireDate.slice(5, 7), 10) || 1;
@@ -873,11 +881,12 @@ export default function RFFRetirementCalculator() {
     let f = 1.0;
     // 2027 and 2029 are set by the MOU and differ by class, so they are not user inputs.
     if (y >= 2027) f *= (1 + mouGwiFor(2027, classification));
-    // 2028 is the Total Compensation Study — no number exists yet, so it stays an assumption.
-    if (y >= 2028) f *= (1 + (ignoreSpeculativeRaises ? 0 : (parseFloat(raise2028) || 0)) / 100);
+    // 2028 is the Total Compensation Study — no figure agreed, so it uses the bargaining lever.
+    const bargained = (parseFloat(unionRaisePct) || 0) / 100;
+    if (y >= 2028) f *= (1 + bargained);
     if (y >= 2029) f *= (1 + mouGwiFor(2029, classification));
-    // Contract ends 12/31/2029 — every year from 2030 on uses the post-contract assumption.
-    if (y >= 2030) f *= Math.pow(1 + (ignoreSpeculativeRaises ? 0 : (parseFloat(raiseAfterContract) || 0)) / 100, y - 2029);
+    // Contract ends 12/31/2029 — every year from 2030 on uses the same lever.
+    if (y >= 2030) f *= Math.pow(1 + bargained, y - 2029);
     return f;
   };
   // Rank separation per MOU Ch.2 Art.I.A (Engineer and Captain only, 2027+)
@@ -933,11 +942,11 @@ export default function RFFRetirementCalculator() {
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
       currentSickLeaveHours, rateYear, airtime,
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
-      ignoreSpeculativeRaises, sickLeaveDisposition, sickLeaveCustomCreditYears,
+      sickLeaveDisposition, sickLeaveCustomCreditYears,
       beneficiaryAge,
       modelPromotion, promotionAge, promotionClassification, promotionStep,
       plannedRetirementYear,
-      raise2028, raiseAfterContract, rhsReturn, inflationRate, openSections,
+      unionRaisePct, rhsReturn, inflationRate, openSections,
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
@@ -947,11 +956,11 @@ export default function RFFRetirementCalculator() {
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
     currentSickLeaveHours, rateYear, calpersCreditRoseville,
-    calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, ignoreSpeculativeRaises, sickLeaveDisposition, sickLeaveCustomCreditYears,
+    calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition, sickLeaveCustomCreditYears,
     beneficiaryAge,
     modelPromotion, promotionAge, promotionClassification, promotionStep,
     plannedRetirementYear,
-    raise2028, raiseAfterContract, rhsReturn, inflationRate, openSections,
+    unionRaisePct, rhsReturn, inflationRate, openSections,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults
   const resetAll = () => {
@@ -1280,7 +1289,7 @@ export default function RFFRetirementCalculator() {
     hireYear, retirementYear,
     currentYear: NOW.getFullYear(),
     baseAnnualNow: baseSalary * 12,
-    salaryGrowth: (parseFloat(raiseAfterContract) || 0) / 100,
+    salaryGrowth: (parseFloat(unionRaisePct) || 0) / 100,
     annualReturn: (parseFloat(rhsReturn) || 0) / 100,
   });
   // Total CalPERS-credited service for retiree-medical vesting: Roseville + same-system CalPERS
@@ -2389,13 +2398,13 @@ export default function RFFRetirementCalculator() {
                           )}
                           {shownRateYear >= 2028 && (
                             <>▸ <strong>Jan 2028</strong> — Total Compensation Study (amount not yet known; shown here at your
-                              assumption of {raise2028 || 0}%); alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer<br /></>
+                              bargaining assumption of {unionRaisePct || 0}%); alignment tightens to Engineer 10% above Paramedic, Captain 10% above Engineer<br /></>
                           )}
                           {shownRateYear >= 2029 && (
                             <>▸ <strong>Jan 2029</strong> — {isPreventionClass(classification) ? "prevention +3.0%" : "Firefighter Paramedic I/II and EMT I +1.75%"}<br /></>
                           )}
                           {shownRateYear >= 2030 && (
-                            <>▸ <strong>2030 onward</strong> — contract expired 12/31/2029; {raiseAfterContract || 0}%/yr assumed<br /></>
+                            <>▸ <strong>2030 onward</strong> — contract expired 12/31/2029; {unionRaisePct || 0}%/yr assumed<br /></>
                           )}
                           {shownRates.longevityPct > 0 && <>▸ Longevity at {pct(shownRates.longevityPct)} by {shownRateYear}<br /></>}
                         </div>
@@ -2444,18 +2453,14 @@ export default function RFFRetirementCalculator() {
                         so these follow your classification.
                       </div>
                     </div>
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Your assumptions</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                      <div>
-                        <label style={styles.label}>Jan 2028 (%) · comp study</label>
-                        <input type="number" step="0.25" style={styles.input} value={raise2028 || ""}
-                          onChange={e => setRaise2028(+e.target.value || 0)} />
-                      </div>
-                      <div>
-                        <label style={styles.label}>2030 onward (%/yr)</label>
-                        <input type="number" step="0.25" style={styles.input} value={raiseAfterContract || ""}
-                          onChange={e => setRaiseAfterContract(+e.target.value || 0)} />
-                      </div>
+                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>Your assumption</div>
+                    <label style={styles.label}>Raises Local 1592 bargains <span style={{ fontSize: "10px", color: COLORS.textDim }}>· %/yr</span></label>
+                    <input type="number" step="0.25" min={0} max={20} style={styles.input} value={unionRaisePct || ""} placeholder="0"
+                      onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))} />
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                      One figure covering the 2028 compensation study, which has no agreed number, and every
+                      year after the MOU expires 12/31/2029. At 0 the tool credits you with nothing beyond the
+                      signed contract. Same control as on the "What if I wait?" tab.
                     </div>
                     <div style={{ marginTop: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
                       <div style={styles.tableRow}>
@@ -2527,43 +2532,64 @@ export default function RFFRetirementCalculator() {
                 )}
                 {setupDone && retireYearOptions.length > 0 && (
                   <>
-                    <div style={{ marginBottom: "12px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
-                      <label style={{ ...styles.checkRow, marginBottom: "6px" }}>
-                        <input style={styles.checkbox} type="checkbox" checked={ignoreSpeculativeRaises}
-                          onChange={e => setIgnoreSpeculativeRaises(e.target.checked)} />
-                        <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
-                          Only count raises that are actually in the contract
-                        </span>
-                      </label>
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
-                        {ignoreSpeculativeRaises
-                          ? <>On. Using the signed MOU increases for 2027 and 2029 and nothing else — no figure
-                            for the 2028 compensation study, and no raises after the contract ends 12/31/2029.
-                            Turn it off to model assumptions instead.</>
-                          : <>Off. Also crediting you with {raise2028 || 0}% in 2028 and {raiseAfterContract || 0}%/yr
-                            from 2030 — neither of which has been agreed. That makes later years look better than
-                            the contract guarantees.</>}
+                    <div style={{ marginBottom: "14px", padding: "14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
+                      <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "10px" }}>
+                        Two assumptions, yours to set
                       </div>
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "11px", color: COLORS.textMuted }}>Inflation used to convert to today's dollars:</span>
-                        <input type="number" step="0.1" min={0} max={10} value={inflationRate || ""}
-                          onChange={e => setInflationRate(+e.target.value || 0)}
-                          style={{ ...styles.input, width: "70px", padding: "5px 8px", fontSize: "12px", margin: 0 }} />
-                        <span style={{ fontSize: "11px", color: COLORS.textMuted }}>%</span>
-                      </div>
-                      {ignoreSpeculativeRaises && (parseFloat(inflationRate) || 0) > 0 && (
-                        <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "10px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
-                          Be careful reading this as the truth. Counting zero raises after 2029 while still
-                          discounting by {inflationRate}% a year assumes your pay falls behind inflation every
-                          year forever, which is its own guess — just a pessimistic one. It is the floor, not
-                          the forecast.
-                          <div style={{ marginTop: "6px", color: COLORS.textMuted }}>
-                            If you think pay roughly keeps pace with inflation, untick the box and set the
-                            post-contract raise to {inflationRate}% under Everything else. The rows then show
-                            what waiting is worth on service and formula alone, with pay held flat in real terms.
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <label style={styles.label}>Raises Local 1592 bargains</label>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <input type="number" step="0.25" min={0} max={20} value={unionRaisePct || ""} placeholder="0"
+                              onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0 }} />
+                            <span style={{ fontSize: "12px", color: COLORS.textMuted }}>%/yr</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                            Covers the 2028 compensation study, which has no agreed figure, and every year
+                            after the MOU expires 12/31/2029.
                           </div>
                         </div>
-                      )}
+                        <div>
+                          <label style={styles.label}>CPI / inflation</label>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <input type="number" step="0.1" min={0} max={15} value={inflationRate || ""} placeholder="0"
+                              onChange={e => setInflationRate(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0 }} />
+                            <span style={{ fontSize: "12px", color: COLORS.textMuted }}>%/yr</span>
+                          </div>
+                          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                            Converts future pay into today's dollars, and caps your retiree COLA — CalPERS pays
+                            the lesser of your {pct(colaRate)} cap and actual CPI.
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "11px", marginTop: "12px", padding: "10px 12px", borderRadius: "8px", lineHeight: 1.7,
+                        background: (unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? "rgba(16,185,129,0.08)" : "rgba(37,99,235,0.08)",
+                        border: `1px solid ${(unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? "rgba(16,185,129,0.3)" : "rgba(37,99,235,0.28)"}`,
+                        color: COLORS.textMuted }}>
+                        {(unionRaisePct || 0) === 0 && (inflationRate || 0) === 0 ? (
+                          <><strong style={{ color: COLORS.green }}>Both at zero.</strong> Nothing is assumed. The only
+                          thing moving these rows is the service credit you earn and, for PEPRA, your age factor.
+                          The signed MOU increases for 2027 and 2029 are still in, because those are in the contract.</>
+                        ) : (
+                          <><strong style={{ color: COLORS.text }}>What you are assuming:</strong>{" "}
+                          {(unionRaisePct || 0) > 0 && <>{unionRaisePct}%/yr bargained</>}
+                          {(unionRaisePct || 0) > 0 && (inflationRate || 0) > 0 && " and "}
+                          {(inflationRate || 0) > 0 && <>{inflationRate}%/yr CPI</>}.
+                          {(unionRaisePct || 0) > 0 && (inflationRate || 0) > 0 && (
+                            Math.abs((unionRaisePct || 0) - (inflationRate || 0)) < 0.01
+                              ? <> Pay keeps pace with inflation exactly, so what is left in these rows is the
+                                effect of service and formula alone.</>
+                              : ((unionRaisePct || 0) > (inflationRate || 0)
+                                ? <> You are assuming pay beats inflation by {((unionRaisePct || 0) - (inflationRate || 0)).toFixed(2)} points a year.</>
+                                : <> You are assuming pay falls behind inflation by {((inflationRate || 0) - (unionRaisePct || 0)).toFixed(2)} points a year.</>)
+                          )}
+                          {(unionRaisePct || 0) > 0 && (inflationRate || 0) === 0 && <> With CPI at zero, every dollar here is already a today's dollar.</>}
+                          {(unionRaisePct || 0) === 0 && (inflationRate || 0) > 0 && <> No raises but positive CPI means real pay falls every year — a floor, not a forecast.</>}
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div style={{ overflowX: "auto" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "13px" }}>
@@ -2612,9 +2638,9 @@ export default function RFFRetirementCalculator() {
                       out-of-pocket. The tax rate is the one computed for your selected year, applied
                       across all rows — good enough to rank the years, not a tax return.
                       <div style={{ marginTop: "8px", color: COLORS.textMuted }}>
-                        Every figure here is in <strong style={{ color: COLORS.text }}>today's dollars</strong>, so the
-                        rows are comparable. A pension paid in 2035 arrives in 2035 dollars, which buy less — showing
-                        those raw numbers would make waiting look better than it is, so this table does not.
+                        Every figure here is in <strong style={{ color: COLORS.text }}>today's dollars</strong> at the CPI
+                        you set above, so the rows are comparable. A pension paid in 2035 arrives in 2035 dollars,
+                        which buy less — showing those raw numbers would make waiting look better than it is.
                       </div>
                     </div>
                   </>
@@ -3166,25 +3192,28 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>
-                        2028 <span style={{ color: COLORS.textDim, fontSize: "10px" }}>· comp study, est.</span>
+                        Raises Local 1592 bargains <span style={{ color: COLORS.gold, fontSize: "10px" }}>· %/yr, est.</span>
                       </label>
                       <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raise2028 || ""}
+                        value={unionRaisePct || ""}
                         placeholder="0"
-                        onChange={e => setRaise2028(parseFloat(e.target.value) || 0)} />
+                        onChange={e => setUnionRaisePct(Math.max(0, parseFloat(e.target.value) || 0))} />
                     </div>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>
-                        After contract (2030+) <span style={{ color: COLORS.gold, fontSize: "10px" }}>· est.</span>
+                        CPI / inflation <span style={{ color: COLORS.gold, fontSize: "10px" }}>· %/yr, est.</span>
                       </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={raiseAfterContract || ""}
-                        placeholder="3.0"
-                        onChange={e => setRaiseAfterContract(parseFloat(e.target.value) || 0)} />
+                      <input style={styles.input} type="number" step="0.1" min={0} max={15}
+                        value={inflationRate || ""}
+                        placeholder="0"
+                        onChange={e => setInflationRate(Math.max(0, parseFloat(e.target.value) || 0))} />
                     </div>
                   </div>
                   <div style={{ ...styles.certNote, marginLeft: "0" }}>
-                    The MOU runs through 12/31/2029. Every year from 2030 until you retire uses the "After contract" rate — historically ~3%/yr has been steady. Set to 0 for none.
+                    The MOU's 2027 and 2029 increases are contractual and always applied. The bargaining figure
+                    covers the 2028 compensation study and every year from 2030 on. CPI converts future pay to
+                    today's dollars and caps your retiree COLA. Both at 0 means nothing is assumed — only the
+                    service credit you earn changes the numbers.
                   </div>
                   {retirementYear >= 2027 && (
                     <div style={{ marginTop: "10px", padding: "12px", background: "rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "12px" }}>
