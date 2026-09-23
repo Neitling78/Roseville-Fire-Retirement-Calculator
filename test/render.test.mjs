@@ -743,13 +743,48 @@ check("and the retired gross follows it", () => has(HD2.member, "$13,774"));
 // $16,291 while the table two inches below it read $17,483.
 console.log("\n-- header working gross matches the table --");
 const headerWorkingGross = (txt) => {
-  const m = txt.match(/While working Gross (\$[\d,]+) Take home (\$[\d,]+)/);
+  const m = txt.match(/While working · \d+ Gross (\$[\d,]+) Take home (\$[\d,]+)/);
   return m && { gross: m[1], net: m[2] };
 };
 const tableGross = (txt) => {
   const m = txt.match(/Gross pay \$[\d.,]+ (\$[\d,]+) \$[\d,]+/);
   return m && m[1];
 };
+
+// ── The year picker drives the header, not just the table ──────────────────
+// The picker sat above a table that changed while the biggest number on the screen
+// did not, and nothing said they were on different clocks.
+console.log("\n-- the year picker moves the header --");
+{
+  const yr = {};
+  for (const y of [2026, 2027, 2028]) {
+    const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: y,
+      lmaPct: 5, hasBachelor: true, hasParamedic: true });
+    const h = headerWorkingGross(S.comp), t = tableGross(S.comp);
+    yr[y] = { h, t, txt: S.comp, member: S.member };
+    check(`${y}: header names the year`, () => has(S.comp, `While working \u00b7 ${y}`));
+    check(`${y}: header gross equals the table total`, () => {
+      if (!h) return "could not read the header";
+      if (!t) return "could not read the table total";
+      return h.gross === t || `header ${h.gross} vs table ${t}`;
+    });
+  }
+  check("the header actually moves between years", () =>
+    (yr[2026].h.gross !== yr[2027].h.gross && yr[2027].h.gross !== yr[2028].h.gross)
+    || `stuck: ${yr[2026].h.gross} / ${yr[2027].h.gross} / ${yr[2028].h.gross}`);
+  check("take-home moves with it", () =>
+    yr[2026].h.net !== yr[2028].h.net || `stuck at ${yr[2026].h.net}`);
+  check("the picked year carries to other tabs", () =>
+    has(yr[2028].member, "While working \u00b7 2028"));
+  // Past the retirement year a member is not working, and the retired half of the header is
+  // pinned there, so the two halves would be comparing different years.
+  const PAST = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2029 });
+  check("a year past retirement clamps to the retirement year", () =>
+    has(PAST.comp, "While working \u00b7 2028"));
+  check("and says why", () => has(PAST.comp, "you retire in 2028"));
+  check("the current year still reads as today", () => has(yr[2026].txt, "today, with your overtime"));
+}
+
 for (const ot of [0, 40]) {
   const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: ot, rateYear: 2026,
     hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
@@ -801,7 +836,7 @@ const mk457 = (annual457Contrib) => ({ setupDone:true, hireDate:"2003-01-01", do
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-12-31", retirementAge:50, currentOTHours:40, annual457Contrib });
 const hdr = (t) => {
-  const w = t.match(/While working Gross \$[\d,]+ Take home (\$[\d,]+)/);
+  const w = t.match(/While working · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
   const r = t.match(/While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
   return { work: w && w[1], ret: r && r[1] };
 };
@@ -824,7 +859,7 @@ check("the retirement figure ignores the 457 entirely", () =>
 console.log("\n-- stay or go: internal consistency --");
 const money = (x) => x == null ? null : +String(x).replace(/[^0-9.\-]/g, "");
 const sgRead = (t) => {
-  const h = t.match(/While working Gross \$[\d,]+ Take home (\$[\d,]+) today.*?While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
+  const h = t.match(/While working · \d+ Gross \$[\d,]+ Take home (\$[\d,]+) .*?While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
   const c = t.match(/Retired in \d+ · pension after tax and medical (\$[\d,]+)\/mo/);
   const v = t.match(/(The cut|You come out ahead) [−+-]?(\$[\d,]+)\/mo/);
   return { hdrWork: money(h && h[1]), hdrRet: money(h && h[2]), cardRet: money(c && c[1]), delta: money(v && v[2]) };

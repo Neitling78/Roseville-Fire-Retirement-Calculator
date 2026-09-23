@@ -266,6 +266,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 23, 2026 (v36)", items: [
+    "<strong>The year picker now moves the header.</strong> Clicking 2026 / 2027 / 2028 on Current compensation changed the table underneath while the biggest number on the screen sat still, and nothing told you they were on different clocks. The header\u2019s <em>While working</em> pair now follows the year you picked, and the label says which year it is.",
+    "Past your retirement year it clamps back \u2014 you are not working then, and the retired half of the header is pinned to your retirement year, so the two halves would have been comparing different years.",
+    "Both numbers are now built by one function instead of two. The header and the Current compensation total physically cannot disagree any more, and a test fails if they ever do.",
+  ] },
   { date: "September 23, 2026 (v35)", items: [
     "<strong>Fixed a real error: the Unmodified Allowance does not leave your spouse nothing.</strong> CalPERS pays an eligible survivor half your unmodified allowance for life, the City funds it, it costs you nothing, and it is identical under every option. This tool used to say Option 1 meant \u201cno survivor benefit.\u201d That was wrong, and it would have pushed members into paying for a benefit they partly already had.",
     "Rebuilt the option election on Deductions as a full comparison table \u2014 all six options CalPERS offers, what each pays you, what your spouse ends up with, and what it costs you. Tap a row to elect it; the panel underneath explains what you just picked.",
@@ -1731,6 +1736,25 @@ export default function RFFRetirementCalculator() {
   const otHourlyRate = flsaRegularHourly * 1.5;                                 // time-and-a-half
   const otMonthly = otHoursMonthly * otHourlyRate;
   const salaryWithOT = workingGrossNoOT + otMonthly;
+  // ── WORKING PAY FOR ANY YEAR — ONE SOURCE ────────────────────────────────
+  // The Current compensation table and the sticky header both read this. They used to build
+  // the same total two different ways and disagreed by $1,192/mo. Never again: if this is
+  // wrong, it is wrong in both places at once, and a test catches it.
+  const workingPayForYear = (y) => {
+    const R = ratesForYear(y);
+    const H = FLSA_56HR_MONTHLY_HOURS;
+    // calcIncentives folds longevity INTO totalIncentivePct, so pull it back out before
+    // giving longevity its own line — otherwise it is counted twice.
+    const lonPct = R.inc.breakdown.filter(b => !b.note && /^Longevity/.test(b.label))
+      .reduce((t, b) => t + (b.pct || 0), 0);
+    const specialtyPct = Math.max(0, R.incentivePct - lonPct);
+    const holiday = memberType === "classic" ? (R.base / H) * (1 + lonPct) * HOLIDAY_HOURS / 12 : 0;
+    const uniform = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
+    const flsa = memberType === "classic" ? R.base * FLSA_OT_PENSIONABLE_PCT : 0;
+    const ot = otHoursMonthly * R.flsaOT;
+    const pensionable = R.base * (1 + R.incentivePct) + holiday + uniform + flsa;
+    return { R, H, lonPct, specialtyPct, holiday, uniform, flsa, ot, pensionable, gross: pensionable + ot };
+  };
   const longevityMonthlyNow = (memberType === "classic" && showLongevity) ? baseSalary * LONGEVITY(yearsOfService) : 0;
   const contractOTHourly = ((baseSalary + longevityMonthlyNow) / FLSA_56HR_MONTHLY_HOURS) * 1.5;
   // ── INCOME TAX (estimate) — separate household for working vs. retirement ──
@@ -1827,6 +1851,20 @@ export default function RFFRetirementCalculator() {
   // True working take-home: base + incentives + your overtime, net of income tax (on salary+OT) and the
   // deductions already in currentTakeHome (PERS, 457, dues, medical). Overtime ends at retirement.
   const workingTakeHome = Math.max(0, currentTakeHome + otMonthly - taxSalaryOT.tax / 12);
+  // ── THE HEADER'S "WHILE WORKING" PAIR ────────────────────────────────────
+  // Follows the Current compensation year picker, so the biggest number on the screen moves
+  // when a member clicks 2027 or 2028. Clamped at the retirement year: past that they are not
+  // working, and the retired half of the header is pinned there, so the two would be comparing
+  // different years. Deductions scale the way they really do — the CalPERS member rate is a
+  // percentage of that year's pensionable pay; dues, 457 and medical are flat.
+  const headerWorkYear = retirementYear ? Math.min(shownRateYear, retirementYear) : shownRateYear;
+  const headerWorkClamped = retirementYear > 0 && shownRateYear > retirementYear;
+  const headerPay = workingPayForYear(headerWorkYear);
+  const headerCalPERSContrib = headerPay.pensionable * (memberType === "classic" ? 0.09 : 0.115);
+  const headerPreTax = effectiveMember457 + headerCalPERSContrib * 12;
+  const headerWorkTakeHome = Math.max(0, headerPay.gross - headerCalPERSContrib
+    - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP
+    - taxScenario(headerPay.gross * 12, headerPreTax, true).tax / 12);
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
   const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
   const takeHomeDiff = totalMonthlyTakeHome - workingTakeHome;
@@ -2042,8 +2080,11 @@ export default function RFFRetirementCalculator() {
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 20px",
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? "8px" : "16px" }}>
           {[
-            { label: "While working", sub: "today, with your overtime",
-              gross: salaryWithOT, net: workingTakeHome, tone: COLORS.text },
+            { label: `While working \u00b7 ${headerWorkYear}`,
+              sub: headerWorkClamped ? `your last year \u2014 you retire in ${retirementYear}`
+                : headerWorkYear === NOW.getFullYear() ? "today, with your overtime"
+                : "at that year's pay, with your overtime",
+              gross: headerPay.gross, net: headerWorkTakeHome, tone: COLORS.text },
             { label: `While retired${retirementYear ? " · " + retirementYear : ""}`,
               sub: survivorOption === "unmod" ? "unmodified allowance" : `${survivorChosen.short} elected`,
               gross: combinedPensionMonthly, net: totalMonthlyTakeHome, tone: COLORS.green },
@@ -2679,19 +2720,12 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "comp" && setupDone && (() => {
-              const H = FLSA_56HR_MONTHLY_HOURS;                       // 242.67 scheduled hrs/mo
+              // Same builder the sticky header uses, so the two can never drift apart.
               // Every figure follows the year picker: MOU general wage increases, the 2028 Labor
               // Market Adjustment you set, and the rank separation are all inside projectedBaseForYear.
-              const R = shownRates;
+              const P = workingPayForYear(shownRateYear);
+              const { H, R, lonPct, specialtyPct, holiday: yHoliday, ot: yOT } = P;
               const yBase = R.base;
-              // calcIncentives folds longevity INTO totalIncentivePct, so it must be pulled back out
-              // before longevity gets its own row — otherwise it is counted twice.
-              const lonPct = R.inc.breakdown
-                .filter(b => !b.note && /^Longevity/.test(b.label))
-                .reduce((t, b) => t + (b.pct || 0), 0);
-              const specialtyPct = Math.max(0, R.incentivePct - lonPct);
-              const yHoliday = memberType === "classic" ? (yBase / H) * (1 + lonPct) * HOLIDAY_HOURS / 12 : 0;
-              const yOT = otHoursMonthly * R.flsaOT;
               const rows = [
                 { k: "Base salary", sub: `${classification}, Step ${salaryStep}, Schedule ${scheduleLetter}`,
                   m: yBase, hourly: true, pens: true },
