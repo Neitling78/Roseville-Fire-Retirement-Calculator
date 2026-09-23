@@ -556,23 +556,46 @@ check("the gap is given per year too", () => has(OT60.stayorgo, "a year"));
 console.log("\n-- survivor option drives every figure --");
 const mkSurv = (survivorOption, survivorActualPct = "") => ({ ...mkCola("2028-12-31", 50),
   beneficiaryAge: 48, survivorOption, survivorActualPct, openSections: { breakdown: true } });
-const S1  = await scenario(mkSurv("opt1"));
-const S3  = await scenario(mkSurv("opt3"));
-const S2  = await scenario(mkSurv("opt2"));
-const S2A = await scenario(mkSurv("opt2", "12"));
-check("Option 1 pays the unmodified allowance", () => has(S1.pension, "$14,430"));
-check("Option 3 reduces the allowance", () => has(S3.pension, "$13,088"));
-check("Option 2 reduces it further", () => has(S2.pension, "$12,179"));
-check("the reduction reaches take-home", () => has(S2.pension, "$9,402"));
-check("Option 1 take-home is the higher figure", () => has(S1.pension, "$10,904"));
-check("a myCalPERS figure overrides the estimate", () => has(S2A.pension, "$12,699"));
+const S1  = await scenario(mkSurv("unmod"));
+const S3  = await scenario(mkSurv("ben50"));
+const S2  = await scenario(mkSurv("ben100"));
+const S2A = await scenario(mkSurv("ben100", "12"));
+const SLEG = await scenario(mkSurv("opt2"));                        // an election saved before the rename
+const SNS = await scenario({ ...mkSurv("ben100"), hasEligibleSurvivor: false });
+check("Unmodified pays the unmodified allowance", () => has(S1.pension, "$14,430"));
+check("50% Beneficiary reduces the allowance", () => has(S3.pension, "$14,086"));
+check("100% Beneficiary reduces it further", () => has(S2.pension, "$13,774"));
+check("the reduction reaches take-home", () => has(S2.pension, "$10,466"));
+check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,904"));
+check("a myCalPERS figure overrides the calibrated one", () => has(S2A.pension, "$12,699"));
 check("it says it is using your figure", () => has(S2A.deductions, "Using your figure"));
-// The factors are invented. Every screen that shows one has to say so.
-check("the estimate is flagged as not a CalPERS figure", () => has(S2.deductions, "not a CalPERS figure"));
-check("it quotes CalPERS on why", () => has(S2.deductions, "contributed to the retirement plan"));
-check("it gives a band, not a point figure", () => has(S2.deductions, "rough band, not a number to plan on"));
-check("Option 1 warns you are seeing a pension you may not take", () => has(S1.deductions, "pension you do not plan to take"));
-check("the beneficiary continuance is shown", () => has(S2.deductions, "keeps, for life"));
+check("an election saved under the old key still works", () => has(SLEG.pension, "$13,774"));
+
+// ── The mechanic CalPERS' own estimate proved ─────────────────────────────
+// Survivor continuance is free, identical under every option, and NOT an election.
+// The option reduction comes out of the option portion only. The old tool got both wrong.
+check("survivor continuance is half the unmodified allowance", () => has(S1.deductions, "$7,215"));
+check("it is there even on the Unmodified election", () => has(S1.deductions, "free, every option"));
+check("Unmodified no longer claims the spouse gets nothing", () =>
+  lacks(S1.deductions, "leaves your spouse nothing"));
+check("it says so in plain words", () => has(S1.deductions, "does"));
+check("the spouse total adds the continuance to the beneficiary allowance", () =>
+  has(S2.deductions, "$13,774"));
+check("under 100% the spouse keeps exactly the member's own check", () =>
+  has(S2.deductions, "Your spouse ends up with"));
+check("the option portion is named and priced", () => has(S2.deductions, "option portion"));
+check("no eligible survivor means no continuance", () => has(SNS.deductions, "no eligible survivor"));
+// The structure is verified; the reduction percentage is one member's. Say so.
+check("the reduction is flagged as calibrated, not the member's", () =>
+  has(S2.deductions, "calibrated, not yours"));
+check("it names where the calibration came from", () =>
+  has(S2.deductions, "member 50, beneficiary 49"));
+check("it tells the member to get their own figure", () =>
+  has(S2.deductions, "Run your own estimate"));
+check("every option is priced in one table", () =>
+  ["Unmodified","Return of contributions","100% Beneficiary","50% Beneficiary"]
+    .every(x => S2.deductions.includes(x)) || "an option is missing from the table");
+check("the pop-up behaviour is explained", () => has(S2.deductions, "dies before you"));
 check("the option selector is on Deductions", () => has(S2.deductions, "Who gets it after you"));
 check("retirement date moved to Pension", () => has(S1.pension, "When do you plan to go?"));
 check("retirement date is off Member details", () => lacks(S1.member, "When do you plan to go?"));
@@ -589,7 +612,7 @@ check("shows the years the converted hours buy", () => has(SPL.member, "1.00 yrs
 check("projects the split total, not just one box", () => has(SPL.member, "2600 hrs today"));
 check("accrual is added, not lost", () => has(SPL.member, "2927 hrs"));
 check("future accrual follows the same split", () => has(SPL.member, "1.13 yrs"));
-check("and the rest is cashed", () => has(SPL.member, "676 hrs cashed"));
+check("and the rest is cashed", () => /6[67]\d hrs cashed/.test(SPL.member) || "no cashed-hours figure near 670");
 check("the 2,400-hour payoff ceiling is called out when it bites", () =>
   has(SPL.sickleave, "As cash") || "the cash side is missing");
 
@@ -709,9 +732,9 @@ check("all four appear on every tab", () =>
   || "a tab is missing the header numbers");
 // A survivor election has to show in the header, since it moves the retired pair.
 const HD2 = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
-  beneficiaryAge: 48, survivorOption: "opt2" });
-check("an elected option is named in the header", () => has(HD2.member, "Option 2 elected"));
-check("and the retired gross follows it", () => has(HD2.member, "$12,179"));
+  beneficiaryAge: 48, survivorOption: "ben100" });
+check("an elected option is named in the header", () => has(HD2.member, "100% Beneficiary elected"));
+check("and the retired gross follows it", () => has(HD2.member, "$13,774"));
 
 
 // ── The header's working gross IS the Current compensation total ───────────

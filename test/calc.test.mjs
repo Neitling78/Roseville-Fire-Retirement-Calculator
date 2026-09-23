@@ -196,5 +196,54 @@ eq("PEPRA factor at a true 53", pepraFactor(53), 0.023, 1e-9);
 eq("PEPRA factor at the drifted 52.75", pepraFactor(52.75), 0.02275, 1e-9);
 eq("the drift cost 0.025% per year of service", pepraFactor(53) - pepraFactor(52.75), 0.00025, 1e-9);
 
+
+// ── CalPERS allowance options: reproduce a real myCalPERS estimate to the dollar ──
+// Source: a Roseville member's own myCalPERS Planning Calculator run, September 2026 —
+// local safety, retiring at 50, beneficiary 49. CalPERS printed the six rows asserted
+// below. If this block fails, the option model has drifted off the only real CalPERS
+// output we have, and the numbers on the Deductions tab are no longer trustworthy.
+console.log("\n-- CalPERS option table (verified against myCalPERS) --");
+{
+  const UNMOD = 17728;
+  const sc = UNMOD * M.SURVIVOR_CONTINUANCE_PCT;
+  const portion = UNMOD - sc;
+  const reduced = (k) => portion * (1 - M.OPTION_PORTION_REDUCTION[k]);
+  const member = (k) => k === "roc" ? UNMOD * (1 - M.ROC_FULL_REDUCTION) : sc + reduced(k);
+
+  eq("survivor continuance is half the unmodified allowance", sc, 8864, 0.5);
+  eq("the option portion is the other half", portion, 8864, 0.5);
+
+  // Member column — every row CalPERS printed.
+  eq("Unmodified", member("unmod"), 17728, 0.5);
+  eq("Return of Remaining Contributions", member("roc"), 17670, 0.5);
+  eq("100% Beneficiary", member("ben100"), 16922, 0.5);
+  eq("100% Beneficiary w/Increase", member("ben100w"), 16865, 0.5);
+  eq("50% Beneficiary", member("ben50"), 17305, 0.5);
+  eq("50% Beneficiary w/Increase", member("ben50w"), 17275, 0.5);
+
+  // Beneficiary column. THIS is what proves the reduction comes out of the option
+  // portion only — if it came off the whole allowance these would both be wrong.
+  eq("100% beneficiary allowance", reduced("ben100") * 1.00, 8058, 1);
+  eq("50% beneficiary allowance", reduced("ben50") * 0.50, 4221, 1);
+  eq("100% w/Increase beneficiary allowance", reduced("ben100w") * 1.00, 8002, 1.5);
+  eq("50% w/Increase beneficiary allowance", reduced("ben50w") * 0.50, 4205, 1.5);
+
+  // A spouse who is both the eligible survivor and the named beneficiary collects both,
+  // and under the 100% election that adds back to exactly what the member was drawing.
+  eq("spouse total under 100% = the member's own check", sc + reduced("ben100"), member("ben100"), 1);
+
+  // The pop-up is cheap, and the tool should never lose that.
+  eq("the 100% pop-up costs about $57/mo", member("ben100") - member("ben100w"), 57, 1);
+  eq("the 50% pop-up costs about $30/mo", member("ben50") - member("ben50w"), 30, 1);
+
+  // Taking the maximum does not zero out the spouse — the old tool said it did.
+  eq("Unmodified still leaves the survivor half", sc, 8864, 0.5);
+
+  // Old saved elections must survive the rename to myCalPERS wording.
+  eq("legacy opt1 migrates to unmod", M.LEGACY_OPTION_KEYS.opt1, "unmod");
+  eq("legacy opt2 migrates to ben100", M.LEGACY_OPTION_KEYS.opt2, "ben100");
+  eq("legacy opt3w migrates to ben50w", M.LEGACY_OPTION_KEYS.opt3w, "ben50w");
+}
+
 console.log("\n"+(fail?"!! ":"")+pass+" passed, "+fail+" failed\n");
 process.exit(fail?1:0);

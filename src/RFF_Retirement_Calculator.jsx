@@ -266,6 +266,14 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 23, 2026 (v35)", items: [
+    "<strong>Fixed a real error: the Unmodified Allowance does not leave your spouse nothing.</strong> CalPERS pays an eligible survivor half your unmodified allowance for life, the City funds it, it costs you nothing, and it is identical under every option. This tool used to say Option 1 meant \u201cno survivor benefit.\u201d That was wrong, and it would have pushed members into paying for a benefit they partly already had.",
+    "Rebuilt the option election on Deductions as a full comparison table \u2014 all six options CalPERS offers, what each pays you, what your spouse ends up with, and what it costs you. Tap a row to elect it; the panel underneath explains what you just picked.",
+    "The option reduction now comes out of the <strong>option portion</strong> only \u2014 the half of the allowance above the survivor continuance \u2014 not out of the whole allowance. Verified against a member\u2019s own myCalPERS estimate: the model now reproduces all six rows CalPERS printed, to the dollar.",
+    "Retired the invented option factors. The reduction percentages are now calibrated from that verified estimate and labelled as one member\u2019s, at one pair of ages, with the myCalPERS override still there and easier to find.",
+    "Options renamed to match myCalPERS wording (Unmodified Allowance, Return of Remaining Contributions, 100% / 50% Beneficiary, with and without Allowance Increase). Elections saved under the old names carry over.",
+    "New question: do you have an eligible survivor? A spouse qualifies if you were married at least a year before your retirement date. Answer no and the continuance drops to zero, which changes every figure below it.",
+  ] },
   { date: "September 22, 2026 (v34)", items: [
     "Removed two screens from More that nothing on the main calculator used: Pension detail and Timeline. Old links to them now land on Pension and Stay or go.",
     "Moved the year-by-year pension growth table (up to the COLA cap, first raise May 1 of the second calendar year after you retire) onto the Pension tab, so that view is still one tap away.",
@@ -650,44 +658,57 @@ function calcSickLeavePayoff(hours, hourlyRate) {
   return payableHours * hourlyRate * tier.pct;
 }
 // ─── CalPERS RETIREMENT ALLOWANCE OPTIONS ────────────────────────────────
-// Approximation of CalPERS Option Factor tables based on age. Real factors come
-// from CalPERS actuarial tables (proprietary). These match CalPERS output to within
-// ~1-2 percentage points for safety members at typical retirement ages.
+// VERIFIED against a Roseville member's own myCalPERS Planning Calculator estimate,
+// September 2026 — local safety, retiring at 50, beneficiary aged 49. CalPERS printed:
 //
-// Pattern:
-//   - Younger member at retirement → larger reduction (longer expected payout)
-//   - Beneficiary younger than member → larger reduction (longer expected survivor period)
-//   - Pop-up options cost slightly more than non-pop-up (the pop-up insurance)
-// ⚠ THESE ARE ESTIMATES, NOT CalPERS OPTION FACTORS.
-// CalPERS does not publish a lookup table. Per CalPERS: "The cost of each option is specific to
-// you and depends on factors such as your age, your beneficiary's age, life expectancies, and how
-// much you've contributed to the retirement plan." Individual contribution balances cannot be
-// derived here, so no formula can reproduce the real number. The shape below (bigger reduction the
-// younger you retire, bigger again the younger your beneficiary) is directionally right; the exact
-// figure is not. Every screen that shows it must say so, and must point the member at myCalPERS.
-// A member who enters their real reduction from a myCalPERS estimate overrides all of this.
-const OPTION_ESTIMATE_BAND = 0.35;   // ± band shown to the member, as a fraction of the reduction
-function calcOptionFactors(memberAge, beneficiaryAge) {
-  const ageDiff = memberAge - beneficiaryAge;          // + if beneficiary younger
-  const youngFactor = Math.max(0, 60 - memberAge);     // how much younger than 60
-  // Option 2 — 100% Joint & Survivor (member's allowance reduced; 100% to survivor)
-  const opt2Reduction = Math.max(0.02, 0.07 + youngFactor * 0.008 + ageDiff * 0.003);
-  const opt2 = 1 - opt2Reduction;
-  // Option 2W — 100% J&S with pop-up (returns to Option 1 if beneficiary dies first)
-  const opt2w = opt2 - 0.015;
-  // Option 3 — 50% Joint & Survivor
-  const opt3Reduction = Math.max(0.01, 0.04 + youngFactor * 0.005 + ageDiff * 0.0015);
-  const opt3 = 1 - opt3Reduction;
-  // Option 3W — 50% J&S with pop-up
-  const opt3w = opt3 - 0.008;
-  return {
-    opt1: 1.000, // Unmodified
-    opt2: Math.min(1, Math.max(0.65, opt2)),
-    opt2w: Math.min(1, Math.max(0.65, opt2w)),
-    opt3: Math.min(1, Math.max(0.80, opt3)),
-    opt3w: Math.min(1, Math.max(0.80, opt3w)),
-  };
-}
+//   Option                            Member     Beneficiary   Survivor   If ben. dies first
+//   Unmodified Allowance              $17,728    —             $8,864     n/a
+//   Return of Remaining Contributions $17,670    —             $8,864     n/a
+//   100% Beneficiary                  $16,922    $8,058        $8,864     $16,922
+//   100% Beneficiary w/Increase       $16,865    $8,002        $8,864     $17,728
+//   50% Beneficiary                   $17,305    $4,221        $8,864     $17,305
+//   50% Beneficiary w/Increase        $17,275    $4,205        $8,864     $17,728
+//
+// Two mechanics fall straight out of those numbers. They are facts now, not guesses:
+//
+// 1. SURVIVOR CONTINUANCE is half the unmodified allowance, it is employer-paid, and it is
+//    IDENTICAL under every option — $8,864 in all six rows. CalPERS: it is "paid to an eligible
+//    survivor in addition to and regardless of which retirement payment option you elect."
+//    It costs the member nothing and is not an election. The old version of this file told
+//    members the Unmodified Allowance left a spouse nothing. That was wrong.
+//
+// 2. THE OPTION REDUCTION APPLIES ONLY TO THE OPTION PORTION — the part of the allowance above
+//    the survivor continuance. Proof: 17,728 − 8,864 = 8,864 option portion. The 100% Beneficiary
+//    reduction is 17,728 − 16,922 = 806, and 8,864 − 806 = 8,058 — exactly the beneficiary figure
+//    CalPERS printed. The 50% row proves it again: 17,728 − 17,305 = 423; 8,864 − 423 = 8,441;
+//    half of 8,441 = 4,221, again exact. Reproduces all six rows to the dollar.
+//
+// THE FACTORS BELOW ARE ONE MEMBER'S, AT ONE PAIR OF AGES. CalPERS option factors move with both
+// the member's age and the beneficiary's age, and CalPERS publishes no table. A younger beneficiary
+// is expected to collect longer, so their reduction is larger; an older beneficiary's is smaller.
+// We do not model that curve — one data point cannot produce one, and inventing a curve is exactly
+// what this file used to do. Every screen says these are calibrated from a single verified estimate
+// and points the member at their own. A myCalPERS figure typed in overrides them everywhere.
+//
+// Survivor continuance also requires (a) an eligible survivor and (b) that the employer contracted
+// for the benefit. Eligible spouse: "married to the member at least one year prior to the retirement
+// date and continuously to the date of death" (CalPERS PUB 60). The member answers (a) on screen.
+const SURVIVOR_CONTINUANCE_PCT = 0.50;
+const OPTION_FACTOR_ANCHOR = "verified myCalPERS estimate · member 50, beneficiary 49";
+// Reduction as a fraction of the OPTION PORTION (not of the whole allowance).
+const OPTION_PORTION_REDUCTION = {
+  unmod:   0,
+  ben100:  806 / 8864,   //  9.09%
+  ben100w: 863 / 8864,   //  9.74%
+  ben50:   423 / 8864,   //  4.77%
+  ben50w:  453 / 8864,   //  5.11%
+};
+// Return of Remaining Contributions is not a joint-and-survivor factor — it is priced off the
+// contribution balance, so it reduces the FULL allowance, not the option portion.
+const ROC_FULL_REDUCTION = 58 / 17728;   // 0.33%
+const OPTION_ESTIMATE_BAND = 0.35;       // ± band shown, since the member's ages will differ
+// Old saved elections, before the options were renamed to match myCalPERS.
+const LEGACY_OPTION_KEYS = { opt1: "unmod", opt2: "ben100", opt2w: "ben100w", opt3: "ben50", opt3w: "ben50w" };
 function calcBracketTax(taxable, brackets) {
   if (taxable <= 0) return 0;
   let tax = 0, lower = 0;
@@ -998,7 +1019,9 @@ export default function RFFRetirementCalculator() {
   // Which CalPERS allowance option the member intends to elect. Most members take a reduced
   // allowance to leave a continuance to a spouse, so this has to drive every figure in the tool,
   // not sit in a table nobody reads.
-  const [survivorOption, setSurvivorOption] = useState(SAVED.survivorOption ?? "opt1");
+  const [survivorOption, setSurvivorOption] = useState(
+    LEGACY_OPTION_KEYS[SAVED.survivorOption] || SAVED.survivorOption || "unmod");
+  const [hasEligibleSurvivor, setHasEligibleSurvivor] = useState(SAVED.hasEligibleSurvivor ?? true);
   // The member's REAL reduction, off their myCalPERS estimate, as a percent. Blank = use the
   // estimate above and label it as such.
   const [survivorActualPct, setSurvivorActualPct] = useState(SAVED.survivorActualPct ?? "");
@@ -1164,6 +1187,7 @@ export default function RFFRetirementCalculator() {
       beneficiaryAge,
       plannedRetirementYear,
       unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
+      hasEligibleSurvivor,
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
@@ -1178,6 +1202,7 @@ export default function RFFRetirementCalculator() {
     beneficiaryAge,
     plannedRetirementYear,
     unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
+    hasEligibleSurvivor,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults
   const resetAll = () => {
@@ -1469,38 +1494,69 @@ export default function RFFRetirementCalculator() {
   const pension50Monthly = pensionableForPension * pensionPct;     // Roseville-formula bucket (capped at 90%)
   // Option 1 / Unmodified — the maximum CalPERS will pay, and the figure myCalPERS quotes first.
   const monthlyPensionUnmodified = pensionableForPension * calpersTotalPct;
-  // CalPERS allowance option factors (member age + beneficiary age determine reduction)
+  // ── SURVIVOR CONTINUANCE AND THE OPTION ELECTION ─────────────────────────
+  // Two different things that members constantly conflate. Survivor continuance is a STATUS —
+  // employer-paid, half the unmodified allowance, the same under every option, costing nothing.
+  // The option election is a PURCHASE — you take a smaller check to leave a continuing allowance.
+  // A spouse who is both gets both, and they add. See the verified table at the top of this file.
   const effectiveBeneficiaryAge = beneficiaryAge > 0 ? beneficiaryAge : retirementAge;
-  const optionFactors = calcOptionFactors(retirementAge, effectiveBeneficiaryAge);
+  const survivorContinuance = hasEligibleSurvivor ? monthlyPensionUnmodified * SURVIVOR_CONTINUANCE_PCT : 0;
+  const optionPortion = monthlyPensionUnmodified - survivorContinuance;
+  const mkOption = (key, label, short, benPct, popUp, note) => {
+    const red = OPTION_PORTION_REDUCTION[key] || 0;
+    const reducedPortion = optionPortion * (1 - red);
+    const memberMonthly = key === "roc"
+      ? monthlyPensionUnmodified * (1 - ROC_FULL_REDUCTION)
+      : survivorContinuance + reducedPortion;
+    const beneficiaryMonthly = benPct > 0 ? reducedPortion * benPct : 0;
+    return {
+      key, label, short, benPct, note, reduction: red,
+      memberMonthly,
+      beneficiaryMonthly,
+      survivorMonthly: survivorContinuance,
+      spouseTotal: survivorContinuance + beneficiaryMonthly,
+      popUpMonthly: popUp === "unmod" ? monthlyPensionUnmodified : popUp === "same" ? memberMonthly : null,
+      costMonthly: monthlyPensionUnmodified - memberMonthly,
+    };
+  };
   const survivorOptions = [
-    { key: "opt1", label: "Option 1 — Unmodified", factor: optionFactors.opt1, survivorPct: 0, note: "Max amount. No survivor benefit." },
-    { key: "opt2", label: "Option 2 — 100% Joint & Survivor", factor: optionFactors.opt2, survivorPct: 1.00, note: "100% continues to beneficiary for life." },
-    { key: "opt2w", label: "Option 2W — 100% J&S with pop-up", factor: optionFactors.opt2w, survivorPct: 1.00, note: "100% to beneficiary; allowance \"pops up\" to Unmodified if beneficiary dies first." },
-    { key: "opt3", label: "Option 3 — 50% Joint & Survivor", factor: optionFactors.opt3, survivorPct: 0.50, note: "50% continues to beneficiary for life." },
-    { key: "opt3w", label: "Option 3W — 50% J&S with pop-up", factor: optionFactors.opt3w, survivorPct: 0.50, note: "50% to beneficiary; pops up to Unmodified if beneficiary dies first." },
-  ].map(opt => ({
-    ...opt,
-    memberMonthly: monthlyPensionUnmodified * opt.factor,
-    survivorMonthly: monthlyPensionUnmodified * opt.factor * opt.survivorPct,
-  }));
-  // ── THE ELECTED OPTION IS THE PENSION ────────────────────────────────────
-  // Most members take a reduced allowance to leave a continuance to a spouse. Until now this
-  // sat in a read-only table while every headline showed the unmodified figure — a number
-  // those members will never receive. From here down, monthlyPension IS the elected allowance.
+    mkOption("unmod", "Unmodified Allowance", "Unmodified", 0, null,
+      "The largest check you can draw. Nothing continues to a named beneficiary — but your eligible survivor still receives the survivor continuance, because that is not part of this election."),
+    mkOption("roc", "Return of Remaining Contributions", "Return of contributions", 0, null,
+      "Your own contributions, minus what you have already drawn, paid to your beneficiary as a lump sum. It is not a monthly benefit, and the balance runs down every month you collect — once it hits zero it pays nothing."),
+    mkOption("ben100", "100% Beneficiary", "100% Beneficiary", 1.00, "same",
+      "Your beneficiary keeps the whole option portion for life. Paired with the survivor continuance, that means your spouse continues to receive exactly what you were receiving. If they die before you, your check stays where it is."),
+    mkOption("ben100w", "100% Beneficiary w/Allowance Increase", "100% + pop-up", 1.00, "unmod",
+      "Same as 100% Beneficiary, plus a hedge: if your beneficiary dies before you, your allowance jumps back up to the full Unmodified amount instead of staying reduced for the rest of your life."),
+    mkOption("ben50", "50% Beneficiary", "50% Beneficiary", 0.50, "same",
+      "Half the option portion continues to your beneficiary for life. Cheaper than the 100% election, and your spouse still has the survivor continuance underneath it."),
+    mkOption("ben50w", "50% Beneficiary w/Allowance Increase", "50% + pop-up", 0.50, "unmod",
+      "Same as 50% Beneficiary, plus the pop-up: your allowance returns to the full Unmodified amount if your beneficiary dies before you."),
+  ];
   const survivorChosen = survivorOptions.find(o => o.key === survivorOption) || survivorOptions[0];
   const survivorActualNum = survivorActualPct === "" || survivorActualPct === null
     ? null : Math.max(0, Math.min(50, parseFloat(survivorActualPct) || 0));
-  const usingActualOptionPct = survivorActualNum !== null && survivorOption !== "opt1";
-  const appliedOptionFactor = survivorOption === "opt1" ? 1
-    : usingActualOptionPct ? (1 - survivorActualNum / 100)
-    : survivorChosen.factor;
+  const usingActualOptionPct = survivorActualNum !== null && survivorOption !== "unmod";
+  // The member's own allowance. A myCalPERS figure, when given, is a reduction off the UNMODIFIED
+  // allowance — that is the number a member can read straight off their own estimate.
+  const monthlyPension = usingActualOptionPct
+    ? monthlyPensionUnmodified * (1 - survivorActualNum / 100)
+    : survivorChosen.memberMonthly;
+  const appliedOptionFactor = monthlyPensionUnmodified > 0 ? monthlyPension / monthlyPensionUnmodified : 1;
   const optionReductionPct = 1 - appliedOptionFactor;
-  // Band around OUR estimate, so an invented figure never reads as precise.
+  const optionCostMonthly = monthlyPensionUnmodified - monthlyPension;
+  // Band, because the member's ages will differ from the estimate these factors came from.
   const optionBandLow = Math.max(0, optionReductionPct * (1 - OPTION_ESTIMATE_BAND));
   const optionBandHigh = optionReductionPct * (1 + OPTION_ESTIMATE_BAND);
-  const monthlyPension = monthlyPensionUnmodified * appliedOptionFactor;
   const annualPension = monthlyPension * 12;
-  const survivorContinuanceMonthly = monthlyPension * (survivorChosen.survivorPct || 0);
+  // What the survivor continuance pays, regardless of the election above.
+  const survivorContinuanceMonthly = survivorContinuance;
+  // What a named beneficiary keeps: a share of whatever option portion is left after the reduction.
+  const electedOptionPortion = Math.max(0, monthlyPension - survivorContinuance);
+  const beneficiaryMonthly = survivorChosen.benPct > 0 ? electedOptionPortion * survivorChosen.benPct : 0;
+  // A spouse who is both the eligible survivor and the named beneficiary collects both.
+  const spouseTotalMonthly = survivorContinuance + beneficiaryMonthly;
+  const popUpMonthly = survivorChosen.popUpMonthly;
   // Retiree medical
   const tier4RHS = calcTier4RHS({
     hireYear, retirementYear,
@@ -1989,7 +2045,7 @@ export default function RFFRetirementCalculator() {
             { label: "While working", sub: "today, with your overtime",
               gross: salaryWithOT, net: workingTakeHome, tone: COLORS.text },
             { label: `While retired${retirementYear ? " · " + retirementYear : ""}`,
-              sub: survivorOption === "opt1" ? "unmodified allowance" : `${survivorChosen.label.split(" — ")[0]} elected`,
+              sub: survivorOption === "unmod" ? "unmodified allowance" : `${survivorChosen.short} elected`,
               gross: combinedPensionMonthly, net: totalMonthlyTakeHome, tone: COLORS.green },
           ].map(c => (
             <div key={c.label} style={{ minWidth: 0 }}>
@@ -3880,83 +3936,221 @@ export default function RFFRetirementCalculator() {
             {tab === "deductions" && setupDone && (
               <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Who gets it after you</p>
-                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                  Taking care of a spouse costs you every month you are alive. Pick the option you actually
-                  intend to elect — every figure in this tool follows it.
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                  Two different things decide what your spouse receives, and almost everyone confuses them.
+                  Work through them in order. Whatever you pick here drives every figure in this tool.
+                </div>
+
+                {/* ── 1 · SURVIVOR CONTINUANCE — the part you do not pay for ── */}
+                <div style={{ padding: "14px", background: "rgba(16,185,129,0.07)", border: `1px solid ${COLORS.green}`, borderRadius: "10px", marginBottom: "16px" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.green, marginBottom: "8px" }}>
+                    1 &middot; Survivor continuance &mdash; free, and not an election
+                  </div>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "10px" }}>
+                    CalPERS pays an eligible survivor <strong style={{ color: COLORS.text }}>half your unmodified allowance</strong>, for
+                    life. The City funds it. It costs you nothing, it is the same under every option below, and you
+                    cannot trade it away. An eligible spouse is one you were
+                    <strong style={{ color: COLORS.text }}> married to at least one year before your retirement date</strong> and
+                    stay married to until your death.
+                  </div>
+                  <label style={styles.label}>Do you have an eligible survivor?</label>
+                  <select style={{ ...styles.select, marginBottom: "10px" }} value={hasEligibleSurvivor ? "yes" : "no"}
+                    onChange={e => setHasEligibleSurvivor(e.target.value === "yes")}>
+                    <option value="yes">Yes &mdash; spouse, or eligible child</option>
+                    <option value="no">No</option>
+                  </select>
+                  {hasEligibleSurvivor ? (
+                    <div style={{ ...styles.tableRowLast, borderBottom: "none", paddingBottom: 0 }}>
+                      <span style={styles.tableKey}>Your survivor receives, for life</span>
+                      <span style={{ ...styles.tableVal, color: COLORS.green, fontWeight: 700, fontSize: "15px" }}>{fmt(survivorContinuance)}/mo</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "11px", color: COLORS.gold, lineHeight: 1.7 }}>
+                      With no eligible survivor there is no continuance, and the option election below is the only
+                      thing that leaves anyone a monthly benefit &mdash; so the reduction is figured on your whole allowance
+                      rather than on half of it.
+                    </div>
+                  )}
+                </div>
+
+                {/* ── 2 · THE ELECTION — the part you buy ── */}
+                <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.accent, marginBottom: "8px" }}>
+                  2 &middot; Your option election &mdash; this one you pay for
+                </div>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
+                  Naming a beneficiary buys a continuing allowance out of the
+                  {" "}<strong style={{ color: COLORS.text }}>option portion</strong> &mdash; the {fmt(optionPortion)}/mo
+                  that sits above the survivor continuance. The reduction comes out of that portion only, never out of
+                  the continuance. If your beneficiary is the same spouse who is your survivor, they collect both.
                 </div>
                 <label style={styles.label}>Your beneficiary&rsquo;s age at your retirement</label>
-                <input type="number" style={{ ...styles.input, marginBottom: "12px" }} value={beneficiaryAge || ""}
+                <input type="number" style={{ ...styles.input, marginBottom: "14px" }} value={beneficiaryAge || ""}
                   min={18} max={100} placeholder={`${retirementAge}`}
                   onChange={e => setBeneficiaryAge(+e.target.value || 0)} />
-                <label style={styles.label}>Allowance option</label>
-                <select style={{ ...styles.select, marginBottom: "10px" }} value={survivorOption}
-                  onChange={e => setSurvivorOption(e.target.value)}>
-                  {survivorOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </select>
-                <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px", lineHeight: 1.6 }}>
-                  {survivorChosen.note}
+
+                <div style={{ overflowX: "auto", marginBottom: "6px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "12px" }}>
+                    <thead>
+                      <tr style={{ color: COLORS.textMuted, textTransform: "uppercase", fontSize: "10px", letterSpacing: "0.5px" }}>
+                        <th style={{ textAlign: "left", padding: "6px 4px", fontWeight: 600 }}>Option</th>
+                        <th style={{ textAlign: "right", padding: "6px 4px", fontWeight: 600 }}>You</th>
+                        <th style={{ textAlign: "right", padding: "6px 4px", fontWeight: 600 }}>{hasEligibleSurvivor ? "Spouse" : "Beneficiary"}</th>
+                        <th style={{ textAlign: "right", padding: "6px 4px", fontWeight: 600 }}>Costs you</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {survivorOptions.map(o => {
+                        const on = o.key === survivorOption;
+                        return (
+                          <tr key={o.key} onClick={() => setSurvivorOption(o.key)}
+                            style={{ cursor: "pointer", borderBottom: `1px solid ${COLORS.border}`,
+                              background: on ? "rgba(210,31,51,0.10)" : "transparent" }}>
+                            <td style={{ padding: "9px 4px", color: on ? COLORS.text : COLORS.textMuted, fontWeight: on ? 700 : 400 }}>
+                              {on ? "● " : "○ "}{o.short}
+                            </td>
+                            <td style={{ padding: "9px 4px", textAlign: "right", color: COLORS.text, fontWeight: on ? 700 : 400 }}>{fmt(o.memberMonthly)}</td>
+                            <td style={{ padding: "9px 4px", textAlign: "right", color: o.spouseTotal > 0 ? COLORS.green : COLORS.textDim, fontWeight: on ? 700 : 400 }}>
+                              {o.key === "roc" ? (hasEligibleSurvivor ? fmt(o.survivorMonthly) + " + cash" : "cash only")
+                                : o.spouseTotal > 0 ? fmt(o.spouseTotal) : "nothing"}
+                            </td>
+                            <td style={{ padding: "9px 4px", textAlign: "right", color: o.costMonthly > 0 ? COLORS.gold : COLORS.textDim }}>
+                              {o.costMonthly > 0 ? "−" + fmt(o.costMonthly) : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ fontSize: "10px", color: COLORS.textDim, marginBottom: "14px" }}>
+                  Tap a row to elect it. Gross monthly, before tax and medical.
+                  {hasEligibleSurvivor && " The spouse column assumes your beneficiary is the same person as your survivor — the usual case — so it adds the continuance and the beneficiary allowance together."}
                 </div>
 
-                {survivorOption !== "opt1" && (
-                  <div style={{ padding: "12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px", marginBottom: "14px" }}>
+                {/* ── 3 · WHAT YOU JUST PICKED ── */}
+                <div style={{ padding: "14px", background: "rgba(255,255,255,0.03)", border: `1px solid ${COLORS.border}`, borderRadius: "10px", marginBottom: "14px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: COLORS.text, marginBottom: "8px" }}>{survivorChosen.label}</div>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.75, marginBottom: "12px" }}>{survivorChosen.note}</div>
+
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Unmodified allowance <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the maximum</span></span>
+                    <span style={styles.tableVal}>{fmt(monthlyPensionUnmodified)}/mo</span>
+                  </div>
+                  {optionCostMonthly > 0 && (
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>
+                        What this election costs you
+                        <span style={{ fontSize: "10px", color: COLORS.textDim }}> &middot; {pctExact(optionReductionPct)} of the allowance{usingActualOptionPct ? ", your figure" : ""}</span>
+                      </span>
+                      <span style={{ ...styles.tableVal, color: COLORS.gold }}>&minus;{fmt(optionCostMonthly)}/mo</span>
+                    </div>
+                  )}
+                  <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Your check</span>
+                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(monthlyPension)}/mo</span>
+                  </div>
+                  {hasEligibleSurvivor && (
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Survivor continuance <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; free, every option</span></span>
+                      <span style={{ ...styles.tableVal, color: COLORS.green }}>{fmt(survivorContinuance)}/mo</span>
+                    </div>
+                  )}
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>
+                      Beneficiary allowance
+                      {survivorChosen.benPct > 0 && <span style={{ fontSize: "10px", color: COLORS.textDim }}> &middot; {pct(survivorChosen.benPct)} of the option portion</span>}
+                    </span>
+                    <span style={{ ...styles.tableVal, color: beneficiaryMonthly > 0 ? COLORS.green : COLORS.textDim }}>
+                      {beneficiaryMonthly > 0 ? fmt(beneficiaryMonthly) + "/mo" : survivorChosen.key === "roc" ? "lump sum instead" : "none"}
+                    </span>
+                  </div>
+                  <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}` }}>
+                    <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
+                      {hasEligibleSurvivor ? "Your spouse ends up with" : "Your beneficiary ends up with"}
+                      <span style={{ fontSize: "10px", color: COLORS.textDim, display: "block", fontWeight: 400 }}>
+                        if they are both your survivor and your named beneficiary
+                      </span>
+                    </span>
+                    <span style={{ ...styles.tableVal, color: spouseTotalMonthly > 0 ? COLORS.green : COLORS.textDim, fontWeight: 700, fontSize: "16px" }}>
+                      {spouseTotalMonthly > 0 ? fmt(spouseTotalMonthly) + "/mo" : "nothing monthly"}
+                    </span>
+                  </div>
+
+                  {spouseTotalMonthly > 0 && monthlyPension > 0 && (
+                    <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", lineHeight: 1.7 }}>
+                      That is <strong style={{ color: COLORS.green }}>{pct(Math.min(1, spouseTotalMonthly / monthlyPension))}</strong> of
+                      the check you were drawing.
+                      {optionCostMonthly > 0 && beneficiaryMonthly > 0 && <>
+                        {" "}You give up {fmt(optionCostMonthly)}/mo to buy them {fmt(beneficiaryMonthly)}/mo &mdash;
+                        about <strong style={{ color: COLORS.text }}>{(beneficiaryMonthly / optionCostMonthly).toFixed(1)}&times;</strong> what
+                        it costs you.
+                      </>}
+                    </div>
+                  )}
+                  {popUpMonthly !== null && survivorChosen.benPct > 0 && (
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                      <strong style={{ color: COLORS.textMuted }}>If your beneficiary dies before you:</strong> your check
+                      {popUpMonthly > monthlyPension
+                        ? <> goes back up to <strong style={{ color: COLORS.green }}>{fmt(popUpMonthly)}/mo</strong>.</>
+                        : <> stays at <strong style={{ color: COLORS.gold }}>{fmt(popUpMonthly)}/mo</strong> for the rest of your life &mdash; you keep paying for a benefit nobody collects.</>}
+                    </div>
+                  )}
+                  {survivorChosen.key === "roc" && (
+                    <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", lineHeight: 1.7 }}>
+                      Watch the clock on this one. The lump sum is your remaining contributions, and it shrinks every
+                      month you collect. Ask myCalPERS what your balance is and how long it lasts &mdash; if you outlive it,
+                      this election pays your beneficiary nothing at all.
+                    </div>
+                  )}
+                  {survivorChosen.key === "unmod" && hasEligibleSurvivor && (
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                      Taking the maximum does <strong style={{ color: COLORS.text }}>not</strong> leave your spouse with nothing.
+                      The survivor continuance is still there. What it does not do is add anything on top.
+                    </div>
+                  )}
+                  {survivorChosen.key === "unmod" && !hasEligibleSurvivor && (
+                    <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", lineHeight: 1.7 }}>
+                      With no eligible survivor and no beneficiary election, nothing continues to anyone after you die.
+                    </div>
+                  )}
+                </div>
+
+                {/* ── 4 · HONESTY ABOUT THE FACTORS ── */}
+                {survivorOption !== "unmod" && (
+                  <div style={{ padding: "12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px" }}>
                     <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.gold, marginBottom: "6px" }}>
-                      ⚠ This reduction is an estimate, not a CalPERS figure
+                      &#9888; The reduction is calibrated, not yours
                     </div>
                     <div style={{ fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7, marginBottom: "10px" }}>
-                      CalPERS does not publish option factors. They say the cost &ldquo;is specific to you and depends
-                      on factors such as your age, your beneficiary&rsquo;s age, life expectancies, and how much you&rsquo;ve
-                      contributed to the retirement plan&rdquo; — your own contribution balance is in it, which nothing here
-                      can reproduce. Treat this as a <strong style={{ color: COLORS.gold }}>rough band, not a number to plan on</strong>:
-                      somewhere around <strong style={{ color: COLORS.gold }}>{pct(optionBandLow)} to {pct(optionBandHigh)}</strong> for
-                      this option at your ages. Get the real one from a myCalPERS estimate and put it here.
+                      The structure above is verified &mdash; it reproduces a real myCalPERS estimate to the dollar. The
+                      reduction percentage is not yours: it comes from {OPTION_FACTOR_ANCHOR}. CalPERS sets it from your
+                      age and your beneficiary&rsquo;s age and publishes no table, so expect somewhere around
+                      {" "}<strong style={{ color: COLORS.gold }}>{pctExact(optionBandLow)} to {pctExact(optionBandHigh)}</strong>.
+                      A beneficiary younger than that estimate&rsquo;s costs more; an older one costs less.
+                      {" "}<strong style={{ color: COLORS.gold }}>Run your own estimate and put the real number here.</strong>
                     </div>
-                    <label style={styles.label}>Your actual reduction from myCalPERS <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <input type="number" step="0.1" min={0} max={50} value={survivorActualPct}
-                        placeholder={(optionReductionPct * 100).toFixed(1)}
+                    <label style={styles.label}>Your reduction from myCalPERS <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; optional</span></label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <input type="number" step="0.01" min={0} max={50} value={survivorActualPct}
+                        placeholder={(optionReductionPct * 100).toFixed(2)}
                         onChange={e => setSurvivorActualPct(e.target.value)}
                         style={{ ...styles.input, margin: 0, width: "120px" }} />
-                      <span style={{ fontSize: "12px", color: COLORS.textMuted }}>% reduction</span>
+                      <span style={{ fontSize: "12px", color: COLORS.textMuted }}>% off the unmodified allowance</span>
                     </div>
-                    <div style={{ fontSize: "11px", color: usingActualOptionPct ? COLORS.green : COLORS.textDim, marginTop: "6px" }}>
+                    <div style={{ fontSize: "11px", color: usingActualOptionPct ? COLORS.green : COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
                       {usingActualOptionPct
-                        ? `✓ Using your figure — ${survivorActualNum}%. The estimate above is ignored.`
-                        : "Blank means the tool is using its own estimate. Anything you type here replaces it everywhere."}
+                        ? `✓ Using your figure — ${survivorActualNum}%. The calibrated number is ignored everywhere.`
+                        : "From your myCalPERS options table: (Unmodified − this option) ÷ Unmodified. In the verified example, (17,728 − 16,922) ÷ 17,728 = 4.55%."}
                     </div>
                   </div>
                 )}
 
-                <div style={styles.tableRow}>
-                  <span style={styles.tableKey}>Unmodified allowance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· Option 1, the maximum</span></span>
-                  <span style={styles.tableVal}>{fmt(combinedPensionUnmodified)}/mo</span>
+                <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                  Survivor continuance requires that your employer contracted for it and that your survivor qualifies.
+                  It shows on every row of a myCalPERS estimate when it applies to you. The election generally
+                  <strong style={{ color: COLORS.textMuted }}> locks at retirement</strong>. Confirm both with CalPERS at
+                  888-225-7377 before you file &mdash; this tool is an estimate, not a benefit statement.
                 </div>
-                {survivorOption !== "opt1" && (
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Option reduction <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {pct(optionReductionPct)}{usingActualOptionPct ? ", your figure" : ", estimated"}</span></span>
-                    <span style={{ ...styles.tableVal, color: COLORS.gold }}>−{fmt(combinedPensionUnmodified - combinedPensionMonthly)}/mo</span>
-                  </div>
-                )}
-                <div style={{ ...styles.tableRow, borderTop: `1px solid ${COLORS.border}` }}>
-                  <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Your allowance</span>
-                  <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(combinedPensionMonthly)}/mo</span>
-                </div>
-                <div style={{ ...styles.tableRowLast }}>
-                  <span style={styles.tableKey}>
-                    {survivorChosen.survivorPct > 0
-                      ? `Your beneficiary keeps, for life · ${pct(survivorChosen.survivorPct)}`
-                      : "Your beneficiary keeps"}
-                  </span>
-                  <span style={{ ...styles.tableVal, color: survivorContinuanceMonthly > 0 ? COLORS.green : COLORS.textDim }}>
-                    {survivorContinuanceMonthly > 0 ? fmt(survivorContinuanceMonthly) + "/mo" : "nothing"}
-                  </span>
-                </div>
-                {survivorOption === "opt1" && (
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                    Option 1 pays you the most and leaves your spouse nothing monthly after you die. If you intend
-                    to leave a continuance, change it here — otherwise every figure in this tool is showing you a
-                    pension you do not plan to take.
-                  </div>
-                )}
               </div>
             )}
             {tab === "deductions" && (
