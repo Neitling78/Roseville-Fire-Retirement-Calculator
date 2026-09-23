@@ -189,19 +189,59 @@ const PEPRA_COMP_CAP_2026 = 191679;
 const PEPRA_CAP_COLA = 0.025;       // assumed annual CPI indexing of the PEPRA cap
 const UNION_DUES_MONTHLY = 222;     // IAFF Local 1592 dues — used in the take-home comparison
 // City of Roseville 2026 Rate Sheet (archived). Monthly medical premiums by coverage tier.
-const MEDICAL_PLANS_2026 = [
-  { name: "Kaiser Permanente",         ee: 1168.86, ee1: 2337.72, fam: 3039.04 },
-  { name: "Blue Shield Trio",          ee: 1166.58, ee1: 2333.16, fam: 3033.11 },
-  { name: "Blue Shield Access+",       ee: 1301.95, ee1: 2603.90, fam: 3385.07 },
-  { name: "Anthem HMO Select",         ee: 1336.29, ee1: 2672.58, fam: 3474.35 },
-  { name: "Anthem HMO Traditional",    ee: 1612.08, ee1: 3224.16, fam: 4191.41 },
-  { name: "UnitedHealthcare Alliance", ee: 1290.06, ee1: 2580.12, fam: 3354.16 },
-  { name: "UnitedHealthcare Harmony",  ee: 1133.09, ee1: 2266.18, fam: 2946.03 },
-  { name: "Western Health Advantage",  ee: 969.58,  ee1: 1939.16, fam: 2520.91 },
-  { name: "PERS Platinum (PPO)",       ee: 1670.14, ee1: 3340.28, fam: 4342.36 },
-  { name: "PERS Gold (PPO)",           ee: 1120.58, ee1: 2241.16, fam: 2913.51 },
-  { name: "PORAC (RFF only)",          ee: 1063.00, ee1: 2418.00, fam: 3027.00 },
+// ── CalPERS HEALTH PREMIUMS · 2027 · REGION 1 ────────────────────────────
+// Source: CalPERS "2027 Health Premiums, Region 1" rate sheet, effective 1/1/2027.
+// Region 1 is the correct region for Roseville — it covers Placer and Sacramento
+// counties (also El Dorado, Nevada, Yolo, Sutter, Yuba and most of NorCal).
+// CalPERS held the overall 2027 increase to 4.97%.
+//
+// These are the BASIC (non-Medicare) rates. They are what an active member pays and
+// what a retiree under 65 pays — same premium, different employer contribution.
+// Medicare rates at 65 are in MEDICARE_PLANS_2027 below and are far lower.
+//
+// Changes CalPERS made for 1/1/2027, all of which are reflected here:
+//   · UnitedHealthcare SignatureValue Alliance and Harmony EXIT ALL COUNTIES —
+//     they are gone from CalPERS entirely, not just from Region 1.
+//   · Blue Shield EPO expands INTO Placer County (new option for Roseville members).
+//   · Sutter Health Plan HMO is brand new for 2027 and covers Placer County.
+// Kaiser stays first in this list because the City's contribution is a percentage
+// of the Kaiser premium for your tier (MOU Ch.4 Art.I §C).
+const MEDICAL_PLANS_2027 = [
+  { name: "Kaiser Permanente",         ee: 1187.63, ee1: 2375.26, fam: 3087.84 },
+  { name: "Sutter Health Plan",        ee: 1130.67, ee1: 2261.34, fam: 2939.74, isNew: true },
+  { name: "Blue Shield Trio",          ee: 1202.57, ee1: 2405.14, fam: 3126.68 },
+  { name: "Blue Shield Access+",       ee: 1479.12, ee1: 2958.24, fam: 3845.71 },
+  { name: "Blue Shield EPO",           ee: 1479.12, ee1: 2958.24, fam: 3845.71, isNew: true },
+  { name: "Anthem HMO Select",         ee: 1486.44, ee1: 2972.88, fam: 3864.74 },
+  { name: "Anthem HMO Traditional",    ee: 1732.52, ee1: 3465.04, fam: 4504.55 },
+  { name: "Western Health Advantage",  ee: 1030.80, ee1: 2061.60, fam: 2680.08 },
+  { name: "PERS Platinum (PPO)",       ee: 1778.62, ee1: 3557.24, fam: 4624.41 },
+  { name: "PERS Gold (PPO)",           ee: 1215.17, ee1: 2430.34, fam: 3159.44 },
+  { name: "PORAC (RFF only)",          ee: 1095.00, ee1: 2395.00, fam: 3115.00 },
 ];
+// Plans that went away on 1/1/2027. A saved election pointing at one of these is
+// moved to the nearest surviving plan so nobody silently gets Kaiser's numbers
+// while their screen still says UnitedHealthcare.
+const RETIRED_PLANS_2027 = {
+  "UnitedHealthcare Alliance": "Kaiser Permanente",
+  "UnitedHealthcare Harmony": "Kaiser Permanente",
+};
+// ── MEDICARE PREMIUMS · 2027 · REGION 1 ──────────────────────────────────
+// What the same coverage costs once you turn 65 and enroll in Medicare Parts A and B.
+// You must take Part B to keep a CalPERS plan at 65 — the Part B premium is paid to
+// Medicare separately and is NOT in these figures.
+// Retiring at 50 means roughly 15 years on the Basic rates above before you get here.
+const MEDICARE_PLANS_2027 = [
+  { name: "Kaiser Senior Advantage",          single: 333.93, two: 667.86,  fam: 1001.79, kind: "Advantage" },
+  { name: "Kaiser Senior Advantage Summit",   single: 391.74, two: 783.48,  fam: 1175.22, kind: "Advantage" },
+  { name: "UnitedHealthcare Medicare PPO",    single: 534.00, two: 1068.00, fam: 1602.00, kind: "Advantage" },
+  { name: "PERS Gold Supplement",             single: 597.57, two: 1195.14, fam: 1792.71, kind: "Supplement" },
+  { name: "Anthem Medicare Preferred PPO",    single: 619.25, two: 1238.50, fam: 1857.75, kind: "Advantage" },
+  { name: "Blue Shield Medicare Advantage",   single: 619.36, two: 1238.72, fam: 1858.08, kind: "Advantage" },
+  { name: "PORAC Medicare Supplement",        single: 640.00, two: 1410.00, fam: 1925.00, kind: "Supplement" },
+  { name: "PERS Platinum Supplement",         single: 665.50, two: 1331.00, fam: 1996.50, kind: "Supplement" },
+];
+const MEDICARE_TIER_FROM_COVERAGE = { ee: "single", ee1: "two", fam: "fam" };
 const RFF_FLEX_2026 = { ee: 200, ee1: 688, fam: 1143 };       // RFF flex credit by coverage tier
 const CAFETERIA_2026 = 1347;                                   // City cafeteria allowance (MOU Ch4 Art I §C.2)
 // Delta Dental 2026 monthly rates by tier (EE only / +spouse / +children / +family)
@@ -266,6 +306,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 23, 2026 (v37)", items: [
+    "<strong>Every health premium is now the 2027 rate.</strong> CalPERS Region 1 \u2014 the right region for Roseville, since it covers Placer and Sacramento counties \u2014 effective 1/1/2027. CalPERS held the overall increase to 4.97%. Kaiser employee-only goes $1,168.86 \u2192 <strong>$1,187.63</strong>, and because the City\u2019s contribution is a percentage of Kaiser, everyone\u2019s City share moves with it.",
+    "<strong>UnitedHealthcare Alliance and Harmony are gone.</strong> Both exit every CalPERS county on 1/1/2027. If you had one saved, the tool moves you to a surviving plan instead of quietly showing you somebody else\u2019s premium.",
+    "<strong>Two new choices in Placer County:</strong> Sutter Health Plan HMO ($1,130.67 employee-only, brand new for 2027) and Blue Shield EPO ($1,479.12), which expanded into Placer.",
+    "<strong>New: what your medical costs at 65.</strong> The rates you see while working and in early retirement are the Basic premiums \u2014 you pay those from your retirement date until Medicare starts. Deductions now shows all eight 2027 Medicare plans with the premium and your out-of-pocket after the City\u2019s contribution. Kaiser Senior Advantage is $333.93 against a Basic rate of $1,187.63.",
+    "Dental, vision, the RFF flex credit and the cafeteria allowance are still on 2026 figures \u2014 those come from the MOU and Delta Dental, not CalPERS, and the 2027 numbers were not in hand.",
+  ] },
   { date: "September 23, 2026 (v36)", items: [
     "<strong>The year picker now moves the header.</strong> Clicking 2026 / 2027 / 2028 on Current compensation changed the table underneath while the biggest number on the screen sat still, and nothing told you they were on different clocks. The header\u2019s <em>While working</em> pair now follows the year you picked, and the label says which year it is.",
     "Past your retirement year it clamps back \u2014 you are not working then, and the retired half of the header is pinned to your retirement year, so the two halves would have been comparing different years.",
@@ -935,9 +982,11 @@ export default function RFFRetirementCalculator() {
   const [overridePensionType, setOverridePensionType] = useState(SAVED.overridePensionType ?? false);
   const [medicalTier, setMedicalTier] = useState(SAVED.medicalTier ?? "4");
   // Member-chosen medical plan + coverage tier (drives the cost breakdown on the Medical tab).
-  const [selectedMedicalPlan, setSelectedMedicalPlan] = useState(SAVED.selectedMedicalPlan ?? "Kaiser Permanente");
+  const [selectedMedicalPlan, setSelectedMedicalPlan] = useState(
+    RETIRED_PLANS_2027[SAVED.selectedMedicalPlan] || SAVED.selectedMedicalPlan || "Kaiser Permanente");
   const [medicalCoverage, setMedicalCoverage] = useState(SAVED.medicalCoverage ?? "ee");
-  const [retireeMedicalPlan, setRetireeMedicalPlan] = useState(SAVED.retireeMedicalPlan ?? "Kaiser Permanente");
+  const [retireeMedicalPlan, setRetireeMedicalPlan] = useState(
+    RETIRED_PLANS_2027[SAVED.retireeMedicalPlan] || SAVED.retireeMedicalPlan || "Kaiser Permanente");
   const [retireeCoverage, setRetireeCoverage] = useState(SAVED.retireeCoverage ?? "ee");
   const [dentalPlan, setDentalPlan] = useState(SAVED.dentalPlan ?? "Delta Dental High PPO");
   const [hasVision, setHasVision] = useState(SAVED.hasVision ?? true);
@@ -1578,9 +1627,9 @@ export default function RFFRetirementCalculator() {
     ? { monthly: 0, vested: 1.0, ...tier4RHS }
     : calcRetireeMedical(medicalTier, hireYear, retirementYear, cityYOS, totalCalpersYears, atNormalRetirementAge);
   // Member-chosen plan cost breakdown (Medical tab)
-  const selectedPlanObj = MEDICAL_PLANS_2026.find(p => p.name === selectedMedicalPlan) || MEDICAL_PLANS_2026[0];
+  const selectedPlanObj = MEDICAL_PLANS_2027.find(p => p.name === selectedMedicalPlan) || MEDICAL_PLANS_2027[0];
   const selectedPremium = selectedPlanObj[medicalCoverage] || selectedPlanObj.ee;
-  const retireePlanObj = MEDICAL_PLANS_2026.find(p => p.name === retireeMedicalPlan) || MEDICAL_PLANS_2026[0];
+  const retireePlanObj = MEDICAL_PLANS_2027.find(p => p.name === retireeMedicalPlan) || MEDICAL_PLANS_2027[0];
   const retireePremium = retireePlanObj[retireeCoverage] || retireePlanObj.ee;
   // Roseville split-payment: City pays the PEMHCA minimum straight to CalPERS, so CalPERS deducts only
   // the remaining premium from the pension check (City reimburses the rest separately).
@@ -1591,7 +1640,7 @@ export default function RFFRetirementCalculator() {
   const dentalObj = DENTAL_PLANS_2026.find(p => p.name === dentalPlan) || DENTAL_PLANS_2026[0];
   const dentalPremium = dentalObj[DENTAL_TIER_FROM_MED[medicalCoverage]] || 0;
   const visionPremium = hasVision ? (VISION_2026[medicalCoverage] || 0) : 0;
-  const KAISER_PLAN = MEDICAL_PLANS_2026.find(p => p.name === "Kaiser Permanente") || {};
+  const KAISER_PLAN = MEDICAL_PLANS_2027.find(p => p.name === "Kaiser Permanente") || {};
   const CITY_MED_PCT = { ee: 1.0, ee1: 0.85, fam: 0.80 };
   const cityMedicalMax = (CITY_MED_PCT[medicalCoverage] || 1) * (KAISER_PLAN[medicalCoverage] || 0);
   const cityMedicalPaid = Math.min(selectedPremium, cityMedicalMax);
@@ -4198,7 +4247,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Medical Plan</label>
                     <select style={styles.select} value={selectedMedicalPlan} onChange={e => setSelectedMedicalPlan(e.target.value)}>
-                      {MEDICAL_PLANS_2026.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                      {MEDICAL_PLANS_2027.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                     </select>
                   </div>
                   <div style={styles.fieldGroup}>
@@ -4270,7 +4319,7 @@ export default function RFFRetirementCalculator() {
                       <div style={styles.fieldGroup}>
                         <label style={styles.label}>Retiree plan</label>
                         <select style={styles.select} value={retireeMedicalPlan} onChange={e => setRetireeMedicalPlan(e.target.value)}>
-                          {MEDICAL_PLANS_2026.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                          {MEDICAL_PLANS_2027.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                         </select>
                       </div>
                       <div style={styles.fieldGroup}>
@@ -4283,7 +4332,52 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
                     <div style={styles.tableRow}><span style={styles.tableKey}>{retireeMedicalPlan} premium</span><span style={styles.tableVal}>{fmt(retireePremium)}/mo</span></div>
-                    <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>· the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
+                    <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
+                    {/* ── WHAT IT COSTS ONCE MEDICARE STARTS ── */}
+                    <div style={{ marginTop: "18px", padding: "14px", background: "rgba(16,185,129,0.06)", border: `1px solid ${COLORS.green}`, borderRadius: "10px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.green, marginBottom: "6px" }}>
+                        At 65 the premium drops &mdash; a lot
+                      </div>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "10px" }}>
+                        The rates above are the <strong style={{ color: COLORS.text }}>Basic</strong> premiums, and they are what you pay
+                        from the day you retire until you turn 65 &mdash; about
+                        {" "}<strong style={{ color: COLORS.text }}>{Math.max(0, 65 - retirementAge)} years</strong> for you.
+                        At 65 you move to a Medicare plan and the premium falls by roughly two thirds. Your City contribution
+                        ({fmt(cityMedicalContribution)}/mo) is unchanged, so most members go to <strong style={{ color: COLORS.green }}>$0 out of pocket</strong> at that point.
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "12px" }}>
+                        <thead>
+                          <tr style={{ color: COLORS.textMuted, textTransform: "uppercase", fontSize: "10px", letterSpacing: "0.5px" }}>
+                            <th style={{ textAlign: "left", padding: "5px 4px", fontWeight: 600 }}>Medicare plan &middot; 2027</th>
+                            <th style={{ textAlign: "right", padding: "5px 4px", fontWeight: 600 }}>Premium</th>
+                            <th style={{ textAlign: "right", padding: "5px 4px", fontWeight: 600 }}>Your cost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {MEDICARE_PLANS_2027.map(p => {
+                            const prem = p[MEDICARE_TIER_FROM_COVERAGE[retireeCoverage] || "single"] || p.single;
+                            const oop = Math.max(0, prem - cityMedicalContribution);
+                            return (
+                              <tr key={p.name} style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                                <td style={{ padding: "7px 4px", color: COLORS.textMuted }}>
+                                  {p.name}
+                                  <span style={{ fontSize: "10px", color: COLORS.textDim }}> &middot; {p.kind}</span>
+                                </td>
+                                <td style={{ padding: "7px 4px", textAlign: "right", color: COLORS.text }}>{fmt(prem)}</td>
+                                <td style={{ padding: "7px 4px", textAlign: "right", color: oop > 0 ? COLORS.gold : COLORS.green, fontWeight: 600 }}>
+                                  {oop > 0 ? fmt(oop) : "$0"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                        You must enroll in Medicare Part A and Part B at 65 to keep a CalPERS plan. The Part B premium is paid
+                        to Medicare separately and is <strong style={{ color: COLORS.textMuted }}>not</strong> in these figures.
+                        Rates are CalPERS 2027, Region 1, for your coverage tier.
+                      </div>
+                    </div>
                   </>
                 )}
                 <p style={{ ...styles.cardTitle, marginTop: "18px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
@@ -4302,7 +4396,7 @@ export default function RFFRetirementCalculator() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MEDICAL_PLANS_2026.map(p => (
+                      {MEDICAL_PLANS_2027.map(p => (
                         <tr key={p.name} style={{ borderBottom: `1px solid ${COLORS.border}`, background: p.name === selectedMedicalPlan ? "rgba(210,31,51,0.08)" : "transparent", cursor: "pointer" }} onClick={() => setSelectedMedicalPlan(p.name)}>
                           <td style={{ padding: "8px 0", color: COLORS.text, fontSize: "13px" }}>{p.name}</td>
                           <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(p.ee)}</td>

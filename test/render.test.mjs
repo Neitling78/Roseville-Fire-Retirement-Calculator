@@ -751,6 +751,42 @@ const tableGross = (txt) => {
   return m && m[1];
 };
 
+// ── 2027 CalPERS health premiums, Region 1 ─────────────────────────────────
+// Roseville is Placer County = Region 1. If these drift, every medical figure in
+// the tool is wrong, and the City's contribution is a percentage of Kaiser's.
+console.log("\n-- 2027 health premiums --");
+{
+  const M = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
+    selectedMedicalPlan: "Kaiser Permanente", medicalCoverage: "ee",
+    retireeMedicalPlan: "Kaiser Permanente", retireeCoverage: "ee" });
+  check("Kaiser 2027 employee-only premium", () => has(M.deductions, "$1,188"));
+  check("the two plans CalPERS dropped are gone", () =>
+    lacks(M.deductions, "UnitedHealthcare Alliance") && lacks(M.deductions, "UnitedHealthcare Harmony"));
+  check("Sutter Health Plan is offered (new for 2027)", () => has(M.deductions, "Sutter Health Plan"));
+  check("Blue Shield EPO is offered (new in Placer)", () => has(M.deductions, "Blue Shield EPO"));
+  // Only the selected plan prints a dollar figure, so price these by electing them.
+  const PLAT = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
+    selectedMedicalPlan: "PERS Platinum (PPO)", medicalCoverage: "ee" });
+  check("PERS Platinum 2027", () => has(PLAT.deductions, "$1,779"));
+  const WHA = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
+    selectedMedicalPlan: "Western Health Advantage", medicalCoverage: "ee" });
+  check("Western Health Advantage 2027", () => has(WHA.deductions, "$1,031"));
+  const FAM = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
+    selectedMedicalPlan: "Kaiser Permanente", medicalCoverage: "fam" });
+  check("Kaiser 2027 family premium", () => has(FAM.deductions, "$3,088"));
+  // Medicare: what the same coverage costs at 65.
+  check("the Medicare table is on Deductions", () => has(M.deductions, "At 65 the premium drops"));
+  check("Kaiser Senior Advantage 2027", () => has(M.deductions, "$334"));
+  check("PERS Platinum Supplement 2027", () => has(M.deductions, "$666"));
+  check("it says Part B is not included", () => has(M.deductions, "Part B premium is paid"));
+  // A saved election pointing at a discontinued plan must not silently show Kaiser's money.
+  const OLD = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
+    selectedMedicalPlan: "UnitedHealthcare Harmony", retireeMedicalPlan: "UnitedHealthcare Alliance" });
+  check("a dropped plan migrates instead of silently mispricing", () =>
+    lacks(OLD.deductions, "UnitedHealthcare Harmony") && lacks(OLD.deductions, "UnitedHealthcare Alliance"));
+}
+
+
 // ── The year picker drives the header, not just the table ──────────────────
 // The picker sat above a table that changed while the biggest number on the screen
 // did not, and nothing said they were on different clocks.
