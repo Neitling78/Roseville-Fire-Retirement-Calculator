@@ -795,6 +795,43 @@ console.log("\n-- 2027 health premiums --");
 }
 
 
+// ── Health care rate-year picker ───────────────────────────────────────────
+// CalPERS publishes next year's premiums around June. A year with no sheet must say
+// "pending" and show the newest published year — never a guess, never last year's
+// numbers wearing next year's label.
+console.log("\n-- health rate year picker --");
+{
+  const mkYr = (healthRateYear) => ({ ...mkCola("2028-12-31", 50), medicalTier: "1", healthRateYear,
+    selectedMedicalPlan: "Kaiser Permanente", medicalCoverage: "ee",
+    retireeMedicalPlan: "Kaiser Permanente", retireeCoverage: "ee" });
+  const Y26 = await scenario(mkYr(2026));
+  const Y27 = await scenario(mkYr(2027));
+  const Y28 = await scenario(mkYr(2028));
+
+  check("2026 prices Kaiser at the 2026 rate", () => has(Y26.health, "$1,169"));
+  check("2027 prices Kaiser at the 2027 rate", () => has(Y27.health, "$1,188"));
+  check("the picker actually changes the premium", () =>
+    lacks(Y26.health, "Medical premium (Kaiser Permanente) $1,188") || "2026 is showing the 2027 rate");
+
+  // Plan line-ups differ by year and must follow the picker.
+  check("2026 still lists the UnitedHealthcare plans", () => has(Y26.health, "UnitedHealthcare Alliance"));
+  check("2027 does not", () => lacks(Y27.health, "UnitedHealthcare Alliance"));
+  check("Sutter exists in 2027 but not 2026", () =>
+    has(Y27.health, "Sutter Health Plan") && lacks(Y26.health, "Sutter Health Plan"));
+
+  // 2028: no sheet published yet.
+  check("2028 is marked pending in the dropdown", () => has(Y28.health, "2028 \u00b7 pending"));
+  check("2028 says plainly that the rates are not out", () => has(Y28.health, "not published yet"));
+  check("2028 names the year it is actually showing", () => has(Y28.health, "2027"));
+  check("2028 shows real 2027 money, not an invented figure", () => has(Y28.health, "$1,188"));
+  check("published years carry no pending banner", () =>
+    lacks(Y27.health, "not published yet") && lacks(Y26.health, "not published yet"));
+  check("the current year is labelled current", () => has(Y27.health, "2027 \u00b7 current"));
+  check("all three years are offered", () =>
+    ["2026", "2027", "2028"].every(y => Y27.health.includes(y)) || "a year is missing from the picker");
+}
+
+
 // ── The year picker drives the header, not just the table ──────────────────
 // The picker sat above a table that changed while the biggest number on the screen
 // did not, and nothing said they were on different clocks.

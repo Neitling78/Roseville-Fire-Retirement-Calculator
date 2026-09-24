@@ -241,6 +241,49 @@ const MEDICARE_PLANS_2027 = [
   { name: "PERS Platinum Supplement",         single: 665.50, two: 1331.00, fam: 1996.50, kind: "Supplement" },
 ];
 const MEDICARE_TIER_FROM_COVERAGE = { ee: "single", ee1: "two", fam: "fam" };
+// ── 2026 · REGION 1 (archived) ───────────────────────────────────────────
+// Kept so a member can look back at what they were paying. UnitedHealthcare Alliance and
+// Harmony existed this year; both exit CalPERS entirely on 1/1/2027.
+const MEDICAL_PLANS_2026 = [
+  { name: "Kaiser Permanente",         ee: 1168.86, ee1: 2337.72, fam: 3039.04 },
+  { name: "Blue Shield Trio",          ee: 1166.58, ee1: 2333.16, fam: 3033.11 },
+  { name: "Blue Shield Access+",       ee: 1301.95, ee1: 2603.90, fam: 3385.07 },
+  { name: "Anthem HMO Select",         ee: 1336.29, ee1: 2672.58, fam: 3474.35 },
+  { name: "Anthem HMO Traditional",    ee: 1612.08, ee1: 3224.16, fam: 4191.41 },
+  { name: "UnitedHealthcare Alliance", ee: 1290.06, ee1: 2580.12, fam: 3354.16 },
+  { name: "UnitedHealthcare Harmony",  ee: 1133.09, ee1: 2266.18, fam: 2946.03 },
+  { name: "Western Health Advantage",  ee: 969.58,  ee1: 1939.16, fam: 2520.91 },
+  { name: "PERS Platinum (PPO)",       ee: 1670.14, ee1: 3340.28, fam: 4342.36 },
+  { name: "PERS Gold (PPO)",           ee: 1120.58, ee1: 2241.16, fam: 2913.51 },
+  { name: "PORAC (RFF only)",          ee: 1063.00, ee1: 2418.00, fam: 3027.00 },
+];
+// ── THE RATE YEAR PICKER ─────────────────────────────────────────────────
+// CalPERS publishes the following year's premiums around June and they take effect the
+// next January 1. A year whose sheet is not out yet is `null` here — NOT a copy of the
+// prior year and NOT a guess. The screen says "pending" and shows the newest published
+// year instead, clearly labelled, so nobody plans against a number CalPERS never set.
+// TO ADD A YEAR: drop the new rate sheet's figures in as an array and delete the null.
+const MEDICAL_PLANS_BY_YEAR = {
+  2026: MEDICAL_PLANS_2026,
+  2027: MEDICAL_PLANS_2027,
+  2028: null,   // pending — CalPERS publishes ~June 2027, effective 1/1/2028
+};
+const MEDICARE_PLANS_BY_YEAR = {
+  2026: null,   // not loaded — we only ever pulled the Basic sheet for 2026
+  2027: MEDICARE_PLANS_2027,
+  2028: null,   // pending
+};
+const HEALTH_RATE_YEARS = [2026, 2027, 2028];
+const HEALTH_RATE_CURRENT = 2027;         // newest year with a published sheet
+// Resolve a requested year to the table actually used, and say whether we fell back.
+function healthRatesFor(year, table, newest) {
+  const asked = Number(year) || newest;
+  if (table[asked]) return { year: asked, plans: table[asked], pending: false };
+  // Walk back to the newest published year at or below the request.
+  const published = Object.keys(table).map(Number).filter(y => table[y]).sort((a, b) => b - a);
+  const use = published.find(y => y <= asked) ?? published[0];
+  return { year: use, plans: table[use] || [], pending: true, askedFor: asked };
+}
 // ── WHAT THE CITY ACTUALLY PAYS TOWARD YOUR MEDICAL ──────────────────────
 // MOU Ch.4 Art.I §C.3 (effective 3/21/2026) sets ONE combined target, not a stack of allowances:
 //   "City Flex Plan Credit (COMBINED WITH the Cafeteria Plan Allowance) covers:
@@ -315,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v39)", items: [
+    "<strong>Health care has a rate year picker: 2026, 2027, 2028.</strong> Every premium on the tab follows it \u2014 your plan, the City\u2019s share, your cost from the paycheck, the retiree premium and the Medicare table.",
+    "The plan list follows the year too, because CalPERS changes it. Pick 2026 and UnitedHealthcare Alliance and Harmony are back; pick 2027 and they are gone, with Sutter Health Plan and Blue Shield EPO in their place. If the plan you have selected did not exist in the year you picked, the tool says so instead of quietly pricing a different one.",
+    "<strong>2028 reads \u201cpending.\u201d</strong> CalPERS publishes the next year\u2019s premiums around June, effective the following January 1. Until that sheet exists, picking 2028 shows the 2027 figures and says plainly that is what you are looking at. No guesses, no last year\u2019s numbers wearing next year\u2019s label.",
+    "Adding next year is one line in the file: drop the new rate sheet in and delete the <code>null</code>.",
+  ] },
   { date: "September 24, 2026 (v38)", items: [
     "<strong>Deductions is now two tabs: Survivor / beneficiary and Health care.</strong> They were sharing one screen, which made two completely separate decisions look like halves of the same form. Picking who gets your allowance after you die has nothing to do with picking a medical plan.",
     "<strong>Survivor / beneficiary</strong> \u2014 the survivor continuance, the six-option comparison table, the explanation panel for whichever option you pick, and your beneficiary\u2019s age.",
@@ -1003,6 +1052,7 @@ export default function RFFRetirementCalculator() {
   const [retireeMedicalPlan, setRetireeMedicalPlan] = useState(
     RETIRED_PLANS_2027[SAVED.retireeMedicalPlan] || SAVED.retireeMedicalPlan || "Kaiser Permanente");
   const [retireeCoverage, setRetireeCoverage] = useState(SAVED.retireeCoverage ?? "ee");
+  const [healthRateYear, setHealthRateYear] = useState(SAVED.healthRateYear ?? HEALTH_RATE_CURRENT);
   const [dentalPlan, setDentalPlan] = useState(SAVED.dentalPlan ?? "Delta Dental High PPO");
   const [hasVision, setHasVision] = useState(SAVED.hasVision ?? true);
   const [filingStatus, setFilingStatus] = useState(SAVED.filingStatus ?? "single");
@@ -1245,7 +1295,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       setupDone, classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1260,7 +1310,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1642,9 +1692,19 @@ export default function RFFRetirementCalculator() {
     ? { monthly: 0, vested: 1.0, ...tier4RHS }
     : calcRetireeMedical(medicalTier, hireYear, retirementYear, cityYOS, totalCalpersYears, atNormalRetirementAge);
   // Member-chosen plan cost breakdown (Medical tab)
-  const selectedPlanObj = MEDICAL_PLANS_2027.find(p => p.name === selectedMedicalPlan) || MEDICAL_PLANS_2027[0];
+  // Which rate sheet the Health care tab is showing. A year CalPERS has not published yet
+  // falls back to the newest one that exists and flags itself, rather than inventing numbers.
+  const healthRates = healthRatesFor(healthRateYear, MEDICAL_PLANS_BY_YEAR, HEALTH_RATE_CURRENT);
+  const medicareRates = healthRatesFor(healthRateYear, MEDICARE_PLANS_BY_YEAR, HEALTH_RATE_CURRENT);
+  const MEDICAL_PLANS = healthRates.plans;
+  const MEDICARE_PLANS = medicareRates.plans;
+  // A plan can exist in one year and not another (UnitedHealthcare left after 2026; Sutter and
+  // Blue Shield EPO arrived for 2027), so say so instead of silently pricing a different plan.
+  const selectedPlanMissing = !MEDICAL_PLANS.some(p => p.name === selectedMedicalPlan);
+  const retireePlanMissing = !MEDICAL_PLANS.some(p => p.name === retireeMedicalPlan);
+  const selectedPlanObj = MEDICAL_PLANS.find(p => p.name === selectedMedicalPlan) || MEDICAL_PLANS[0];
   const selectedPremium = selectedPlanObj[medicalCoverage] || selectedPlanObj.ee;
-  const retireePlanObj = MEDICAL_PLANS_2027.find(p => p.name === retireeMedicalPlan) || MEDICAL_PLANS_2027[0];
+  const retireePlanObj = MEDICAL_PLANS.find(p => p.name === retireeMedicalPlan) || MEDICAL_PLANS[0];
   const retireePremium = retireePlanObj[retireeCoverage] || retireePlanObj.ee;
   // Roseville split-payment: City pays the PEMHCA minimum straight to CalPERS, so CalPERS deducts only
   // the remaining premium from the pension check (City reimburses the rest separately).
@@ -1655,7 +1715,7 @@ export default function RFFRetirementCalculator() {
   const dentalObj = DENTAL_PLANS_2026.find(p => p.name === dentalPlan) || DENTAL_PLANS_2026[0];
   const dentalPremium = dentalObj[DENTAL_TIER_FROM_MED[medicalCoverage]] || 0;
   const visionPremium = hasVision ? (VISION_2026[medicalCoverage] || 0) : 0;
-  const KAISER_PLAN = MEDICAL_PLANS_2027.find(p => p.name === "Kaiser Permanente") || {};
+  const KAISER_PLAN = MEDICAL_PLANS.find(p => p.name === "Kaiser Permanente") || {};
   const CITY_MED_PCT = { ee: 1.0, ee1: 0.85, fam: 0.80 };
   const cityMedicalMax = (CITY_MED_PCT[medicalCoverage] || 1) * (KAISER_PLAN[medicalCoverage] || 0);
   const cityMedicalPaid = Math.min(selectedPremium, cityMedicalMax);
@@ -4257,6 +4317,34 @@ export default function RFFRetirementCalculator() {
               <div style={styles.card}>
                 {sectionHeader("medplan", "Medical, dental & vision (while working)")}
                 {openSections.medplan !== false && (<>
+                {/* ── RATE YEAR PICKER ── */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+                  <label style={{ ...styles.label, marginBottom: 0, flex: "none" }}>Rate year</label>
+                  <select style={{ ...styles.select, margin: 0, width: "auto", minWidth: "170px" }}
+                    value={healthRateYear} onChange={e => setHealthRateYear(Number(e.target.value))}>
+                    {HEALTH_RATE_YEARS.map(y => (
+                      <option key={y} value={y}>
+                        {y}{!MEDICAL_PLANS_BY_YEAR[y] ? " · pending" : y === HEALTH_RATE_CURRENT ? " · current" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: "11px", color: COLORS.textDim }}>CalPERS Region 1 &middot; Placer County</span>
+                </div>
+                {healthRates.pending && (
+                  <div style={{ padding: "10px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                    <strong style={{ color: COLORS.gold }}>{healthRates.askedFor} rates are not published yet.</strong> CalPERS
+                    sets the following year&rsquo;s premiums around June and they take effect the next January 1. Rather than
+                    guess, every figure below is the <strong style={{ color: COLORS.text }}>{healthRates.year}</strong> rate.
+                    Expect the real {healthRates.askedFor} numbers to land higher &mdash; CalPERS held 2027 to a 4.97% increase.
+                  </div>
+                )}
+                {(selectedPlanMissing || retireePlanMissing) && (
+                  <div style={{ padding: "10px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                    <strong style={{ color: COLORS.gold }}>Your plan did not exist in {healthRates.year}.</strong> Showing
+                    {" "}{selectedPlanObj.name} instead so the figures below are real. UnitedHealthcare Alliance and Harmony
+                    left CalPERS after 2026; Sutter Health Plan and Blue Shield EPO arrived for 2027.
+                  </div>
+                )}
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px" }}>
                   Your tier: <strong style={{ color: COLORS.gold }}>Tier {medicalTier}</strong> (hired {hireYear}). Pick a plan and coverage to see your cost.
                 </div>
@@ -4264,7 +4352,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Medical Plan</label>
                     <select style={styles.select} value={selectedMedicalPlan} onChange={e => setSelectedMedicalPlan(e.target.value)}>
-                      {MEDICAL_PLANS_2027.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                      {MEDICAL_PLANS.map(p => <option key={p.name} value={p.name}>{p.name}{p.isNew ? " \u00b7 new" : ""}</option>)}
                     </select>
                   </div>
                   <div style={styles.fieldGroup}>
@@ -4336,7 +4424,7 @@ export default function RFFRetirementCalculator() {
                       <div style={styles.fieldGroup}>
                         <label style={styles.label}>Retiree plan</label>
                         <select style={styles.select} value={retireeMedicalPlan} onChange={e => setRetireeMedicalPlan(e.target.value)}>
-                          {MEDICAL_PLANS_2027.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                          {MEDICAL_PLANS.map(p => <option key={p.name} value={p.name}>{p.name}{p.isNew ? " \u00b7 new" : ""}</option>)}
                         </select>
                       </div>
                       <div style={styles.fieldGroup}>
@@ -4371,7 +4459,7 @@ export default function RFFRetirementCalculator() {
                           </tr>
                         </thead>
                         <tbody>
-                          {MEDICARE_PLANS_2027.map(p => {
+                          {MEDICARE_PLANS.map(p => {
                             const prem = p[MEDICARE_TIER_FROM_COVERAGE[retireeCoverage] || "single"] || p.single;
                             const oop = Math.max(0, prem - cityMedicalContribution);
                             return (
@@ -4413,7 +4501,7 @@ export default function RFFRetirementCalculator() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MEDICAL_PLANS_2027.map(p => (
+                      {MEDICAL_PLANS.map(p => (
                         <tr key={p.name} style={{ borderBottom: `1px solid ${COLORS.border}`, background: p.name === selectedMedicalPlan ? "rgba(210,31,51,0.08)" : "transparent", cursor: "pointer" }} onClick={() => setSelectedMedicalPlan(p.name)}>
                           <td style={{ padding: "8px 0", color: COLORS.text, fontSize: "13px" }}>{p.name}</td>
                           <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(p.ee)}</td>
