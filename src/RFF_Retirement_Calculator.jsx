@@ -358,6 +358,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v42)", items: [
+    "<strong>Future raises moved to Current compensation</strong>, sitting between the pay table and the hourly rates. That is what it actually drives \u2014 the year picker on that table reads the MOU increases and the Labor Market Adjustment you type in \u2014 so having it a tab away meant changing a number on Pension to watch a table move on Current compensation.",
+    "The 2028 warning on the pay table used to say \u201cput a number in on Pension \u203a Future raises.\u201d It now points just below, because that is where the box is.",
+    "Pension is now only the pension: what the formula pays, what comes off it, and what lands in your bank.",
+  ] },
   { date: "September 24, 2026 (v41)", items: [
     "<strong>\u201cWhen do you plan to go?\u201d moved to the bottom of Member details</strong>, as section 5. It sat at the top of Pension, which split the questions across two tabs \u2014 you answered four things about yourself, jumped to another screen, then answered a fifth. Now Member details is every question in one place, in order, and the date is the last one you give it.",
     "Pension opens with Future raises and goes straight to the number, which is what that tab is for.",
@@ -2463,71 +2468,6 @@ export default function RFFRetirementCalculator() {
               </>
             )}
 
-            {tab === "pension" && setupDone && (
-                <div style={styles.card}>
-                  {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
-                  {openSections.startraises !== false && (<>
-                    {/* Year by year, in the order the contract lays them out. */}
-                    {(() => {
-                      const sep2027 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075"
-                        : classification === "Fire Engineer" ? "Eng = FFP2 ×1.075" : null;
-                      const sep2028 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP ×1.10"
-                        : classification === "Fire Engineer" ? "Eng = FFP ×1.10" : null;
-                      const Row = ({ year, children }) => (
-                        <div style={{ display: "grid", gridTemplateColumns: "54px 1fr", gap: "10px",
-                          padding: "8px 0", borderTop: `1px solid ${COLORS.border}`, alignItems: "start" }}>
-                          <div style={{ fontWeight: 800, color: COLORS.text, fontSize: "13px" }}>{year}</div>
-                          <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>{children}</div>
-                        </div>
-                      );
-                      return (<>
-                        <Row year="2027">
-                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2027, classification))}</strong> general wage increase
-                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
-                          {sep2027 && <> · rank separation <strong style={{ color: COLORS.gold }}>{sep2027}</strong></>}
-                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(2) · first full pay period in January</div>
-                        </Row>
-                        <Row year="2028">
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
-                            <span>Labor Market Adjustment</span>
-                            <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
-                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
-                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
-                            <span style={{ color: COLORS.textMuted }}>%</span>
-                            {(parseFloat(lmaPct) || 0) === 0 && <span style={{ color: COLORS.gold, fontSize: "10px" }}>⚠ nobody knows this one yet</span>}
-                          </div>
-                          {sep2028 && <>Alignment tightens to <strong style={{ color: COLORS.gold }}>{sep2028}</strong><br /></>}
-                          <span style={{ color: COLORS.textDim }}>
-                            Art.I.A.3 · the City lifts any class below the market 55th percentile up to it, set by the
-                            2027 Total Compensation Study. It raises base hourly rate, so 2029 compounds on top of it.
-                          </span>
-                        </Row>
-                        <Row year="2029">
-                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2029, classification))}</strong> general wage increase
-                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
-                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(4) · alignment maintained · contract ends 12/31/2029</div>
-                        </Row>
-                        <Row year="2030+">
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
-                            <span>Raises Local 1592 bargains</span>
-                            <input type="number" step="0.25" min={0} max={20} value={unionRaisePct || ""} placeholder="0"
-                              onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))}
-                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
-                            <span style={{ color: COLORS.textMuted }}>%/yr</span>
-                          </div>
-                          <span style={{ color: COLORS.textDim }}>
-                            No contract past 12/31/2029. At 0 you are credited with nothing beyond what is signed.
-                            Same dial as on Stay or go?
-                          </span>
-                        </Row>
-                      </>);
-                    })()}
-                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px" }}>
-                      Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Current compensation</strong>, using the year picker.
-                    </div>
-                  </>)}
-                </div>
-            )}
             {/* ═══════════════ PENSION ═══════════════ */}
             {tab === "pension" && (
               <>
@@ -2911,7 +2851,7 @@ export default function RFFRetirementCalculator() {
                         <div style={{ marginTop: "6px", color: COLORS.gold }}>
                           ⚠ 2028 is the year nobody can price yet. The Labor Market Adjustment is set by the 2027
                           Total Compensation Study and it is at zero here — so this is the floor, not a forecast.
-                          Put a number in on Pension › Future raises and every figure below moves.
+                          Put a number in under Future raises just below and every figure moves.
                         </div>
                       )}
                     </div>
@@ -2973,6 +2913,71 @@ export default function RFFRetirementCalculator() {
                 </div>
               );
             })()}
+            {tab === "comp" && setupDone && (
+                <div style={styles.card}>
+                  {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
+                  {openSections.startraises !== false && (<>
+                    {/* Year by year, in the order the contract lays them out. */}
+                    {(() => {
+                      const sep2027 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075"
+                        : classification === "Fire Engineer" ? "Eng = FFP2 ×1.075" : null;
+                      const sep2028 = classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP ×1.10"
+                        : classification === "Fire Engineer" ? "Eng = FFP ×1.10" : null;
+                      const Row = ({ year, children }) => (
+                        <div style={{ display: "grid", gridTemplateColumns: "54px 1fr", gap: "10px",
+                          padding: "8px 0", borderTop: `1px solid ${COLORS.border}`, alignItems: "start" }}>
+                          <div style={{ fontWeight: 800, color: COLORS.text, fontSize: "13px" }}>{year}</div>
+                          <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.6 }}>{children}</div>
+                        </div>
+                      );
+                      return (<>
+                        <Row year="2027">
+                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2027, classification))}</strong> general wage increase
+                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
+                          {sep2027 && <> · rank separation <strong style={{ color: COLORS.gold }}>{sep2027}</strong></>}
+                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(2) · first full pay period in January</div>
+                        </Row>
+                        <Row year="2028">
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
+                            <span>Labor Market Adjustment</span>
+                            <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
+                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
+                            <span style={{ color: COLORS.textMuted }}>%</span>
+                            {(parseFloat(lmaPct) || 0) === 0 && <span style={{ color: COLORS.gold, fontSize: "10px" }}>⚠ nobody knows this one yet</span>}
+                          </div>
+                          {sep2028 && <>Alignment tightens to <strong style={{ color: COLORS.gold }}>{sep2028}</strong><br /></>}
+                          <span style={{ color: COLORS.textDim }}>
+                            Art.I.A.3 · the City lifts any class below the market 55th percentile up to it, set by the
+                            2027 Total Compensation Study. It raises base hourly rate, so 2029 compounds on top of it.
+                          </span>
+                        </Row>
+                        <Row year="2029">
+                          <strong style={{ color: COLORS.text }}>{pctExact(mouGwiFor(2029, classification))}</strong> general wage increase
+                          {isPreventionClass(classification) ? " (prevention)" : " for suppression"}
+                          <div style={{ color: COLORS.textDim }}>MOU Ch.2 Art.I.A(4) · alignment maintained · contract ends 12/31/2029</div>
+                        </Row>
+                        <Row year="2030+">
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
+                            <span>Raises Local 1592 bargains</span>
+                            <input type="number" step="0.25" min={0} max={20} value={unionRaisePct || ""} placeholder="0"
+                              onChange={e => setUnionRaisePct(Math.max(0, +e.target.value || 0))}
+                              style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
+                            <span style={{ color: COLORS.textMuted }}>%/yr</span>
+                          </div>
+                          <span style={{ color: COLORS.textDim }}>
+                            No contract past 12/31/2029. At 0 you are credited with nothing beyond what is signed.
+                            Same dial as on Stay or go?
+                          </span>
+                        </Row>
+                      </>);
+                    })()}
+                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px" }}>
+                      Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Current compensation</strong>, using the year picker.
+                    </div>
+                  </>)}
+                </div>
+            )}
             {tab === "comp" && setupDone && (
                 <div style={styles.card}>
                   {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(shownRates.regular)}/hr`)}

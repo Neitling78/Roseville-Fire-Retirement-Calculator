@@ -152,8 +152,8 @@ check("collapsed hourly header carries cents", () => /Your hourly rates \s*\$[\d
   || "collapsed header rate has no cents");
 check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
-check("shows future raises", () => has(E.pension, "Future raises"));
-check("shows the 2028 study is an assumption", () => has(Eo.pension, "Total Compensation Study"));
+check("shows future raises", () => has(E.comp, "Future raises"));
+check("shows the 2028 study is an assumption", () => has(Eo.comp, "Total Compensation Study"));
 check("shows the cash-out card", () => has(E.sickleave, "Cash-out at retirement"));
 check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
   && lacks(E.start, "Unused holiday hours") === true);
@@ -251,7 +251,7 @@ check("warns once an LMA has been assumed", () => has(L28.comp, "Change it on Pe
 check("the LMA box is on the wait tab", () => has(L28.wait, "Labor Market Adjustment"));
 check("the wait tab cites the MOU article", () => has(L28.wait, "MOU Ch.2 Art.I.A.3"));
 check("the wait tab says the study sets it", () => has(L28.wait, "Total Compensation"));
-check("the LMA box is on Your Pay", () => has(L28.pension, "55th percentile"));
+check("the LMA box is on Current compensation", () => has(L28.comp, "55th percentile"));
 const LZ = await scenario(mkCapt(2028, 0, 0));
 check("all three at zero says nothing is assumed", () => has(LZ.wait, "All three at zero"));
 check("zero state says the LMA is deliberately left out", () => has(LZ.wait, "does not exist yet"));
@@ -260,9 +260,9 @@ check("today's year shows no 'what moved' panel", () => lacks(H26.comp, "What mo
 
 console.log("\n-- MOU raises are shown, not typed --");
 check("2027 GWI stated", () => has(H26.pension, "2027"));
-check("2029 GWI stated", () => has(H26.pension, "Total Compensation Study"));
-check("cites the MOU article", () => has(H26.pension, "MOU Ch.2 Art.I.A"));
-check("the bargaining lever is on the pay tab too", () => has(H26.pension, "Raises Local 1592 bargains"));
+check("2029 GWI stated", () => has(H26.comp, "Total Compensation Study"));
+check("cites the MOU article", () => has(H26.comp, "MOU Ch.2 Art.I.A"));
+check("the bargaining lever is on the pay tab too", () => has(H26.comp, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
   memberType:"classic", medicalTier:"2", classification:"Fire Plans Examiner", salaryStep:"H",
   retirementDateOverride:"2030-06-01", rateYear:2029, openSections:{ starthourly:true, startraises:true } });
@@ -707,10 +707,15 @@ check("final comp matches Current compensation for that year", () =>
 // ── The Pension tab shows the whole drop to take-home ──────────────────────
 console.log("\n-- pension tab order and the take-home chain --");
 const PO = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-check("Pension opens with the raises, then the number", () => {
-  const r = PO.pension.indexOf("Future raises");
-  const n = PO.pension.indexOf("Your number");
-  return (r >= 0 && n > r) || `out of order: raises ${r}, number ${n}`;
+check("Pension goes straight to the number", () => has(PO.pension, "Your number"));
+check("the raises are off the Pension tab", () => lacks(PO.pension, "Future raises"));
+// Raises sit between the compensation table and the hourly rates — the table's year
+// picker is what they drive, so they belong next to it rather than a tab away.
+check("Future raises sits between the two compensation sections", () => {
+  const tbl = PO.comp.indexOf("Scheduled hours are");
+  const fr  = PO.comp.indexOf("Future raises");
+  const hr  = PO.comp.indexOf("Your hourly rates");
+  return (tbl >= 0 && fr > tbl && hr > fr) || `out of order: table ${tbl}, raises ${fr}, hourly ${hr}`;
 });
 // The date is the last thing you answer on Member details — everything above it is
 // who you are, and it is the one input you can still change your mind about.
@@ -914,23 +919,23 @@ check("the corrected working gross is $16,561", () => has(WX.comp, "$16,561"));
 // number is not an approximation — members check these against the contract.
 console.log("\n-- future raises, year by year --");
 const FR = await scenario({ ...mkCola("2028-12-31", 50), openSections: { startraises: true } });
-check("2029 shows the contracted 1.75%", () => has(FR.pension, "1.75%"));
-check("and never the rounded 1.8%", () => lacks(FR.pension, "1.8% general wage increase"));
-check("laid out by year", () => ["2027","2028","2029","2030+"].every(y => FR.pension.includes(y))
+check("2029 shows the contracted 1.75%", () => has(FR.comp, "1.75%"));
+check("and never the rounded 1.8%", () => lacks(FR.comp, "1.8% general wage increase"));
+check("laid out by year", () => ["2027","2028","2029","2030+"].every(y => FR.comp.includes(y))
   || "a year is missing from the list");
-check("2027 carries its rank separation", () => has(FR.pension, "Eng = FFP2 ×1.075"));
-check("2028 shows the alignment tightening", () => has(FR.pension, "Eng = FFP ×1.10"));
-check("2028 has the LMA input", () => has(FR.pension, "Labor Market Adjustment"));
-check("2028 says nobody knows it yet", () => has(FR.pension, "nobody knows this one yet"));
-check("2030+ has the bargaining dial", () => has(FR.pension, "Raises Local 1592 bargains"));
-check("cites Art.I.A(2) for 2027", () => has(FR.pension, "Art.I.A(2)"));
-check("cites Art.I.A.3 for the LMA", () => has(FR.pension, "Art.I.A.3"));
-check("cites Art.I.A(4) for 2029", () => has(FR.pension, "Art.I.A(4)"));
+check("2027 carries its rank separation", () => has(FR.comp, "Eng = FFP2 ×1.075"));
+check("2028 shows the alignment tightening", () => has(FR.comp, "Eng = FFP ×1.10"));
+check("2028 has the LMA input", () => has(FR.comp, "Labor Market Adjustment"));
+check("2028 says nobody knows it yet", () => has(FR.comp, "nobody knows this one yet"));
+check("2030+ has the bargaining dial", () => has(FR.comp, "Raises Local 1592 bargains"));
+check("cites Art.I.A(2) for 2027", () => has(FR.comp, "Art.I.A(2)"));
+check("cites Art.I.A.3 for the LMA", () => has(FR.comp, "Art.I.A.3"));
+check("cites Art.I.A(4) for 2029", () => has(FR.comp, "Art.I.A(4)"));
 // Prevention classes bargained different figures and must show their own.
 const FRP = await scenario({ ...mkCola("2028-12-31", 50),
   classification: "Fire Plans Examiner", openSections: { startraises: true } });
-check("prevention gets its own 2027 figure", () => has(FRP.pension, "2.5% general wage increase"));
-check("prevention gets its own 2029 figure", () => has(FRP.pension, "3% general wage increase"));
+check("prevention gets its own 2027 figure", () => has(FRP.comp, "2.5% general wage increase"));
+check("prevention gets its own 2029 figure", () => has(FRP.comp, "3% general wage increase"));
 
 
 // ── 457: a deduction while working, not income in retirement ───────────────
