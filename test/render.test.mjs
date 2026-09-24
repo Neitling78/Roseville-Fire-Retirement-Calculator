@@ -49,7 +49,7 @@ check("then specialty pay", () => has(A.member, "3 \u00b7 Specialty pay and cert
 // The overtime + gross-pay card only appears once the member has entered something.
 check("asks what you do", () => has(A.member, "Rank and pay step"));
 check("asks when Roseville hired you", () => has(A.member, "Roseville hire date"));
-check("asks for sick leave hours", () => has(A.start, "Sick leave hours on the books today"));
+check("asks for sick leave hours at retirement", () => has(A.start, "sick leave hours will you have on the books at retirement"));
 check("withholds the answer", () => has(A.start, "each get their own tab"));
 check("shows NO take-home figure yet", () => lacks(A.start, "Lands in your bank"));
 check("says data stays in the browser", () => has(A.start, "leaves your browser"));
@@ -86,7 +86,8 @@ check("says you cannot do both", () => has(B.member, "cannot do both with the sa
 check("the payoff ceiling is flagged as unconfirmed", () => has(B.member, "base hourly plus longevity only"));
 // The cash/credit/split dropdown is gone — the two boxes on Member details are the only control.
 check("no second sick-leave control here", () => lacks(B.member, "Split them"));
-check("points at the two boxes instead", () => has(B.member, "Set the split in the two boxes"));
+check("the choice is two checkboxes, in the same section", () =>
+  has(B.member, "What will you do with them?") && has(B.member, "Add to service time"));
 check("still shows both sides of the decision", () => has(B.member, "As service credit") && has(B.member, "As cash"));
 check("points at the Treasurer to confirm", () => has(B.member, "Treasurer"));
 
@@ -287,7 +288,7 @@ const FFC = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03
 check("asks rank and step", () => has(FF.member, "Rank and pay step"));
 check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date, at the end of Member details", () => has(FF.member, "When do you plan to go?"));
-check("asks sick leave", () => has(FF.start, "Sick leave hours on the books today"));
+check("asks sick leave", () => has(FF.start, "sick leave hours will you have on the books at retirement"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
 check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
@@ -508,7 +509,9 @@ check("5 years out = 4 COLAs, not 5", () => has(CD.pension, "$16,241"));
 check("10 years out = 9 COLAs", () => has(CD.pension, "$18,828"));
 // A February retiree reaches each anniversary BEFORE May 1, so at the same elapsed
 // years they have banked one fewer COLA than the December retiree.
-check("February retiree: 5 years out = 3 COLAs", () => has(CF.pension, "$13,435"));
+// Figure moved in v47: this scenario carries 2,600 sick-leave hours and no split, and the
+// tool no longer adds 144 hrs/yr of accrual on top of them, so it converts less credit.
+check("February retiree: 5 years out = 3 COLAs", () => has(CF.pension, "$13,384"));
 check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"));
 
 
@@ -641,20 +644,32 @@ check("retirement date lives on Member details", () => has(S1.member, "When do y
 check("retirement date is off Pension", () => lacks(S1.pension, "When do you plan to go?"));
 
 
-// ── Sick leave: two boxes, not a dropdown ──────────────────────────────────
-// The split IS the decision — how many hours you cash and how many you convert
-// (2,000 hrs = 1 year of service credit, Gov. Code §20965).
-console.log("\n-- sick leave split --");
-const SPL = await scenario({ ...mkCola("2028-12-31", 50), sickCashHours: 600, sickCreditHours: 2000,
-  currentSickLeaveHours: 0 });
-check("two boxes, not a dropdown", () => has(SPL.member, "hours to cash out") && has(SPL.member, "hours to convert"));
-check("shows the years the converted hours buy", () => has(SPL.member, "1.00 yrs"));
-check("projects the split total, not just one box", () => has(SPL.member, "2600 hrs today"));
-check("accrual is added, not lost", () => has(SPL.member, "2927 hrs"));
-check("future accrual follows the same split", () => has(SPL.member, "1.13 yrs"));
-check("and the rest is cashed", () => /6[67]\d hrs cashed/.test(SPL.member) || "no cashed-hours figure near 670");
-check("the 2,400-hour payoff ceiling is called out when it bites", () =>
-  has(SPL.member, "As cash") || "the cash side is missing");
+// ── Sick leave: one number, one choice ─────────────────────────────────
+// The member states the balance they expect ON THEIR LAST DAY and picks cash OR credit.
+// Nothing is projected from today's hours: 144 hrs/yr with none used is a ceiling, not a
+// forecast, and the tool used to print it as if it were the member's actual balance.
+console.log("\n-- sick leave: one number, one choice --");
+const SLC = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
+  sickLeaveDisposition: "credit" });
+const SLX = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
+  sickLeaveDisposition: "cash" });
+check("asks one question, for the balance at retirement", () =>
+  has(SLC.member, "How many sick leave hours will you have on the books at retirement?"));
+check("no second box for today's balance", () => lacks(SLC.member, "hours to cash out"));
+check("nothing is projected from today", () => lacks(SLC.member, "at retirement with accrual"));
+check("the accrual figure is a ceiling, not a default", () => has(SLC.member, "ceiling, not a forecast"));
+check("two choices, both offered", () =>
+  has(SLC.member, "Add to service time") && has(SLC.member, "Cash out"));
+check("credit ticked shows the years to two decimals", () => /\+1\.00 yrs/.test(SLC.member) || "no +1.00 yrs");
+check("and only one of them can be true", () => has(SLC.member, "One or the other, never both"));
+// 2,000 hrs at 70% of the retirement-year base rate. The figure must appear on the
+// checkbox whichever box is ticked — that is the comparison the member is making.
+check("cash ticked prices the payout", () => /\$\d{2},\d{3}<?\/?[^ ]* ?at separation|\$\d{2},\d{3} at separation/.test(SLX.member) || has(SLX.member, "at separation"));
+check("the cash figure is quoted even when credit is ticked", () => has(SLC.member, "at separation"));
+check("and it lands on Pension under 'Also waiting for you'", () =>
+  has(SLX.pension, "Also waiting for you at retirement") && has(SLX.pension, "cashed out"));
+check("credit lands there as years, not dollars", () =>
+  has(SLC.pension, "converted to service credit") && /\+1\.00 yrs/.test(SLC.pension) || "no years on Pension");
 
 // ── Current compensation: one table, ends at W-2 gross ─────────────────────
 console.log("\n-- current compensation --");
