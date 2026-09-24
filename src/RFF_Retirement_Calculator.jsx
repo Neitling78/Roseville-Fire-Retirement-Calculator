@@ -188,7 +188,6 @@ function max457For(age, normalRetAge, useSpecial3yr) {
 const PEPRA_COMP_CAP_2026 = 191679;
 const PEPRA_CAP_COLA = 0.025;       // assumed annual CPI indexing of the PEPRA cap
 const UNION_DUES_MONTHLY = 222;     // IAFF Local 1592 dues — used in the take-home comparison
-// City of Roseville 2026 Rate Sheet (archived). Monthly medical premiums by coverage tier.
 // ── CalPERS HEALTH PREMIUMS · 2027 · REGION 1 ────────────────────────────
 // Source: CalPERS "2027 Health Premiums, Region 1" rate sheet, effective 1/1/2027.
 // Region 1 is the correct region for Roseville — it covers Placer and Sacramento
@@ -242,8 +241,11 @@ const MEDICARE_PLANS_2027 = [
   { name: "PERS Platinum Supplement",         single: 665.50, two: 1331.00, fam: 1996.50, kind: "Supplement" },
 ];
 const MEDICARE_TIER_FROM_COVERAGE = { ee: "single", ee1: "two", fam: "fam" };
-const RFF_FLEX_2026 = { ee: 200, ee1: 688, fam: 1143 };       // RFF flex credit by coverage tier
-const CAFETERIA_2026 = 1347;                                   // City cafeteria allowance (MOU Ch4 Art I §C.2)
+// MOU Ch.4 Art.I §C.2: Cafeteria Plan Allowance is "up to $1,347 monthly" — a flat figure with no
+// escalator, so it does not change with the plan year. §C.3 sets the flex credit as a PERCENTAGE of
+// the Kaiser premium for the tier (100% / 85% / 80%) plus $180 for dental+vision, which is why the
+// City share moves on its own when the Kaiser rate changes. See CITY_MED_PCT below.
+const CAFETERIA_ALLOWANCE_MONTHLY = 1347;
 // Delta Dental 2026 monthly rates by tier (EE only / +spouse / +children / +family)
 const DENTAL_PLANS_2026 = [
   { name: "None", ee: 0, spouse: 0, children: 0, family: 0 },
@@ -5052,7 +5054,7 @@ export default function RFFRetirementCalculator() {
         <button onClick={() => setTab("updates")} style={{ background: "none", border: `1px solid ${COLORS.border}`, color: tab === "updates" ? COLORS.accent : COLORS.textMuted, cursor: "pointer", fontSize: "12px", borderRadius: "8px", padding: "6px 16px", marginBottom: "14px" }}>What's new ›</button>
         <br />
         <strong>RFF Local 1592 Member Retirement Calculator</strong><br />
-        Based on 2026–2029 RFF MOU · Salary Schedule effective 3/21/2026 · CalPERS regulations<br />
+        Based on 2026–2029 RFF MOU · Salary Schedule effective 3/21/2026 · CalPERS health premiums effective 1/1/2027<br />
         ⚠ This tool provides estimates only. Consult CalPERS and a financial advisor for official projections.<br />
         Engineer cert pay, Captain Paramedic, and Captain Engine Boss all cease 1/9/2027 per MOU. PEPRA Service Term Bonus is NOT pensionable per Art XI. Sick leave service credit conversion: 100% per MOU Ch5 Art I + CalPERS Gov Code §20862.8 (no cap, no double-dipping). PEPRA age factor is linearly interpolated between 2.0%@50 and 2.7%@57 — actual CalPERS factors use proprietary actuarial tables (deviation typically &lt;0.2%). Survivor benefit option factors are approximations — request a Retirement Allowance Estimate from CalPERS for exact figures. Years of service are computed from your hire date to your retirement date (auto-set from your retirement age, editable to the exact day); the PEPRA age factor still uses the retirement age you enter. Medical-tab premium and flex-credit figures are 2026 active-employee rates and change annually. PEPRA pensions are figured on the state pensionable-compensation cap (non-Social-Security safety: $191,679 in 2026, escalated ~2.5%/yr) when projected pay exceeds it. The City 3% 457 match is counted only for years of service past the 5-year vesting point.
       </div>
