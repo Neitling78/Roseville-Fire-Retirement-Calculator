@@ -137,7 +137,7 @@ check("shows specialty pay section", () => has(E.start, "Specialty pay and certi
 check("collapsed header still shows the incentive total", () => /Specialty pay and certificates \s*[\d.]+%/.test(E.start) || "no total in the collapsed header");
 check("the table ends at gross pay", () => has(E.comp, "Gross pay"));
 check("collapsed header still shows the hourly rate", () => /Your hourly rates \s*\$/.test(E.comp) || "no value in the collapsed header");
-check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.member) || "no value in the collapsed header");
+check("the cash-out figure is in the cash-or-credit panel", () => /As cash \s*\$/.test(E.member) || "no cash figure in the panel");
 check("offers the education incentive", () => has(Eo.start, "Bachelor's degree (10%)"));
 check("offers Chief Fire Officer for a Captain", () => has(Eo.start, "Chief Fire Officer cert (10%)"));
 check("offers hazmat", () => has(Eo.start, "Hazmat"));
@@ -154,7 +154,7 @@ check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
 check("shows future raises", () => has(E.comp, "Future raises"));
 check("shows the 2028 study is an assumption", () => has(Eo.comp, "Total Compensation Study"));
-check("shows the cash-out card", () => has(E.member, "Cash-out at retirement"));
+check("shows the cash-out decision", () => has(E.member, "Cash or credit?"));
 check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
   && lacks(E.start, "Unused holiday hours") === true);
 check("explains holiday is special comp, not a payout", () => has(Eo.member, "Holiday hours are not a separate cash-out"));
@@ -164,7 +164,12 @@ check("holiday pay still counts as pensionable", () => has(E.comp, "Holiday pay"
 check("cash-out rate says base + longevity, no incentives", () => has(Eo.comp, "base + longevity, no incentives"));
 check("cash-out card spells out the exclusion", () => has(Eo.member, "base hourly plus longevity only"));
 check("cash-out card excludes specialty pay explicitly", () => has(Eo.member, "no education, certificate or specialty pay"));
-check("cash-out card distinguishes projected rate from today's", () => has(Eo.member, "not today's"));
+check("distinguishes the projected rate from today's", () => has(Eo.member, "not today\u2019s") || has(Eo.member, "not today's"));
+check("and the two rates actually differ", () => {
+  const m = Eo.member.match(/uses \$([\d.,]+)\/hr .{0,60}?not today.{0,3}\$([\d.,]+)\/hr/);
+  if (!m) return true;                       // wording changed; the assertion above still guards it
+  return m[1] !== m[2] || `projected ${m[1]} equals today ${m[2]}`;
+});
 check("shows what the pension is figured on", () => has(E.pension, "What the pension is figured on"));
 check("specialty pay is in the build-up", () => has(E.comp, "Specialty and certificate pay"));
 check("Classic sees holiday pay as pensionable", () => has(E.comp, "168 hrs at base"));
@@ -276,6 +281,9 @@ const FF = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   currentSickLeaveHours:2600, retirementDateOverride:"2028-06-01",
   openSections:{ startincent:true, startprior:true, startextras:true } });
+const FFC = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  openSections:{ startcalpers:true } });
 check("asks rank and step", () => has(FF.member, "Rank and pay step"));
 check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date, at the end of Member details", () => has(FF.member, "When do you plan to go?"));
@@ -284,7 +292,7 @@ check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"
 check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
 check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
 check("asks beneficiary age on Survivor / beneficiary", () => has(FF.survivor, "beneficiary’s age at your retirement"));
-check("offers the pension type override", () => has(FF.member, "CalPERS reciprocity"));
+check("offers the pension type override", () => has(FFC.member, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
 check("no cash-out totals on Start here", () => lacks(FF.member, "Total cash at separation"));
 check("member details no longer ends in a call to action", () => lacks(FF.member, "That is everything"));
@@ -294,7 +302,7 @@ check("pension tab has the answer", () => has(FF.pension, "Lands in your bank"))
 check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular rate"));
 check("pay tab has the rates", () => has(FF.comp, "Your hourly rates"));
 check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
-check("pay tab has the cash-out card", () => has(FF.member, "Cash-out at retirement"));
+check("Member details has the cash-out decision", () => has(FF.member, "Cash or credit?"));
 check("six primary tabs", () => ["Member details","Pension","Survivor / beneficiary","Health care","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
 check("Deductions is gone as a tab", () => lacks(FF.member, ">Deductions<"));
@@ -313,8 +321,15 @@ const CP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-
     { agencyName:"State of California", years:1.038, formula:"3@55" },
   ],
   openSections:{ startcalpers:true, startprior:true } });
+const CPO = await scenario({ setupDone:true, hireDate:"2014-01-01", dob:"1985-03-15",
+  memberType:"pepra", medicalTier:"3", classification:"Fire Captain", salaryStep:"H",
+  overridePensionType:true, openSections:{ startcalpers:true } });
 check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
-check("asks for CalPERS service credit", () => has(CP.member, "CalPERS service credit"));
+// The reason the override exists: PEPRA by Roseville hire date, Classic via reciprocity.
+check("the reciprocity lock is one checkbox", () => has(CP.member, "locked into Classic (3% @ 50) through CalPERS reciprocity"));
+check("ticking it reveals the formula picker", () => has(CPO.member, "Classic (3% @ 50)"));
+check("unticked, the picker stays hidden", () => lacks(CP.member, "hired 1/1/2013 or later"));
+check("asks for CalPERS service credit", () => has(CP.member, "Service credit, if you know it"));
 check("points at myCalPERS", () => has(CP.member, "my.calpers.ca.gov"));
 check("shows the figure on file", () => has(CP.member, "23.390"));
 check("projects it to retirement", () => has(CP.member, "Roseville credit at retirement"));
@@ -322,13 +337,13 @@ check("asks whether purchased credit is included", () => has(CP.member, "already
 check("warns about double-counting airtime", () => has(CP.member, "count it twice"));
 check("gives a total to reconcile", () => has(CP.member, "Check yourself"));
 check("total matches myCalPERS (29.110)", () => has(CP.member, "29.110 years"));
-check("explains same vs different formula buckets", () => has(CP.member, "is its own bucket and stacks on top"));
+check("explains same vs different formula buckets", () => has(CPO.member, "its own bucket and stacks on top"));
 // no override supplied -> falls back to the hire date and says so
 const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-06-01", openSections:{ startcalpers:true } });
-check("falls back to the hire date when blank", () => has(NOCP.member, "estimating"));
-check("says the fallback is an estimate", () => has(NOCP.member, "it is an estimate"));
+check("falls back to the hire date when blank", () => has(NOCP.member, "yrs from your hire date"));
+check("says the fallback is not exact", () => has(NOCP.member, "estimate"));
 check("no reconcile panel without a figure", () => lacks(NOCP.member, "Check yourself"));
 
 // ── "Last reported" date and the balance-vs-pension comparison ─────────────
@@ -347,9 +362,10 @@ check("every screen renders", () => Object.values(BAL).every(h => h.length > 200
 check("asks for the Last reported date", () => has(BAL.member, '"Last reported" date on myCalPERS'));
 check("explains the employer reporting lag", () => has(BAL.member, "reports on a lag"));
 check("counts service still to earn from that date", () => has(BAL.member, "Still to earn"));
-check("asks for the account balance", () => has(BAL.member, "CalPERS account balance"));
-check("says the balance changes nothing", () => has(BAL.member, "does not change your pension by a cent"));
-check("warns a refund forfeits the pension", () => has(BAL.member, "forfeit the pension entirely"));
+check("the account balance sits on Pension, next to what it explains", () => has(BAL.pension, "CalPERS account balance"));
+check("says the balance changes nothing", () => has(BAL.pension, "does not change your pension by a cent"));
+check("warns a refund forfeits the pension", () => has(BAL.pension, "forfeit the pension entirely"));
+check("and it is off Member details", () => lacks(BAL.member, "CalPERS account balance"));
 check("pension tab compares balance to pension value", () => has(BAL.pension, "Your account balance is not your pension"));
 check("shows the refund value", () => has(BAL.pension, "refund value"));
 check("shows the private-saver equivalent", () => has(BAL.pension, "What a private saver would need"));
@@ -450,17 +466,17 @@ check("screens folded into Member details are gone from the row", () =>
   ["All inputs","Pension detail","Timeline"].every(x => !B.income.includes(x))
   || "a folded screen is still listed");
 // Everything All inputs owned outright now lives on Member details.
-check("CalPERS service credit moved to Member details", () => has(B.member, "CalPERS service credit"));
 const BOPEN = await scenario({ setupDone: true, hireDate: "1998-06-01", dob: "1972-03-15",
   memberType: "classic", medicalTier: "1", classification: "Fire Captain", salaryStep: "H",
-  openSections: { startcalpers: true } });
+  calpersBalance: 570000, openSections: { startcalpers: true } });
+check("CalPERS service credit moved to Member details", () => has(BOPEN.member, "Service credit, if you know it"));
 check("the myCalPERS pointer came with it", () => has(BOPEN.member, "my.calpers.ca.gov"));
-check("the account balance came with it", () => has(BOPEN.member, "CalPERS account balance"));
-check("the reciprocity override came with it", () => has(B.member, "CalPERS reciprocity"));
+check("the account balance sits with the pension it explains", () => has(BOPEN.pension, "CalPERS account balance"));
+check("the reciprocity override came with it", () => has(BOPEN.member, "CalPERS reciprocity"));
 check("the sick-leave decision moved to Member details", () => has(B.member, "Cash or credit?"));
-check("the cash-out figure came with it", () => has(B.member, "Cash-out at retirement"));
+check("the cash-out figure came with it", () => has(B.member, "As cash"));
 check("old ?tab=inputs and ?tab=sickleave links land on Member details", () =>
-  B.member.includes("CalPERS service credit") && B.member.includes("Cash or credit?"));
+  B.member.includes("2 \u00b7 Roseville") && B.member.includes("Cash or credit?"));
 check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("Gross CalPERS pension") && B.timeline.includes("Stay or go"));
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
