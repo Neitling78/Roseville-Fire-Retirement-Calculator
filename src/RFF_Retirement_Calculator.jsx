@@ -241,11 +241,18 @@ const MEDICARE_PLANS_2027 = [
   { name: "PERS Platinum Supplement",         single: 665.50, two: 1331.00, fam: 1996.50, kind: "Supplement" },
 ];
 const MEDICARE_TIER_FROM_COVERAGE = { ee: "single", ee1: "two", fam: "fam" };
-// MOU Ch.4 Art.I §C.2: Cafeteria Plan Allowance is "up to $1,347 monthly" — a flat figure with no
-// escalator, so it does not change with the plan year. §C.3 sets the flex credit as a PERCENTAGE of
-// the Kaiser premium for the tier (100% / 85% / 80%) plus $180 for dental+vision, which is why the
-// City share moves on its own when the Kaiser rate changes. See CITY_MED_PCT below.
-const CAFETERIA_ALLOWANCE_MONTHLY = 1347;
+// ── WHAT THE CITY ACTUALLY PAYS TOWARD YOUR MEDICAL ──────────────────────
+// MOU Ch.4 Art.I §C.3 (effective 3/21/2026) sets ONE combined target, not a stack of allowances:
+//   "City Flex Plan Credit (COMBINED WITH the Cafeteria Plan Allowance) covers:
+//      Employee Only          — up to 100% of the Kaiser employee only premium, plus $180 dental/vision
+//      Employee & 1 Dependent — up to  85% of the Kaiser employee plus one premium, plus $180
+//      Employee & 2+          — up to  80% of the Kaiser family premium, plus $180"
+// So the percentage of Kaiser IS the benefit. The $1,347 Cafeteria Plan Allowance in §C.2 is a
+// FUNDING COMPONENT of that same total (and is itself reduced by the PEMHCA payment the City sends
+// straight to CalPERS) — it is not an extra $1,347 on top. Modelling it as a separate additive
+// amount would double-count the City’s contribution, so it is deliberately not a constant here.
+// The percentages live in CITY_MED_PCT and the $180 in DV_CREDIT, both below. Because the target is
+// a percentage of Kaiser, the City share moves on its own every time the Kaiser premium changes.
 // Delta Dental 2026 monthly rates by tier (EE only / +spouse / +children / +family)
 const DENTAL_PLANS_2026 = [
   { name: "None", ee: 0, spouse: 0, children: 0, family: 0 },
