@@ -13,8 +13,9 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
+  letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #0b0b0d;
@@ -36,4 +37,45 @@ body {
   .no-print { display: none !important; }
   .print-report { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body, #root { background: #fff !important; }
+}
+
+/* ── Type and surface system ───────────────────────────────────────────────
+   The tool read like a spreadsheet because everything carried the same weight:
+   one size, one font, one card. Money is now set in a display serif at a size
+   nothing else reaches, section titles recede into small caps, and cards differ
+   by rank. Nothing here changes a number — only which number your eye finds. */
+
+/* Money and any figure meant to be read as a quantity. */
+.rff-display {
+  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums;
+}
+/* Figures stacked in a column have to line up, or the column reads as noise. */
+.rff-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* Cards lift slightly on hover so the page feels like a surface, not a printout. */
+.rff-card { transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
+.rff-card:hover { border-color: #3a3a42; }
+
+/* Focus that is visible without being a browser default. */
+.rff-card input:focus, .rff-card select:focus,
+input:focus-visible, select:focus-visible, button:focus-visible {
+  outline: none;
+  border-color: #d21f33 !important;
+  box-shadow: 0 0 0 3px rgba(210, 31, 51, 0.18);
+}
+
+::selection { background: rgba(210, 31, 51, 0.32); color: #fff; }
+
+/* Scrollbars, so the dark page does not get a bright gutter. */
+* { scrollbar-width: thin; scrollbar-color: #2e2e34 transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2e2e34; border-radius: 6px; border: 2px solid #0b0b0d; }
+*::-webkit-scrollbar-thumb:hover { background: #3a3a42; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

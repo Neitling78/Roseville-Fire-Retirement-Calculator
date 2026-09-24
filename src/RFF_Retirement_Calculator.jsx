@@ -358,6 +358,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v54)", items: [
+    "<strong>It stopped looking like a spreadsheet.</strong> No screen moved and no number changed — what changed is which number your eye lands on. Every card used to carry the same weight: one size, one font, one border. Now money is set in a display serif at a size nothing else reaches, section titles recede into small caps, and cards sit forward or back depending on whether they hold an answer or an input.",
+    "<strong>Real fonts, finally.</strong> The tool asked for DM Sans and never loaded it, so every screen was rendering in plain Helvetica. Inter now carries the interface and Instrument Serif carries the money.",
+    "Figures in a column are tabular, so they line up instead of wobbling. Rows got air between them — dense uniform rows are what made it read as a grid.",
+    "<strong>“Your number”, “The day you hang it up” and “Your sweet-spot date” now sit forward</strong> as the answer on their screen. Everything else recedes behind them.",
+    "Focus rings you can see, scrollbars that match the page, and cards that respond when you point at them. Motion is off for anyone whose system asks for reduced motion.",
+  ] },
   { date: "September 24, 2026 (v53)", items: [
     "<strong>New on Stay or go?: your sweet-spot date.</strong> Not the year — the day. “You reach the 90% cap on your Roseville CalPERS service on January 1, 2036 — age 60. After that day, more service adds $0 to your pension percentage.” The only thing that still moves the check after that is your pay going up.",
     "It tells you which side of that date your plan sits on. Short of it, you get a button to model retiring on it. Past it, the card says so and reframes the tables underneath — the gains those rows show are your final compensation climbing, not service, and that is a much smaller lever.",
@@ -928,30 +935,51 @@ const COLORS = {
   accent: "#d21f33", accentLight: "#ea3b4e", gold: "#f59e0b", blue: "#3b82f6",
   green: "#10b981", text: "#f4f6f8", textMuted: "#9aa1ad", textDim: "#5d646f",
   danger: "#ef4444",
+  // Added with the type pass: a card has to be able to sit forward or back.
+  cardRaised: "#1c1c21", borderSoft: "#242429",
 };
+// ─── TYPE ────────────────────────────────────────────────────────
+// Two faces, on purpose. Inter carries the interface; the serif carries money and
+// nothing else. A member should be able to find the number that matters without
+// reading a word, which was not true when every line was 13px Helvetica.
+const FONT_UI = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif";
+const FONT_DISPLAY = "'Instrument Serif', Georgia, 'Times New Roman', serif";
 // ─── STYLES ────────────────────────────────────────────────────────────────
 const styles = {
   app: { minHeight: "100vh", background: COLORS.bg, color: COLORS.text,
-    fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", padding: "0", position: "relative" },
+    fontFamily: FONT_UI, padding: "0", position: "relative",
+    WebkitFontSmoothing: "antialiased", letterSpacing: "-0.011em" },
   header: { background: `linear-gradient(135deg, #151517 0%, #0b0b0d 55%, #151517 100%)`,
     borderBottom: `2px solid ${COLORS.accent}`, padding: "24px 32px",
     display: "flex", alignItems: "center", gap: "20px" },
   logo: { height: "64px", width: "auto",
     filter: "drop-shadow(0 0 14px rgba(210, 31, 51, 0.35))" },
-  headerTitle: { margin: 0, fontSize: "22px", fontWeight: "800",
-    letterSpacing: "-0.5px", color: COLORS.text },
-  headerSub: { margin: 0, fontSize: "12px", color: COLORS.accent,
-    letterSpacing: "2px", textTransform: "uppercase", fontWeight: "600" },
-  container: { maxWidth: "1100px", margin: "0 auto", padding: "32px 20px" },
+  headerTitle: { margin: 0, fontSize: "26px", fontWeight: "800",
+    letterSpacing: "-0.03em", color: COLORS.text, lineHeight: 1.1 },
+  headerSub: { margin: 0, fontSize: "10px", color: COLORS.accent,
+    letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: "700",
+    marginBottom: "5px" },
+  container: { maxWidth: "1100px", margin: "0 auto", padding: "36px 20px 48px" },
   grid: { display: "grid", gridTemplateColumns: "380px 1fr", gap: "24px", alignItems: "start" },
-  card: { background: COLORS.card, border: `1px solid ${COLORS.border}`,
-    borderRadius: "12px", padding: "24px", marginBottom: "20px" },
-  cardTitle: { margin: "0 0 16px 0", fontSize: "15px", fontWeight: "600",
-    letterSpacing: "0", textTransform: "none", color: COLORS.text,
-    borderBottom: `1px solid ${COLORS.border}`, paddingBottom: "10px" },
+  // Ordinary card. Sits at rest — most of the page is this.
+  card: { background: COLORS.card, border: `1px solid ${COLORS.borderSoft}`,
+    borderRadius: "14px", padding: "24px", marginBottom: "20px",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.35)" },
+  // The card carrying the answer on a screen. One per screen, at most.
+  cardHero: { background: `linear-gradient(168deg, ${COLORS.cardRaised} 0%, ${COLORS.card} 62%)`,
+    border: `1px solid ${COLORS.border}`, borderRadius: "16px", padding: "28px",
+    marginBottom: "24px", boxShadow: "0 12px 34px -18px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.03) inset" },
+  // Supporting detail. Deliberately recessive — no lift, dimmer edge.
+  cardQuiet: { background: "transparent", border: `1px solid ${COLORS.borderSoft}`,
+    borderRadius: "14px", padding: "20px", marginBottom: "16px" },
+  // Titles are signposts, not headlines. They got out of the way so the
+  // numbers underneath could be the thing the eye lands on.
+  cardTitle: { margin: "0 0 18px 0", fontSize: "11px", fontWeight: "700",
+    letterSpacing: "0.13em", textTransform: "uppercase", color: COLORS.textMuted,
+    borderBottom: `1px solid ${COLORS.borderSoft}`, paddingBottom: "12px" },
   label: { display: "block", fontSize: "12px", fontWeight: "600",
-    color: COLORS.textMuted, marginBottom: "6px",
-    letterSpacing: "0", textTransform: "none" },
+    color: COLORS.text, marginBottom: "7px",
+    letterSpacing: "-0.005em", textTransform: "none" },
   input: { width: "100%", background: "#121214", border: `1px solid ${COLORS.border}`,
     borderRadius: "8px", padding: "10px 14px", color: COLORS.text,
     fontSize: "14px", outline: "none", boxSizing: "border-box" },
@@ -967,44 +995,54 @@ const styles = {
   checkLabel: { fontSize: "13px", color: COLORS.text, cursor: "pointer" },
   certNote: { fontSize: "11px", color: COLORS.textMuted, marginLeft: "28px",
     marginTop: "-6px", marginBottom: "8px", fontStyle: "italic" },
-  bigNumber: { fontSize: "36px", fontWeight: "800", color: COLORS.accent,
-    letterSpacing: "-1px", lineHeight: 1 },
-  bigNumberGreen: { fontSize: "36px", fontWeight: "800", color: COLORS.green,
-    letterSpacing: "-1px", lineHeight: 1 },
-  metricLabel: { fontSize: "11px", color: COLORS.textMuted,
-    textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" },
+  bigNumber: { fontFamily: FONT_DISPLAY, fontSize: "46px", fontWeight: "400", color: COLORS.accent,
+    letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "lining-nums" },
+  bigNumberGreen: { fontFamily: FONT_DISPLAY, fontSize: "46px", fontWeight: "400", color: COLORS.green,
+    letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "lining-nums" },
+  metricLabel: { fontSize: "10px", color: COLORS.textDim, fontWeight: "700",
+    textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "7px" },
   divider: { borderColor: COLORS.border, margin: "16px 0" },
-  tableRow: { display: "flex", justifyContent: "space-between", alignItems: "center",
-    padding: "7px 0", fontSize: "13px" },
-  tableRowLast: { display: "flex", justifyContent: "space-between", alignItems: "center",
-    padding: "10px 0 0 0", fontSize: "14px", fontWeight: "700" },
-  tableKey: { color: COLORS.textMuted },
-  tableVal: { color: COLORS.text, fontWeight: "600" },
-  tableValGreen: { color: COLORS.green, fontWeight: "700" },
-  tableValGold: { color: COLORS.gold, fontWeight: "700" },
-  tableValAccent: { color: COLORS.accent, fontWeight: "700" },
-  tableValDim: { color: COLORS.textDim, fontWeight: "500", fontStyle: "italic" },
+  // Denser rows read as a spreadsheet. More air between them, a quieter key and a
+  // heavier value, and the eye follows the right-hand column down instead of
+  // scanning a grid. Values are tabular so they line up in that column.
+  tableRow: { display: "flex", justifyContent: "space-between", alignItems: "baseline",
+    padding: "10px 0", fontSize: "13px", gap: "16px" },
+  tableRowLast: { display: "flex", justifyContent: "space-between", alignItems: "baseline",
+    padding: "13px 0 0 0", fontSize: "14px", fontWeight: "700", gap: "16px" },
+  tableKey: { color: COLORS.textMuted, fontSize: "12.5px", letterSpacing: "0" },
+  tableVal: { color: COLORS.text, fontWeight: "650", fontSize: "14px",
+    fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+  tableValGreen: { color: COLORS.green, fontWeight: "700", fontSize: "14px",
+    fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+  tableValGold: { color: COLORS.gold, fontWeight: "700", fontSize: "14px",
+    fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+  tableValAccent: { color: COLORS.accent, fontWeight: "700", fontSize: "14px",
+    fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+  tableValDim: { color: COLORS.textDim, fontWeight: "500", fontStyle: "italic",
+    fontVariantNumeric: "tabular-nums" },
   badge: { display: "inline-block", padding: "2px 8px", borderRadius: "4px",
     fontSize: "10px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase" },
   badgeGreen: { background: "rgba(255, 255, 255, 0.15)", color: COLORS.green,
     border: `1px solid rgba(255, 255, 255, 0.3)` },
   tabRow: { display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" },
   tab: (active) => ({
-    padding: "11px 10px", borderRadius: "12px",
-    border: `1px solid ${active ? COLORS.accent : COLORS.border}`,
-    background: active ? "rgba(210,31,51,0.16)" : "#141416",
+    padding: "11px 12px", borderRadius: "10px",
+    border: `1px solid ${active ? COLORS.accent : "transparent"}`,
+    background: active ? "rgba(210,31,51,0.14)" : "rgba(255,255,255,0.035)",
     color: active ? "#ffffff" : COLORS.textMuted,
-    fontSize: "14px", fontWeight: active ? "600" : "500", letterSpacing: "0",
+    fontSize: "13px", fontWeight: active ? "650" : "500", letterSpacing: "-0.005em",
     textTransform: "none", cursor: "pointer",
-    boxShadow: active ? "0 0 14px rgba(210,31,51,0.45)" : "none",
-    transition: "background 0.15s, box-shadow 0.15s, border-color 0.15s",
+    boxShadow: active ? "0 6px 18px -10px rgba(210,31,51,0.8)" : "none",
+    transition: "background 0.15s, box-shadow 0.15s, border-color 0.15s, color 0.15s",
   }),
   summaryBar: { display: "grid", gap: "12px", marginBottom: "20px" },
-  summaryCard: { background: "#121214", border: `1px solid ${COLORS.border}`,
-    borderRadius: "10px", padding: "14px 16px" },
-  summaryLabel: { fontSize: "11px", color: COLORS.textMuted, textTransform: "uppercase",
-    letterSpacing: "1px", marginBottom: "4px" },
-  summaryValue: { fontSize: "26px", fontWeight: "700", letterSpacing: "-0.5px", lineHeight: 1.1 },
+  summaryCard: { background: "linear-gradient(165deg, #191920 0%, #121214 70%)",
+    border: `1px solid ${COLORS.borderSoft}`, borderRadius: "12px", padding: "16px 18px",
+    boxShadow: "0 1px 0 rgba(255,255,255,0.03) inset" },
+  summaryLabel: { fontSize: "10px", color: COLORS.textDim, textTransform: "uppercase",
+    letterSpacing: "0.14em", fontWeight: "700", marginBottom: "7px" },
+  summaryValue: { fontFamily: FONT_DISPLAY, fontSize: "34px", fontWeight: "400",
+    letterSpacing: "-0.02em", lineHeight: 1.05, fontVariantNumeric: "lining-nums" },
   sectionToggle: { width: "100%", display: "flex", justifyContent: "space-between",
     alignItems: "center", background: "#121214", border: `1px solid ${COLORS.border}`,
     borderRadius: "10px", padding: "12px 14px", color: COLORS.text, fontSize: "14px",
@@ -2412,7 +2450,7 @@ export default function RFFRetirementCalculator() {
             {/* ═══════════════ WORKING NOW · inputs ═══════════════ */}
             {tab === "member" && (
               <>
-                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   {sectionHeaderValue("startprior", "1 · Prior service",
                     (priorTotalYears + airtimeYears) > 0 ? `+${(priorTotalYears + airtimeYears).toFixed(1)} yrs` : "none")}
                   {openSections.startprior !== false && (<>
@@ -2423,7 +2461,7 @@ export default function RFFRetirementCalculator() {
                     {priorServiceEditor}
                   </>)}
                 </div>
-                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>2 · Roseville</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
                     When Roseville hired you, and where you sit today. Your retirement date lives on
@@ -2727,7 +2765,7 @@ export default function RFFRetirementCalculator() {
 
 
                 {/* ── Pay detail: collapsed, but every header shows its own total ── */}
-                <div style={styles.card}>
+                <div className="rff-card" style={styles.card}>
                   {sectionHeaderValue("startincent", "3 · Specialty pay and certificates", `${pct(incentives.totalIncentivePct)} total`)}
                   {openSections.startincent !== false && (<>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
@@ -2829,7 +2867,7 @@ export default function RFFRetirementCalculator() {
 
                 
                 {!setupDone && (
-                  <div style={{ ...styles.card, textAlign: "center", padding: "28px 20px" }}>
+                  <div className="rff-card" style={{ ...styles.card, textAlign: "center", padding: "28px 20px" }}>
                     <div style={{ fontSize: "13px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
                       Answer the questions above. Your pension and your pay each get their own tab.
                       <br /><br />
@@ -2846,7 +2884,7 @@ export default function RFFRetirementCalculator() {
             {tab === "pension" && (
               <>
                 {!setupDone && (
-                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+                  <div className="rff-card" style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
                       Answer the questions on <strong style={{ color: COLORS.text }}>Member details</strong> first.
                       <br /><br />
@@ -2858,7 +2896,7 @@ export default function RFFRetirementCalculator() {
                 )}
                 {setupDone && !datesInvalid && (
                   <>
-                    <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                    <div className="rff-card" style={{ ...styles.cardHero, border: `1px solid ${COLORS.accent}` }}>
                       <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Your number</p>
                       <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
                         Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
@@ -2957,7 +2995,7 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
 
-                    <div style={styles.card}>
+                    <div className="rff-card" style={styles.card}>
                       <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Also waiting for you at retirement</p>
                       <div style={styles.tableRow}>
                         <span style={styles.tableKey}>Sick leave — {sickLeaveDisposition === "cash" ? "cashed out" : "converted to service credit"}</span>
@@ -3015,7 +3053,7 @@ export default function RFFRetirementCalculator() {
                       )}
                     </div>
 
-                    <div style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
+                    <div className="rff-card" style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
                       <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
                       <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
                         {calpersOverCap && (
@@ -3059,7 +3097,7 @@ export default function RFFRetirementCalculator() {
             )}
 
             {tab === "pension" && setupDone && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                   <p style={{ ...styles.cardTitle, borderBottom: "none", marginBottom: "12px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                     onClick={() => toggleSection("cola")}>
                     <span>Pension growth · up to {pct(colaRate)} COLA</span>
@@ -3106,7 +3144,7 @@ export default function RFFRetirementCalculator() {
             {tab === "member" && (
               <>
                 {!setupDone && (
-                  <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+                  <div className="rff-card" style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                     <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7, maxWidth: "420px", margin: "0 auto" }}>
                       Answer the questions on <strong style={{ color: COLORS.text }}>Member details</strong> first.
                       <br /><br />
@@ -3121,7 +3159,7 @@ export default function RFFRetirementCalculator() {
                     NOT pensionable, so it vanishes the day you retire. Burying the input made the
                     tool tell members retiring was a raise. It is not, for anyone who works OT. */}
                 {setupDone && (
-                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>4 · Overtime</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
                     The average you actually work in a month. One number — the full breakdown is on
@@ -3154,7 +3192,7 @@ export default function RFFRetirementCalculator() {
             )}
 
             {tab === "member" && setupDone && (
-              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+              <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>5 · When do you plan to go?</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
                   The one date you can still change your mind about. Everything in this tool — your pay,
@@ -3175,7 +3213,7 @@ export default function RFFRetirementCalculator() {
                 ending at the gross figure your W-2 is built from. Nothing is collapsed and nothing
                 is split across cards — this is the page people print and hand to their spouse. */}
             {tab === "comp" && !setupDone && (
-              <div style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
+              <div className="rff-card" style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                 <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7 }}>
                   Fill in <strong style={{ color: COLORS.text }}>Member details</strong> first.
                 </div>
@@ -3208,7 +3246,7 @@ export default function RFFRetirementCalculator() {
               const grossM = rows.reduce((t, r) => t + r.m, 0);
               const pensM = rows.filter(r => r.pens).reduce((t, r) => t + r.m, 0);
               return (
-                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
                     <p style={{ ...styles.cardTitle, margin: 0 }}>
                       Compensation in {shownRateYear}{shownRateYear === retirementYear ? " · your last year" : shownRateYear === NOW.getFullYear() ? " · today" : ""}
@@ -3298,7 +3336,7 @@ export default function RFFRetirementCalculator() {
               );
             })()}
             {tab === "comp" && setupDone && (
-                <div style={styles.card}>
+                <div className="rff-card" style={styles.card}>
                   {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
                   {openSections.startraises !== false && (<>
                     {/* Year by year, in the order the contract lays them out. */}
@@ -3363,7 +3401,7 @@ export default function RFFRetirementCalculator() {
                 </div>
             )}
             {tab === "comp" && setupDone && (
-                <div style={styles.card}>
+                <div className="rff-card" style={styles.card}>
                   {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(shownRates.regular)}/hr`)}
                   {openSections.starthourly !== false && (<>
                     <label style={styles.label}>Show rates for</label>
@@ -3443,7 +3481,7 @@ export default function RFFRetirementCalculator() {
                 stops buying percentage. Everything below is the cost/benefit of years; this says
                 which years can still move the formula at all. */}
             {tab === "stayorgo" && setupDone && benefitIsCapped && capEligibleDate && (
-              <div style={{ ...styles.card, border: `1px solid ${capAlreadyPassed ? COLORS.gold : COLORS.green}`, marginBottom: "18px" }}>
+              <div className="rff-card" style={{ ...styles.cardHero, border: `1px solid ${capAlreadyPassed ? COLORS.gold : COLORS.green}`, marginBottom: "18px" }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Your sweet-spot date</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
                   {capAlreadyPassed ? (
@@ -3516,7 +3554,7 @@ export default function RFFRetirementCalculator() {
               const cut = finalYearTakeHome - totalMonthlyTakeHome;   // + = retiring is a pay cut
               const otShare = cut > 0 && finalYearOTMonthly > 0 ? Math.min(1, finalYearOTMonthly / cut) : 0;
               return (
-                <div style={{ ...styles.card, border: `1px solid ${cut > 0 ? COLORS.gold : COLORS.green}` }}>
+                <div className="rff-card" style={{ ...styles.cardHero, border: `1px solid ${cut > 0 ? COLORS.gold : COLORS.green}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>The day you hang it up</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
                     Take-home against take-home, both in {finalWorkYear} dollars — the paycheck you will
@@ -3567,7 +3605,7 @@ export default function RFFRetirementCalculator() {
               );
             })()}
             {tab === "stayorgo" && (
-              <div style={{ ...styles.card, marginTop: setupDone ? "18px" : 0 }}>
+              <div className="rff-card" style={{ ...styles.card, marginTop: setupDone ? "18px" : 0 }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Every year you could go</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
                   The same calculation run for every year you could go. Your selected year is highlighted.
@@ -3766,7 +3804,7 @@ export default function RFFRetirementCalculator() {
                       const freeToWait = perYearForgone <= 0;
                       const anyFades = rows.some(r => r.verdict === "fades");
                       return (
-                        <div style={{ ...styles.card, marginTop: "18px" }}>
+                        <div className="rff-card" style={{ ...styles.card, marginTop: "18px" }}>
                           <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>What waiting actually costs</p>
                           <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.7 }}>
                             You can go in <strong style={{ color: COLORS.text }}>{E.year}</strong>. Every year you work past
@@ -3860,7 +3898,7 @@ export default function RFFRetirementCalculator() {
           {/* RIGHT PANEL */}
           <div>
             {tab === "survivor" && setupDone && (
-              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+              <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Who gets it after you</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
                   Two different things decide what your spouse receives, and almost everyone confuses them.
@@ -4080,7 +4118,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "health" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("medplan", `Medical, dental & vision \u00b7 while working \u00b7 ${healthRates.year} rates`)}
                 {openSections.medplan !== false && (<>
                 {/* ── RATE YEAR PICKER ── */}
@@ -4293,7 +4331,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("otsurv", "Overtime")}
                 {openSections.otsurv !== false && (<>
                   <div style={styles.fieldGroup}>
@@ -4310,7 +4348,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("sav457", "457 deferred compensation")}
                 {openSections.sav457 !== false && (<>
                   <div style={styles.fieldGroup}>
@@ -4415,7 +4453,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("otherincome", "Other retirement income")}
                 {openSections.otherincome !== false && (<>
                   <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "12px", lineHeight: "1.6" }}>
@@ -4445,7 +4483,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("taxinputs", "Taxes")}
                 {openSections.taxinputs !== false && (<>
                   <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "6px" }}>While working</div>
@@ -4505,7 +4543,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("income", "Retirement income")}
                 {openSections.income !== false && (<>
                 <div style={{ ...styles.certNote, marginLeft: "0", marginBottom: "14px" }}>
@@ -4618,7 +4656,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("hhincome", "Total household income & tax (retirement)")}
                 {openSections.hhincome !== false && (<>
                 <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "12px", lineHeight: "1.6" }}>
@@ -4653,7 +4691,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+              <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <label style={{ ...styles.checkRow, marginBottom: "8px" }}>
                   <input style={styles.checkbox} type="checkbox" checked={foldExtraIncome} onChange={e => setFoldExtraIncome(e.target.checked)} />
                   <span style={styles.checkLabel}>Include this extra income in the page-one take-home &amp; decision</span>
@@ -4664,7 +4702,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "income" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("eq401k", "Private-sector 401(k) equivalent")}
                 {openSections.eq401k !== false && (<>
                 <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(210,31,51,0.06)", borderRadius: "8px", fontSize: "13px", color: COLORS.textMuted, lineHeight: "1.8" }}>
@@ -4698,7 +4736,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "updates" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 {sectionHeader("whatsnew", "What's new")}
                 {openSections.whatsnew !== false && (<>
                 <div style={{ marginBottom: "16px", fontSize: "12px", color: COLORS.textMuted, lineHeight: "1.7" }}>
@@ -4718,7 +4756,7 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
             {tab === "help" && (
-              <div style={styles.card}>
+              <div className="rff-card" style={styles.card}>
                 <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>How to use this calculator</div>
                 <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "18px" }}>A plain-language guide from your Local — what this tool does, how to fill it in, and answers to the questions members ask most.</div>
 
