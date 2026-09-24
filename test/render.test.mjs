@@ -22,6 +22,10 @@ const check = (label, fn) => {
     console.log("  PASS  " + label); pass++; }
   catch (e) { console.log("! FAIL  " + label + "  -> " + e.message); fail++; }
 };
+// The Compensation year picker now defaults to the member's RETIREMENT year so that screen
+// agrees with the header. Tests about TODAY's pay must say so explicitly.
+const TODAY_YEAR = new Date().getFullYear();
+const pinToday = { rateYear: TODAY_YEAR, rateYearPicked: true };
 const has   = (t,n) => t.includes(n) ? true : "missing: " + JSON.stringify(n);
 const lacks = (t,n) => !t.includes(n) ? true : "should NOT contain: " + JSON.stringify(n);
 const strip = (h) => h.replace(/<!-- -->/g,"").replace(/<[^>]+>/g," ").replace(/&#x27;/g,"'").replace(/&amp;/g,"&")
@@ -130,7 +134,7 @@ const E = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
   hasBachelor:true, hasChiefFireOfficer:true, hasHazmat:true, hazmatLevel:"taskforce",
   unusedHolidayHours:96, openSections:{ sickdetail:true } });
 check("every screen renders", () => Object.values(E).every(h => h.length > 200) || "a screen came back empty");
-check("shows the compensation table", () => has(E.comp, "Current compensation"));
+check("shows the compensation table", () => has(E.comp, "Compensation in "));
 // same member, every pay section expanded
 const Eo = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1",
@@ -187,7 +191,7 @@ console.log("\n-- a Captain paid Engine Boss today, retiring after it ceases --"
 const F = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1",
   classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2029-06-01", rateYear:2027,
+  retirementDateOverride:"2029-06-01", rateYear:2027, rateYearPicked:true,
   hasEngineBoss:true, hasBachelor:true,
   openSections:{ startpay:true, starthourly:true } });
 check("every screen renders", () => Object.values(F).every(h => h.length > 200) || "a screen came back empty");
@@ -214,7 +218,7 @@ check("no cease warning when it does not apply", () => lacks(G.comp, "it ends 1/
 console.log("\n-- hourly rates by year --");
 const mkCapt = (rateYear, unionRaisePct = 3, lmaPct = 0) => ({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2034-06-01", rateYear, unionRaisePct, lmaPct, openSections:{ starthourly:true } });
+  retirementDateOverride:"2034-06-01", rateYear, rateYearPicked:true, unionRaisePct, lmaPct, openSections:{ starthourly:true } });
 const H26 = await scenario(mkCapt(2026));
 const H27 = await scenario(mkCapt(2027));
 const H28 = await scenario(mkCapt(2028));
@@ -275,7 +279,7 @@ check("cites the MOU article", () => has(H26.comp, "MOU Ch.2 Art.I.A"));
 check("the bargaining lever is on the pay tab too", () => has(H26.comp, "Raises Local 1592 bargains"));
 const PREVp = await scenario({ setupDone:true, hireDate:"2005-06-01", dob:"1975-03-15",
   memberType:"classic", medicalTier:"2", classification:"Fire Plans Examiner", salaryStep:"H",
-  retirementDateOverride:"2030-06-01", rateYear:2029, openSections:{ starthourly:true, startraises:true } });
+  retirementDateOverride:"2030-06-01", rateYear:2029, rateYearPicked:true, openSections:{ starthourly:true, startraises:true } });
 check("prevention class gets its own 2027 figure", () => has(PREVp.comp, "prevention +3.0%")
   || has(PREVp.pay, "2.5%"));
 check("prevention class renders", () => PREVp.pay.length > 200 || "empty");
@@ -524,7 +528,7 @@ check("the CPI dial names the COLA start date", () => has(CD.wait, "May 1, 2030"
 // warrant afterward. The header used to lead with an after-tax figure, which matched
 // nothing a member could check against their own CalPERS estimate.
 console.log("\n-- headline is the gross allowance --");
-const GH = await scenario(mkCola("2028-12-31", 50));
+const GH = await scenario({ ...mkCola("2028-12-31", 50), ...pinToday });
 check("header shows the working pair", () => has(GH.pension, "While working"));
 check("header shows the retired pair", () => has(GH.pension, "While retired"));
 check("header labels gross and take home", () => has(GH.pension, "Gross") && has(GH.pension, "Take home"));
@@ -702,10 +706,28 @@ check("and it lands on Pension under 'Also waiting for you'", () =>
 check("credit lands there as years, not dollars", () =>
   has(SLC.pension, "converted to service credit") && /\+1\.00 yrs/.test(SLC.pension) || "no years on Pension");
 
+// ── The Compensation picker starts on the retirement year ──────────────────
+// The header is built from retirement-year rates. Landing this screen on today's pay put
+// two different years on the same screen with nothing saying so.
+console.log("\n-- compensation defaults to the retirement year --");
+{
+  const D = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+  check("the tab is called Compensation", () => has(D.member, "Member details Compensation Pension"));
+  check("and not Current compensation", () => lacks(D.member, "Current compensation"));
+  check("the card lands on the retirement year", () => has(D.comp, "Compensation in 2028"));
+  check("and says why that year", () => has(D.comp, "your last year"));
+  check("the header is on the same year", () => has(D.comp, "While working \u00b7 2028"));
+  // A member who moves the picker keeps where they put it.
+  const P = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday });
+  check("a picked year overrides the default", () =>
+    has(P.comp, "Compensation in " + TODAY_YEAR) && lacks(P.comp, "Compensation in 2028"));
+  check("and the header follows it back", () => has(P.comp, "While working \u00b7 " + TODAY_YEAR));
+}
+
 // ── Current compensation: one table, ends at W-2 gross ─────────────────────
 console.log("\n-- current compensation --");
-const CC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-check("one consolidated table", () => has(CC.comp, "Current compensation"));
+const CC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday });
+check("one consolidated table", () => has(CC.comp, "Compensation in " + TODAY_YEAR));
 check("hourly, monthly and annual", () => ["Hourly","Monthly","Annual"].every(x => CC.comp.includes(x)));
 check("base salary to the cent", () => has(CC.comp, "$50.67"));
 check("ends at gross pay", () => has(CC.comp, "Gross pay"));
@@ -721,7 +743,7 @@ check("it is off Member details now", () => lacks(CC.member, "Gross pay"));
 // row means pulling it back out of the specialty figure first, or the table reads
 // 32.5% + 7.5% when the member only gets 25% + 7.5%.
 console.log("\n-- longevity is not double-counted --");
-const DBL = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40,
+const DBL = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday,
   hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
 check("specialty pay excludes longevity", () => has(DBL.comp, "17.5% of base"));
 check("longevity is its own line", () => has(DBL.comp, "7.5% at 24 yrs"));
@@ -741,13 +763,13 @@ check("holiday pay is not the retirement-year figure", () => lacks(DBL.comp, "$9
 console.log("\n-- compensation by year --");
 const mkY = (rateYear, lmaPct = 0) => ({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09-28",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  retirementDateOverride:"2028-12-31", retirementAge:50, currentOTHours:40, rateYear, lmaPct });
+  retirementDateOverride:"2028-12-31", retirementAge:50, currentOTHours:40, rateYear, rateYearPicked:true, lmaPct });
 const Y26 = await scenario(mkY(2026));
 const Y27 = await scenario(mkY(2027));
 const Y28 = await scenario(mkY(2028));
 const Y28L = await scenario(mkY(2028, 5));
 const Y29L = await scenario(mkY(2029, 5));
-check("the picker is on the compensation card", () => has(Y26.comp, "Current compensation"));
+check("the picker is on the compensation card", () => has(Y26.comp, "Compensation in 2026"));
 check("a future year retitles the card", () => has(Y27.comp, "Compensation in 2027"));
 check("2026 is today's base", () => has(Y26.comp, "$12,295"));
 check("2027 adds the rank separation", () => has(Y27.comp, "$13,013"));
@@ -769,14 +791,14 @@ check("this year carries no assumption banner", () => lacks(Y26.comp, "What is i
 // compensation with a year picker. Repeating them here confused members, because
 // the base rate sat next to a gross figure it did not match.
 console.log("\n-- pension tab starts at final compensation --");
-const PT = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+const PT = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday });
 check("no base-rate line on the pension tab", () => lacks(PT.pension, "Projected base at 2028"));
 check("no base-today line either", () => lacks(PT.pension, "Base today"));
 check("it starts at final compensation", () => has(PT.pension, "Final compensation"));
 check("and goes straight to the allowance", () => has(PT.pension, "Gross CalPERS pension"));
-check("it points at where the build-up lives", () => has(PT.pension, "Current compensation"));
+check("it points at where the build-up lives", () => has(PT.pension, "Compensation"));
 // The two tabs must agree: pensionable pay in the retirement year IS final compensation.
-const PTC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2028 });
+const PTC = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2028, rateYearPicked:true });
 check("final comp matches Current compensation for that year", () =>
   (PTC.comp.includes("$15,597") && PTC.pension.includes("$15,597"))
   || "the two tabs disagree on pensionable pay");
@@ -817,7 +839,7 @@ check("admits the tax figures are estimates", () => has(PO.pension, "not a numbe
 
 // ── The header carries the four numbers, on every tab ──────────────────────
 console.log("\n-- header: working vs retired, gross and net --");
-const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday });
 check("working gross includes overtime", () => has(HD.member, "$17,677"));
 check("working take-home is there", () => has(HD.member, "$11,392"));
 check("retired gross is the allowance", () => has(HD.member, "$14,430"));
@@ -964,7 +986,7 @@ console.log("\n-- the year picker moves the header --");
 {
   const yr = {};
   for (const y of [2026, 2027, 2028]) {
-    const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: y,
+    const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: y, rateYearPicked: true,
       lmaPct: 5, hasBachelor: true, hasParamedic: true });
     const h = headerWorkingGross(S.comp), t = tableGross(S.comp);
     yr[y] = { h, t, txt: S.comp, member: S.member };
@@ -984,7 +1006,7 @@ console.log("\n-- the year picker moves the header --");
     has(yr[2028].member, "While working \u00b7 2028"));
   // Past the retirement year a member is not working, and the retired half of the header is
   // pinned there, so the two halves would be comparing different years.
-  const PAST = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2029 });
+  const PAST = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, rateYear: 2029, rateYearPicked:true });
   check("a year past retirement clamps to the retirement year", () =>
     has(PAST.comp, "While working \u00b7 2028"));
   check("and says why", () => has(PAST.comp, "you retire in 2028"));
@@ -992,7 +1014,7 @@ console.log("\n-- the year picker moves the header --");
 }
 
 for (const ot of [0, 40]) {
-  const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: ot, rateYear: 2026,
+  const S = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: ot, rateYear: 2026, rateYearPicked:true,
     hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
   check(`header working gross matches the table at ${ot} OT hrs`, () => {
     const h = headerWorkingGross(S.comp), t = tableGross(S.comp);
@@ -1001,7 +1023,7 @@ for (const ot of [0, 40]) {
     return h.gross === t || `header ${h.gross} vs table ${t}`;
   });
 }
-const WX = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 0, rateYear: 2026,
+const WX = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 0, rateYear: 2026, rateYearPicked:true,
   hasBachelor: true, hasParamedic: true, hasHazmat: true, hazmatLevel: "tech" });
 check("working gross includes holiday pay", () => has(WX.comp, "Holiday pay"));
 check("working gross includes the uniform allowance", () => has(WX.comp, "Uniform allowance"));
@@ -1070,7 +1092,9 @@ const sgRead = (t) => {
   const v = t.match(/(The cut|You come out ahead) [−+-]?(\$[\d,]+)\/mo/);
   return { hdrWork: money(h && h[1]), hdrRet: money(h && h[2]), cardRet: money(c && c[1]), delta: money(v && v[2]) };
 };
-const mkSG = (extra) => ({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...extra });
+// "Working now" on this card is today's pay, so pin the header to today or the two are
+// legitimately on different years and the comparison below is meaningless.
+const mkSG = (extra) => ({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday, ...extra });
 for (const [label, extra] of [["CPI 0", {}], ["CPI 3", { inflationRate: 3 }], ["no OT", { currentOTHours: 0 }]]) {
   const S = await scenario(mkSG(extra));
   const r = sgRead(S.stayorgo);

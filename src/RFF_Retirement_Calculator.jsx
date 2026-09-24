@@ -358,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v50)", items: [
+    "<strong>“Current compensation” is now just “Compensation.”</strong>",
+    "<strong>It opens on your retirement year, not today.</strong> The big numbers at the top of every screen are built from your retirement-year pay; this table was opening on this month's pay. Two different years on one screen, with nothing saying so. The picker now lands on the year you said you are going — the card reads <em>Compensation in 2028 · your last year</em> — and the header moves with it.",
+    "The picker still works exactly as before. Move it to 2026 and the whole table, the hourly rates and the header all follow; wherever you put it, it stays put.",
+    "<strong>Worth knowing:</strong> the <em>Working now</em> line on Stay or go? is still today's pay on purpose — that card is asking what leaving costs you against what you are earning right now.",
+  ] },
   { date: "September 24, 2026 (v49)", items: [
     "<strong>“Into the weeds” is gone.</strong> It held exactly two screens and charged you a click to reach either one. <strong>Other income &amp; tax</strong> and <strong>Guide</strong> now sit in the main tab row with everything else — eight tabs, one row, no parent.",
     "Old links to <em>?tab=advanced</em> land on Other income &amp; tax.",
@@ -1194,7 +1200,14 @@ export default function RFFRetirementCalculator() {
   const [currentSickLeaveHours, setCurrentSickLeaveHours] = useState(
     SAVED.currentSickLeaveHours || LEGACY_SICK_TOTAL || 0);
   // Which calendar year the hourly-rate card is showing.
-  const [rateYear, setRateYear] = useState(SAVED.rateYear ?? new Date().getFullYear());
+  // The compensation year picker. Until the member moves it themselves it follows their
+  // retirement year, so this screen agrees with the headline numbers instead of showing
+  // today's pay under a header built from retirement-year rates. rateYearPicked is what
+  // separates "they chose this year" from "this is just where it landed" — a saved profile
+  // from before this change has no flag, so it follows the retirement year too.
+  const [rateYear, setRateYear] = useState(SAVED.rateYear ?? null);
+  const [rateYearPicked, setRateYearPicked] = useState(SAVED.rateYearPicked === true);
+  const pickRateYear = (y) => { setRateYear(y); setRateYearPicked(true); };
   const [airtime, setAirtime] = useState(SAVED.airtime ?? 0); // CalPERS ARSC "airtime" purchased pre-2013 (max 5 yrs)
   // Service credit exactly as myCalPERS reports it, which is the authoritative number.
   // CalPERS service credit is earned on reported hours, so it does not have to equal calendar
@@ -1381,7 +1394,7 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, rateYear, airtime,
+      currentSickLeaveHours, rateYear, rateYearPicked, airtime,
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
       sickLeaveDisposition,
       beneficiaryAge,
@@ -1396,7 +1409,7 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, rateYear, calpersCreditRoseville,
+    currentSickLeaveHours, rateYear, rateYearPicked, calpersCreditRoseville,
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition,
     beneficiaryAge,
     plannedRetirementYear,
@@ -1568,7 +1581,9 @@ export default function RFFRetirementCalculator() {
     for (let y = NOW.getFullYear(); y <= last; y++) out.push(y);
     return out;
   })();
-  const shownRateYear = rateYearOptions.indexOf(rateYear) !== -1 ? rateYear : NOW.getFullYear();
+  const compDefaultYear = rateYearOptions.indexOf(retirementYear) !== -1 ? retirementYear : NOW.getFullYear();
+  const shownRateYear = (rateYearPicked && rateYearOptions.indexOf(rateYear) !== -1)
+    ? rateYear : compDefaultYear;
   const shownRates = ratesForYear(shownRateYear);
   // Holiday pay (Classic only, pensionable) — based on projected salary
   const holidayPayMonthly = memberType === "classic"
@@ -2307,7 +2322,7 @@ export default function RFFRetirementCalculator() {
           {["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help"].map(t => (
             <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
               onClick={() => setTab(t)}>
-              {{ member: isMobile ? "Member" : "Member details", comp: isMobile ? "Pay" : "Current compensation",
+              {{ member: isMobile ? "Member" : "Member details", comp: "Compensation",
                  pension: "Pension",
                  survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
                  health: isMobile ? "Health" : "Health care",
@@ -2780,7 +2795,7 @@ export default function RFFRetirementCalculator() {
                         <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "8px", lineHeight: 1.6 }}>
                           Your pensionable pay in {retirementYear} — base, specialty pay, longevity, holiday pay,
                           uniform allowance and FLSA scheduled overtime. The line-by-line build-up is on
-                          <strong style={{ color: COLORS.textMuted }}> Current compensation</strong>, set to {retirementYear}.
+                          <strong style={{ color: COLORS.textMuted }}> Compensation</strong>, set to {retirementYear}.
                           Overtime you volunteer for is not in it and never counts toward a pension.
                         </div>
                         <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
@@ -3036,7 +3051,7 @@ export default function RFFRetirementCalculator() {
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>4 · Overtime</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
                     The average you actually work in a month. One number — the full breakdown is on
-                    <strong style={{ color: COLORS.textMuted }}> Current compensation</strong>.
+                    <strong style={{ color: COLORS.textMuted }}> Compensation</strong>.
                   </div>
                   <div>
                     <label style={{ ...styles.label, marginBottom: "6px" }}>Overtime you actually work</label>
@@ -3122,9 +3137,9 @@ export default function RFFRetirementCalculator() {
                 <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
                     <p style={{ ...styles.cardTitle, margin: 0 }}>
-                      {shownRateYear === NOW.getFullYear() ? "Current compensation" : `Compensation in ${shownRateYear}`}
+                      Compensation in {shownRateYear}{shownRateYear === retirementYear ? " · your last year" : shownRateYear === NOW.getFullYear() ? " · today" : ""}
                     </p>
-                    <select value={shownRateYear} onChange={e => setRateYear(+e.target.value)}
+                    <select value={shownRateYear} onChange={e => pickRateYear(+e.target.value)}
                       style={{ ...styles.select, margin: 0, width: "auto", minWidth: "96px", fontWeight: 700 }}>
                       {rateYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -3268,7 +3283,7 @@ export default function RFFRetirementCalculator() {
                       </>);
                     })()}
                     <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px" }}>
-                      Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Current compensation</strong>, using the year picker.
+                      Year-by-year effect on your pay: <strong style={{ color: COLORS.textMuted }}>Compensation</strong>, using the year picker.
                     </div>
                   </>)}
                 </div>
@@ -3279,7 +3294,7 @@ export default function RFFRetirementCalculator() {
                   {openSections.starthourly !== false && (<>
                     <label style={styles.label}>Show rates for</label>
                     <select style={{ ...styles.select, marginBottom: "12px" }} value={shownRateYear}
-                      onChange={e => setRateYear(+e.target.value)}>
+                      onChange={e => pickRateYear(+e.target.value)}>
                       {rateYearOptions.map(y => (
                         <option key={y} value={y}>
                           {y}{y === NOW.getFullYear() ? " (today)" : ""}{y === retirementYear ? " · retirement" : ""}
