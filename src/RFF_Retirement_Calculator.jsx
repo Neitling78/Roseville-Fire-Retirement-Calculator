@@ -358,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v40)", items: [
+    "<strong>Fixed a mislabelled table.</strong> The all-plans list was headed \u201cAll 2026 plans\u201d while showing 2027 money. It now says the year it is actually showing, and a test fails if the label and the figures ever disagree again.",
+    "<strong>Every section on Health care now names its rate year.</strong> \u201cMedical, dental &amp; vision \u00b7 while working \u00b7 2027 rates\u201d and \u201cIn retirement \u2014 your medical \u00b7 2027 rates.\u201d No guessing which year you are reading.",
+    "The Medicare table names its year too, and says so when it differs from the rest of the page \u2014 we hold Medicare figures for 2027 only, so picking 2026 shows 2026 Basic rates with 2027 Medicare rates, and the page tells you that instead of leaving you to notice.",
+    "Dental and vision are 2026 in every year, because those are City and Delta Dental figures rather than CalPERS. The note under the table now says that outright, so the year label above it is not read as covering them.",
+  ] },
   { date: "September 24, 2026 (v39)", items: [
     "<strong>Health care has a rate year picker: 2026, 2027, 2028.</strong> Every premium on the tab follows it \u2014 your plan, the City\u2019s share, your cost from the paycheck, the retiree premium and the Medicare table.",
     "The plan list follows the year too, because CalPERS changes it. Pick 2026 and UnitedHealthcare Alliance and Harmony are back; pick 2027 and they are gone, with Sutter Health Plan and Blue Shield EPO in their place. If the plan you have selected did not exist in the year you picked, the tool says so instead of quietly pricing a different one.",
@@ -4315,7 +4321,7 @@ export default function RFFRetirementCalculator() {
             )}
             {tab === "health" && (
               <div style={styles.card}>
-                {sectionHeader("medplan", "Medical, dental & vision (while working)")}
+                {sectionHeader("medplan", `Medical, dental & vision \u00b7 while working \u00b7 ${healthRates.year} rates`)}
                 {openSections.medplan !== false && (<>
                 {/* ── RATE YEAR PICKER ── */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
@@ -4394,7 +4400,10 @@ export default function RFFRetirementCalculator() {
                 <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: "1.6" }}>
                   Per the MOU, the City pays up to {Math.round((CITY_MED_PCT[medicalCoverage] || 1) * 100)}% of the Kaiser premium for your tier, plus $180 toward dental/vision. If your plan costs less than the City's share, the difference is <strong>not</strong> paid to you. Opting out of all coverage (with proof of other insurance) pays $150/mo instead.
                 </div>
-                <p style={{ ...styles.cardTitle, marginTop: "18px" }}>In retirement — your medical (Tier {medicalTier})</p>
+                <p style={{ ...styles.cardTitle, marginTop: "18px" }}>
+                  In retirement &mdash; your medical &middot; {healthRates.year} rates
+                  <span style={{ fontSize: "11px", color: COLORS.textDim, fontWeight: 400 }}> &middot; Tier {medicalTier}</span>
+                </p>
                 <div style={{ fontSize: "12px", color: COLORS.gold, marginBottom: "8px", lineHeight: "1.6" }}>
                   ⚠ You only get the City's retiree contribution if you enroll in a CalPERS (PEMHCA) medical plan in retirement — no CalPERS plan, no City money.
                 </div>
@@ -4453,7 +4462,7 @@ export default function RFFRetirementCalculator() {
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "11px" : "12px" }}>
                         <thead>
                           <tr style={{ color: COLORS.textMuted, textTransform: "uppercase", fontSize: "10px", letterSpacing: "0.5px" }}>
-                            <th style={{ textAlign: "left", padding: "5px 4px", fontWeight: 600 }}>Medicare plan &middot; 2027</th>
+                            <th style={{ textAlign: "left", padding: "5px 4px", fontWeight: 600 }}>Medicare plan &middot; {medicareRates.year}</th>
                             <th style={{ textAlign: "right", padding: "5px 4px", fontWeight: 600 }}>Premium</th>
                             <th style={{ textAlign: "right", padding: "5px 4px", fontWeight: 600 }}>Your cost</th>
                           </tr>
@@ -4480,14 +4489,19 @@ export default function RFFRetirementCalculator() {
                       <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
                         You must enroll in Medicare Part A and Part B at 65 to keep a CalPERS plan. The Part B premium is paid
                         to Medicare separately and is <strong style={{ color: COLORS.textMuted }}>not</strong> in these figures.
-                        Rates are CalPERS 2027, Region 1, for your coverage tier.
+                        Rates are CalPERS {medicareRates.year}, Region 1, for your coverage tier.
+                        {medicareRates.year !== healthRates.year && (
+                          <> <strong style={{ color: COLORS.gold }}>Note:</strong> the Basic rates above are
+                          {" "}{healthRates.year}, but we only hold Medicare figures for {medicareRates.year} — so this
+                          table is {medicareRates.year} money while the rest of the page is {healthRates.year}.</>
+                        )}
                       </div>
                     </div>
                   </>
                 )}
                 <p style={{ ...styles.cardTitle, marginTop: "18px", cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                   onClick={() => toggleSection("allPlans")}>
-                  <span>All 2026 plans</span>
+                  <span>All {healthRates.year} plans{healthRates.pending ? ` \u00b7 ${healthRates.askedFor} pending` : ""}</span>
                   <span style={{ fontSize: "12px", color: COLORS.textMuted, fontWeight: "600" }}>{openSections.allPlans ? "▾" : "▸ tap to open"}</span>
                 </p>
                 {openSections.allPlans && (
@@ -4513,7 +4527,7 @@ export default function RFFRetirementCalculator() {
                   </table>
                 )}
                 <div style={{ marginTop: "16px", padding: "10px 12px", background: "rgba(210,31,51,0.06)", borderRadius: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                  ⚠ <strong>Approximation.</strong> Per the MOU (Ch.4 Art.I §C), the City pays up to 100% / 85% / 80% of the Kaiser premium (employee / +1 / family) plus $180 toward dental and vision. You pay only the amount above the City's share — if your plan costs less, the difference is <strong>not</strong> paid out to you. Declining all coverage (with proof of other insurance) pays $150/mo instead. Dental and vision use your medical coverage tier; 2026 rates (archived 2024–2026) change each January. The retiree-medical figure below is separate (set by your hire-date tier). Confirm exact figures with the City.
+                  ⚠ <strong>Approximation.</strong> Per the MOU (Ch.4 Art.I §C), the City pays up to 100% / 85% / 80% of the Kaiser premium (employee / +1 / family) plus $180 toward dental and vision. You pay only the amount above the City's share — if your plan costs less, the difference is <strong>not</strong> paid out to you. Declining all coverage (with proof of other insurance) pays $150/mo instead. Dental and vision use your medical coverage tier and are <strong>2026</strong> rates in every year above — the rate-year picker moves the CalPERS medical premiums only, because dental and vision are City/Delta Dental figures we do not have for other years. The retiree-medical figure below is separate (set by your hire-date tier). Confirm exact figures with the City.
                 </div>
                 </>)}
               </div>

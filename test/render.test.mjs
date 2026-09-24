@@ -829,6 +829,25 @@ console.log("\n-- health rate year picker --");
   check("the current year is labelled current", () => has(Y27.health, "2027 \u00b7 current"));
   check("all three years are offered", () =>
     ["2026", "2027", "2028"].every(y => Y27.health.includes(y)) || "a year is missing from the picker");
+
+  // The label and the money must agree. The all-plans table once said "All 2026 plans"
+  // over 2027 figures, which is the worst kind of wrong: confidently mislabelled.
+  const openAll = (y) => ({ ...mkYr(y), openSections: { medplan: true, allPlans: true } });
+  const L26 = await scenario(openAll(2026));
+  const L27 = await scenario(openAll(2027));
+  const L28 = await scenario(openAll(2028));
+  check("2026: working header names the year", () => has(L26.health, "while working \u00b7 2026 rates"));
+  check("2027: working header names the year", () => has(L27.health, "while working \u00b7 2027 rates"));
+  check("2026: retiree header names the year", () => has(L26.health, "your medical \u00b7 2026 rates"));
+  check("2027: retiree header names the year", () => has(L27.health, "your medical \u00b7 2027 rates"));
+  check("2026: the all-plans table says 2026", () => has(L26.health, "All 2026 plans"));
+  check("2027: the all-plans table says 2027", () => has(L27.health, "All 2027 plans"));
+  check("the table label never contradicts the money", () =>
+    lacks(L27.health, "All 2026 plans") || "2027 selected but the table is labelled 2026");
+  check("2028: the table shows the fallback year AND flags the pending one", () =>
+    has(L28.health, "All 2027 plans \u00b7 2028 pending"));
+  check("a Medicare year that differs from the page is called out", () =>
+    has(L26.health, "while the rest of the page is 2026"));
 }
 
 
