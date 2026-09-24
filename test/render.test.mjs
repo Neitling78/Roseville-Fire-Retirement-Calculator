@@ -555,11 +555,27 @@ const CW = await scenario(mkCola("2028-12-31", 50));                       // 0%
 const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
 check("the section is on the wait tab", () => has(CW.wait, "What waiting actually costs"));
 check("names the earliest year you can go", () => has(CW.wait, "You can go in"));
-check("states the yearly cost of staying", () => has(CW.wait, "$19,722"));
+check("states the cost of the first extra year", () => has(CW.wait, "$9,353"));
 check("shows the lifetime pension gain per year", () => has(CW.wait, "$2,453"));
-check("shows the break-even in years and age", () => has(CW.wait, "8.0 yrs · age 59"));
-check("shows the net position at 20 years", () => has(CW.wait, "$29,339"));
-check("a later year can be a net loss", () => has(CW.wait, "$2,937"));
+check("shows the break-even in years and age", () => has(CW.wait, "7.1 yrs · age 59"));
+check("shows the net position at 20 years", () => has(CW.wait, "+$33,939"));
+check("a later year can be a net loss", () => has(CW.wait, "-$2,970"));
+// Each waiting year is priced at ITS OWN paycheck, not today's. Pricing them all at today's
+// pay understated the cost of waiting by every raise the member had not been paid yet.
+{
+  // Raises on, so the paycheck genuinely differs year to year.
+  const V = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct: 3, inflationRate: 0 });
+  const giveUp = [...V.wait.matchAll(/\n?\s(20\d\d) (\d+) ([-+])\$([\d,]+)/g)]
+    .map(m => ({ year: +m[1], yrs: +m[2], amt: (m[3] === "-" ? -1 : 1) * +m[4].replace(/,/g, "") }));
+  check("the cost column is built year by year", () => giveUp.length >= 3 || "could not read the give-up column");
+  check("two years is not simply twice one year", () => {
+    const one = giveUp.find(r => r.yrs === 1), two = giveUp.find(r => r.yrs === 2);
+    if (!one || !two) return "missing the 1-yr or 2-yr row";
+    return Math.abs(two.amt - 2 * one.amt) > 1
+      || `2 yrs (${two.amt}) is exactly 2x 1 yr (${one.amt}) - every year is still priced the same`;
+  });
+  check("and it says so in words", () => has(V.wait, "priced at"));
+}
 // When pay only keeps pace with CPI the later pension is no bigger in real terms,
 // so there is nothing to repay the skipped checks and the answer must say so.
 check("says 'never' when waiting buys no bigger pension", () => has(CW3.wait, "never"));
@@ -1126,7 +1142,7 @@ for (const [label, extra] of [["CPI 0", {}], ["CPI 3", { inflationRate: 3 }], ["
 }
 // A paycheck that beats the pension means working longer PAYS — it must not read as zero.
 const SGpay = await scenario(mkSG({}));
-check("a paycheck that beats the pension reads as a gain", () => has(SGpay.stayorgo, "out-earns your pension by"));
+check("a paycheck that beats the pension reads as a gain", () => has(SGpay.stayorgo, "out-earns that pension by"));
 check("and never as 'costs you nothing'", () => lacks(SGpay.stayorgo, "waiting costs you nothing"));
 check("that case breaks even from day one", () => has(SGpay.stayorgo, "ahead from day one"));
 // Gain up front, smaller pension later — there is a crossover, and it has to be named.
@@ -1139,7 +1155,7 @@ check("and it is not claimed as ahead from day one", () => {
 // The ordinary case still works.
 const SGcost = await scenario(mkSG({ currentOTHours: 0 }));
 check("a real cost still shows a break-even age", () => has(SGcost.stayorgo, "· age "));
-check("and states the yearly cost", () => has(SGcost.stayorgo, "each year you stay costs you"));
+check("and states the yearly cost", () => has(SGcost.stayorgo, "So that year costs you"));
 // The two tables use different bases; the page has to say so.
 check("the year table is labelled gross", () => has(SGcost.stayorgo, "gross"));
 check("the cost table is labelled take-home", () => has(SGcost.stayorgo, "Take-home gain"));

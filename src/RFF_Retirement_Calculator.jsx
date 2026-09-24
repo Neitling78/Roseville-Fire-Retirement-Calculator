@@ -358,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v52)", items: [
+    "<strong>“What waiting actually costs” now prices every year at that year’s paycheck.</strong> It used to price all of them at this month’s — so a member weighing five more years was told those five years pay what 2026 pays. The <em>cash you give up getting there</em> column is now built year by year, and the break-even and 20-year columns follow from it.",
+    "<strong>The cost of waiting drops sharply for most members</strong>, because the paycheck you give up grows while the earliest pension you are measuring it against does not. On the reference Captain it went from about $19,700 a year to about $9,400 for the first year.",
+    "The card says which year it is quoting, and when raises make the years differ it says the column is not that figure multiplied out.",
+    "<strong>For a member at the 90% cap this is the whole picture:</strong> more years stop adding to the formula, so the only thing another year buys is a higher final compensation — and this table is where you see whether that is worth the checks you skip.",
+  ] },
   { date: "September 24, 2026 (v51)", items: [
     "<strong>Corrected: “The day you hang it up” was comparing your future pension against your <em>current</em> paycheck.</strong> If you retire in 2028, the money you walk away from is your 2028 paycheck, not this month’s — and every raise between now and then was quietly being handed to the retirement side of the ledger. The card now reads <strong>Working in 2028 · your last year</strong>, built on that year’s pay, that year’s overtime and that year’s CalPERS contribution.",
     "<strong>Expect the gap to move against retiring.</strong> Anyone the old card showed coming out ahead should look again — the number was flattered by the raises you have not taken yet.",
@@ -2086,13 +2092,23 @@ export default function RFFRetirementCalculator() {
   // in between. Built the same way as the header's working pair: that year's pensionable pay and
   // overtime, less that year's CalPERS contribution, 457, dues and medical, less income tax.
   // Simplification, same as the header: dues, 457 and medical are held flat in today's dollars.
+  // Monthly take-home from WORKING in any given year: that year's pensionable pay and overtime,
+  // less that year's CalPERS contribution, 457, dues and medical, less income tax. Dues, 457 and
+  // medical are held flat in today's dollars — the same simplification the header makes.
+  const workingTakeHomeForYear = (y) => {
+    const P = workingPayForYear(y);
+    const contrib = P.pensionable * (memberType === "classic" ? 0.09 : 0.115);
+    const preTax = effectiveMember457 + contrib * 12;
+    return Math.max(0, P.gross - contrib - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP
+      - taxScenario(P.gross * 12, preTax, true).tax / 12);
+  };
+  // Same figure with inflation taken back out, so it can be set against a pension figure that
+  // has already been deflated to today's dollars.
+  const workingTakeHomeTodayFor = (y) => workingTakeHomeForYear(y)
+    / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, Math.max(0, y - NOW.getFullYear()));
   const finalWorkYear = retirementYear || NOW.getFullYear();
   const finalYearPay = workingPayForYear(finalWorkYear);
-  const finalYearCalPERSContrib = finalYearPay.pensionable * (memberType === "classic" ? 0.09 : 0.115);
-  const finalYearPreTax = effectiveMember457 + finalYearCalPERSContrib * 12;
-  const finalYearTakeHome = Math.max(0, finalYearPay.gross - finalYearCalPERSContrib
-    - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP
-    - taxScenario(finalYearPay.gross * 12, finalYearPreTax, true).tax / 12);
+  const finalYearTakeHome = workingTakeHomeForYear(finalWorkYear);
   const finalYearOTMonthly = finalYearPay.ot;
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
   const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
@@ -3606,11 +3622,24 @@ export default function RFFRetirementCalculator() {
                       // Positive => the pension out-earns the paycheck, so a year spent working costs you
                       // that much. NEGATIVE => the paycheck out-earns the pension and a year spent working
                       // PAYS you. Clamping that to zero threw away the strongest argument for waiting.
-                      const perYearForgone = 12 * (E.takeHomeToday - workingTakeHome);
+                      // What ONE named year of work costs, in today's dollars: the pension checks you
+                      // forgo that year, less what that year's paycheck nets you. Every year used to be
+                      // priced at TODAY'S paycheck, which understated the cost of waiting by every raise
+                      // the member has not been paid yet.
+                      const costOfWorkingYear = (y) => 12 * (E.takeHomeToday - workingTakeHomeTodayFor(y));
+                      const firstExtraYear = E.year + 1;
+                      const perYearForgone = costOfWorkingYear(firstExtraYear);
                       const earnsMoreWorking = perYearForgone < 0;
+                      // With no raises and no CPI every year costs the same and the column IS linear;
+                      // do not claim otherwise.
+                      const lastYearInWindow = retireYearOptions[retireYearOptions.length - 1].year;
+                      const costVaries = Math.abs(costOfWorkingYear(lastYearInWindow) - perYearForgone) > 1;
                       const rows = retireYearOptions.slice(1).map(r => {
                         const extraYears = r.year - E.year;
-                        const givenUp = perYearForgone * extraYears;   // signed
+                        // Retiring in year r means working r as well, so the years given up run
+                        // from the first year past the earliest through r itself.
+                        let givenUp = 0;
+                        for (let y = firstExtraYear; y <= r.year; y++) givenUp += costOfWorkingYear(y);
                         const gainPerYear = 12 * (r.takeHomeToday - E.takeHomeToday);
                         // Four real cases, and the tab used to collapse them into two:
                         //   cost to wait + bigger pension  -> it repays after N years
@@ -3637,17 +3666,19 @@ export default function RFFRetirementCalculator() {
                             You can go in <strong style={{ color: COLORS.text }}>{E.year}</strong>. Every year you work past
                             that, you give up a year of pension checks to buy a permanently larger pension. This is that trade.
                             {freeToWait ? (
-                              <> Right now your paycheck out-earns your pension by <strong style={{ color: COLORS.green }}>{fmt(Math.abs(perYearForgone))}</strong> a
-                              year, so working longer does not cost you anything in the meantime — it pays you.
+                              <> In {firstExtraYear} your paycheck out-earns that pension by <strong style={{ color: COLORS.green }}>{fmt(Math.abs(perYearForgone))}</strong>,
+                              so working longer does not cost you anything in the meantime — it pays you.{costVaries && <> Each later
+                              year is priced at its own paycheck, which grows.</>}
                               {anyFades
                                 ? <> But at {inflationRate}% CPI the pension you end up with is <em>smaller</em> in today&rsquo;s
                                   dollars, so that head start runs out. The table says how long it lasts.</>
                                 : <> And the pension is bigger at the end of it, so you are ahead from day one.</>}</>
                             ) : (
-                              <> Working a year nets you <strong style={{ color: COLORS.text }}>{fmt(workingTakeHome)}</strong>/mo
+                              <> Working {firstExtraYear} nets you <strong style={{ color: COLORS.text }}>{fmt(workingTakeHomeTodayFor(firstExtraYear))}</strong>/mo
                               take-home; your {E.year} pension would pay <strong style={{ color: COLORS.text }}>{fmt(E.takeHomeToday)}</strong>/mo.
-                              So each year you stay costs you <strong style={{ color: COLORS.gold }}>{fmt(perYearForgone)}</strong> you
-                              would otherwise have banked.</>
+                              So that year costs you <strong style={{ color: COLORS.gold }}>{fmt(perYearForgone)}</strong> you
+                              would otherwise have banked.{costVaries && <> Each later year is priced at <em>its own</em> paycheck,
+                              which grows — so the column below is not this figure simply multiplied out.</>}</>
                             )}
                           </div>
                           <div style={{ overflowX: "auto" }}>
