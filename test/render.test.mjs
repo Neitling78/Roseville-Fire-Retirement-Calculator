@@ -278,7 +278,7 @@ const FF = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   openSections:{ startincent:true, startprior:true, startextras:true } });
 check("asks rank and step", () => has(FF.member, "Rank and pay step"));
 check("asks hire date", () => has(FF.member, "Roseville hire date"));
-check("asks retirement date", () => has(FF.pension, "When do you plan to go?"));
+check("asks retirement date, at the end of Member details", () => has(FF.member, "When do you plan to go?"));
 check("asks sick leave", () => has(FF.start, "Sick leave hours on the books today"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
@@ -298,7 +298,7 @@ check("pay tab has the cash-out card", () => has(FF.sickleave, "Cash-out at reti
 check("six primary tabs", () => ["Member details","Pension","Survivor / beneficiary","Health care","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
 check("Deductions is gone as a tab", () => lacks(FF.member, ">Deductions<"));
-check("the retired pension-detail link lands on Pension", () => has(FF.pensiondetail, "When do you plan to go"));
+check("the retired pension-detail link lands on Pension", () => has(FF.pensiondetail, "Gross CalPERS pension"));
 
 // ── CalPERS service credit, straight off myCalPERS ──────────────────────────
 console.log("\n-- CalPERS service credit override --");
@@ -448,7 +448,7 @@ check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","O
   .every(x => B.inputs.includes(x)) || "a detail screen is missing");
 check("retired detail screens are gone from the More row", () => ["Pension detail","Timeline"]
   .every(x => !B.inputs.includes(x)) || "a retired screen is still listed");
-check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("When do you plan to go") && B.timeline.includes("Stay or go"));
+check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("Gross CalPERS pension") && B.timeline.includes("Stay or go"));
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
 // ── COLA starts the second calendar year after retirement, May 1 ────────────
@@ -605,8 +605,8 @@ check("every option is priced in one table", () =>
     .every(x => S2.survivor.includes(x)) || "an option is missing from the table");
 check("the pop-up behaviour is explained", () => has(S2.survivor, "dies before you"));
 check("the option selector is on Survivor / beneficiary", () => has(S2.survivor, "Who gets it after you"));
-check("retirement date moved to Pension", () => has(S1.pension, "When do you plan to go?"));
-check("retirement date is off Member details", () => lacks(S1.member, "When do you plan to go?"));
+check("retirement date lives on Member details", () => has(S1.member, "When do you plan to go?"));
+check("retirement date is off Pension", () => lacks(S1.pension, "When do you plan to go?"));
 
 
 // ── Sick leave: two boxes, not a dropdown ──────────────────────────────────
@@ -707,11 +707,17 @@ check("final comp matches Current compensation for that year", () =>
 // ── The Pension tab shows the whole drop to take-home ──────────────────────
 console.log("\n-- pension tab order and the take-home chain --");
 const PO = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-check("retirement date leads the tab", () => {
-  const d = PO.pension.indexOf("When do you plan to go?");
+check("Pension opens with the raises, then the number", () => {
   const r = PO.pension.indexOf("Future raises");
   const n = PO.pension.indexOf("Your number");
-  return (d >= 0 && r > d && n > r) || `out of order: date ${d}, raises ${r}, number ${n}`;
+  return (r >= 0 && n > r) || `out of order: raises ${r}, number ${n}`;
+});
+// The date is the last thing you answer on Member details — everything above it is
+// who you are, and it is the one input you can still change your mind about.
+check("the date closes Member details, after overtime", () => {
+  const ot = PO.member.indexOf("4 \u00b7 Overtime");
+  const d = PO.member.indexOf("5 \u00b7 When do you plan to go?");
+  return (ot >= 0 && d > ot) || `out of order: overtime ${ot}, date ${d}`;
 });
 check("federal tax is its own line", () => has(PO.pension, "Federal income tax"));
 check("state tax is its own line", () => has(PO.pension, "California income tax"));

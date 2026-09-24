@@ -358,6 +358,10 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v41)", items: [
+    "<strong>\u201cWhen do you plan to go?\u201d moved to the bottom of Member details</strong>, as section 5. It sat at the top of Pension, which split the questions across two tabs \u2014 you answered four things about yourself, jumped to another screen, then answered a fifth. Now Member details is every question in one place, in order, and the date is the last one you give it.",
+    "Pension opens with Future raises and goes straight to the number, which is what that tab is for.",
+  ] },
   { date: "September 24, 2026 (v40)", items: [
     "<strong>Fixed a mislabelled table.</strong> The all-plans list was headed \u201cAll 2026 plans\u201d while showing 2027 money. It now says the year it is actually showing, and a test fails if the label and the figures ever disagree again.",
     "<strong>Every section on Health care now names its rate year.</strong> \u201cMedical, dental &amp; vision \u00b7 while working \u00b7 2027 rates\u201d and \u201cIn retirement \u2014 your medical \u00b7 2027 rates.\u201d No guessing which year you are reading.",
@@ -2460,20 +2464,6 @@ export default function RFFRetirementCalculator() {
             )}
 
             {tab === "pension" && setupDone && (
-              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>When do you plan to go?</p>
-                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                  The one date you can still change your mind about. Everything below moves with it.
-                </div>
-                <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
-                  onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
-                <div style={{ fontSize: "11px", color: COLORS.textDim }}>
-                  Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
-                  {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
-                </div>
-              </div>
-            )}
-            {tab === "pension" && setupDone && (
                 <div style={styles.card}>
                   {sectionHeaderValue("startraises", "Future raises", retirementYear >= 2027 ? `${fmt(projectedBaseSalary)}/mo at retirement` : "none before 2027")}
                   {openSections.startraises !== false && (<>
@@ -2837,6 +2827,22 @@ export default function RFFRetirementCalculator() {
                 )}
 
               </>
+            )}
+
+            {tab === "member" && setupDone && (
+              <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>5 · When do you plan to go?</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
+                  The one date you can still change your mind about. Everything in this tool — your pay,
+                  your pension, your medical — moves with it.
+                </div>
+                <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={effectiveRetDateStr}
+                  onChange={e => { setRetirementDateOverride(e.target.value); setSetupDone(true); }} />
+                <div style={{ fontSize: "11px", color: COLORS.textDim }}>
+                  Age {retireAgeQ.toFixed(2)} with {yearsOfService.toFixed(1)} years of service.
+                  {retireAgeQ < 50 && <strong style={{ color: COLORS.accent }}> Safety members cannot draw a pension before age 50.</strong>}
+                </div>
+              </div>
             )}
 
 
