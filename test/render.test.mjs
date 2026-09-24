@@ -1085,6 +1085,26 @@ check("the retirement figure ignores the 457 entirely", () =>
 // "costs nothing" instead of "pays you", and the break-even column collapsed four
 // real cases into two.
 console.log("\n-- stay or go: internal consistency --");
+// The paycheck you give up is your LAST YEAR's, not today's. Comparing a 2028 pension against
+// 2026 wages understated the cut by every raise in between.
+{
+  const F = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
+  check("the card compares the final working year", () => has(F.stayorgo, "Working in 2028"));
+  check("and says so", () => has(F.stayorgo, "your last year"));
+  check("not today's paycheck", () => lacks(F.stayorgo, "Working now \u00b7"));
+  check("both sides are named as retirement-year dollars", () => has(F.stayorgo, "both in 2028 dollars"));
+  // The final-year paycheck is bigger than today's, so the cut must be wider than it was.
+  const T = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday });
+  const grab = (t) => {
+    const m = t.match(/Working in 2028[\s\S]*?\$([\d,]+)\/mo/);
+    return m ? +m[1].replace(/,/g, "") : null;
+  };
+  const hdrToday = T.stayorgo.match(/While working \u00b7 \d+ Gross \$[\d,]+ Take home \$([\d,]+)/);
+  check("the final-year paycheck beats today's", () => {
+    const fin = grab(F.stayorgo), today = hdrToday ? +hdrToday[1].replace(/,/g, "") : null;
+    return (fin && today && fin > today) || `final ${fin} vs today ${today}`;
+  });
+}
 const money = (x) => x == null ? null : +String(x).replace(/[^0-9.\-]/g, "");
 const sgRead = (t) => {
   const h = t.match(/While working · \d+ Gross \$[\d,]+ Take home (\$[\d,]+) .*?While retired · \d+ Gross \$[\d,]+ Take home (\$[\d,]+)/);
@@ -1092,9 +1112,9 @@ const sgRead = (t) => {
   const v = t.match(/(The cut|You come out ahead) [−+-]?(\$[\d,]+)\/mo/);
   return { hdrWork: money(h && h[1]), hdrRet: money(h && h[2]), cardRet: money(c && c[1]), delta: money(v && v[2]) };
 };
-// "Working now" on this card is today's pay, so pin the header to today or the two are
-// legitimately on different years and the comparison below is meaningless.
-const mkSG = (extra) => ({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...pinToday, ...extra });
+// Both halves of this card are in RETIREMENT-YEAR dollars now, and so is the header by
+// default, so the banner and the card must agree without pinning anything.
+const mkSG = (extra) => ({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...extra });
 for (const [label, extra] of [["CPI 0", {}], ["CPI 3", { inflationRate: 3 }], ["no OT", { currentOTHours: 0 }]]) {
   const S = await scenario(mkSG(extra));
   const r = sgRead(S.stayorgo);

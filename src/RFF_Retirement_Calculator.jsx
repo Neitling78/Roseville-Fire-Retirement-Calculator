@@ -358,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v51)", items: [
+    "<strong>Corrected: “The day you hang it up” was comparing your future pension against your <em>current</em> paycheck.</strong> If you retire in 2028, the money you walk away from is your 2028 paycheck, not this month’s — and every raise between now and then was quietly being handed to the retirement side of the ledger. The card now reads <strong>Working in 2028 · your last year</strong>, built on that year’s pay, that year’s overtime and that year’s CalPERS contribution.",
+    "<strong>Expect the gap to move against retiring.</strong> Anyone the old card showed coming out ahead should look again — the number was flattered by the raises you have not taken yet.",
+    "The card is now independent of the year picker on Compensation. It is always your last working year against your first retired year; moving the picker does not move it.",
+    "<strong>Still on today’s pay, on purpose:</strong> “Working today, after everything” on Pension, which is labelled as today. <strong>Not yet fixed:</strong> the “cost of waiting” table further down Stay or go? still prices a year of work at today’s paycheck. Same error, bigger change — flagged, not silently altered.",
+  ] },
   { date: "September 24, 2026 (v50)", items: [
     "<strong>“Current compensation” is now just “Compensation.”</strong>",
     "<strong>It opens on your retirement year, not today.</strong> The big numbers at the top of every screen are built from your retirement-year pay; this table was opening on this month's pay. Two different years on one screen, with nothing saying so. The picker now lands on the year you said you are going — the card reads <em>Compensation in 2028 · your last year</em> — and the header moves with it.",
@@ -2074,6 +2080,20 @@ export default function RFFRetirementCalculator() {
   const headerWorkTakeHome = Math.max(0, headerPay.gross - headerCalPERSContrib
     - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP
     - taxScenario(headerPay.gross * 12, headerPreTax, true).tax / 12);
+  // ── WHAT YOU WALK AWAY FROM ──────────────────────────────────────────────
+  // The paycheck you give up is the one you will be drawing in YOUR LAST YEAR, not the one you
+  // draw today. Comparing a 2028 pension against 2026 wages flattered retirement by every raise
+  // in between. Built the same way as the header's working pair: that year's pensionable pay and
+  // overtime, less that year's CalPERS contribution, 457, dues and medical, less income tax.
+  // Simplification, same as the header: dues, 457 and medical are held flat in today's dollars.
+  const finalWorkYear = retirementYear || NOW.getFullYear();
+  const finalYearPay = workingPayForYear(finalWorkYear);
+  const finalYearCalPERSContrib = finalYearPay.pensionable * (memberType === "classic" ? 0.09 : 0.115);
+  const finalYearPreTax = effectiveMember457 + finalYearCalPERSContrib * 12;
+  const finalYearTakeHome = Math.max(0, finalYearPay.gross - finalYearCalPERSContrib
+    - (effectiveMember457 / 12) - UNION_DUES_MONTHLY - medicalTotalOOP
+    - taxScenario(finalYearPay.gross * 12, finalYearPreTax, true).tax / 12);
+  const finalYearOTMonthly = finalYearPay.ot;
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
   const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
   const takeHomeDiff = totalMonthlyTakeHome - workingTakeHome;
@@ -3371,22 +3391,23 @@ export default function RFFRetirementCalculator() {
               // Month one, in the dollars you would actually be handed — the same figures as the
               // banner above. The tables further down compare ACROSS years and so are in today's
               // dollars; mixing the two bases on one screen is what made this tab disagree with itself.
-              const cut = workingTakeHome - totalMonthlyTakeHome;   // + = retiring is a pay cut
-              const otShare = cut > 0 && otMonthly > 0 ? Math.min(1, otMonthly / cut) : 0;
+              const cut = finalYearTakeHome - totalMonthlyTakeHome;   // + = retiring is a pay cut
+              const otShare = cut > 0 && finalYearOTMonthly > 0 ? Math.min(1, finalYearOTMonthly / cut) : 0;
               return (
                 <div style={{ ...styles.card, border: `1px solid ${cut > 0 ? COLORS.gold : COLORS.green}` }}>
                   <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>The day you hang it up</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "14px", lineHeight: 1.6 }}>
-                    Take-home against take-home, the same two figures as the banner above. This is the change
-                    to the money that actually reaches your account in month one.
+                    Take-home against take-home, both in {finalWorkYear} dollars — the paycheck you will
+                    actually be drawing in your last year against the pension that replaces it. This is the
+                    change to the money that reaches your account in month one.
                     {(parseFloat(inflationRate) || 0) > 0 && (
                       <> The two tables below compare <em>across</em> years, so those are in today&rsquo;s dollars
                       at your {inflationRate}% CPI — they will not match these.</>
                     )}
                   </div>
                   <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Working now <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {otMonthly > 0 ? `includes ${fmt(otMonthly)} of overtime` : "no overtime entered"}</span></span>
-                    <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
+                    <span style={styles.tableKey}>Working in {finalWorkYear} <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your last year{finalYearOTMonthly > 0 ? `, includes ${fmt(finalYearOTMonthly)} of overtime` : ", no overtime entered"}</span></span>
+                    <span style={styles.tableVal}>{fmt(finalYearTakeHome)}/mo</span>
                   </div>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>Retired in {retirementYear} <span style={{ fontSize: "10px", color: COLORS.textDim }}>· pension after tax and medical</span></span>
@@ -3402,18 +3423,22 @@ export default function RFFRetirementCalculator() {
                   </div>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "10px", lineHeight: 1.7 }}>
                     That is <strong style={{ color: cut > 0 ? COLORS.gold : COLORS.green }}>{fmt(Math.abs(cut) * 12)}</strong> a year
-                    {cut > 0 ? " less" : " more"} than you live on today.
-                    {otShare > 0.5 && (
-                      <> Most of it is overtime: <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong> of what you
-                      earn now is not pensionable, so it does not follow you out the door.</>
+                    {cut > 0 ? " less" : " more"} than your final year of work pays you.
+                    {finalWorkYear !== NOW.getFullYear() && (
+                      <> Your paycheck grows between now and then, so this gap is wider than the one against
+                      today’s pay — today’s is the comparison that flatters retirement.</>
                     )}
-                    {cut > 0 && otMonthly === 0 && (
+                    {otShare > 0.5 && (
+                      <> Most of it is overtime: <strong style={{ color: COLORS.gold }}>{fmt(finalYearOTMonthly)}/mo</strong> of what you
+                      would earn that year is not pensionable, so it does not follow you out the door.</>
+                    )}
+                    {cut > 0 && finalYearOTMonthly === 0 && (
                       <> You have no overtime entered. If you work any, put it in on <strong style={{ color: COLORS.textMuted }}>Working now</strong> — it will widen this gap.</>
                     )}
                     {cut <= 0 && (
                       <> You stop paying the {memberType === "classic" ? "9%" : "11.5%"} CalPERS contribution, union dues and the
                       active medical premium, and that more than covers the drop from salary to pension
-                      {otMonthly === 0 ? " — though you have no overtime entered, which would change this." : "."}</>
+                      {finalYearOTMonthly === 0 ? " — though you have no overtime entered, which would change this." : "."}</>
                     )}
                   </div>
                 </div>
