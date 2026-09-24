@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["member","comp","pension","deductions","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline"]) {
+  for (const t of ["member","comp","pension","survivor","health","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline","deductions"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -283,7 +283,7 @@ check("asks sick leave", () => has(FF.start, "Sick leave hours on the books toda
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
 check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
 check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
-check("asks beneficiary age on Deductions", () => has(FF.deductions, "beneficiary’s age at your retirement"));
+check("asks beneficiary age on Survivor / beneficiary", () => has(FF.survivor, "beneficiary’s age at your retirement"));
 check("offers the pension type override", () => has(FF.inputs, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
 check("no cash-out totals on Start here", () => lacks(FF.sickleave, "Total cash at separation"));
@@ -295,8 +295,9 @@ check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular r
 check("pay tab has the rates", () => has(FF.comp, "Your hourly rates"));
 check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
 check("pay tab has the cash-out card", () => has(FF.sickleave, "Cash-out at retirement"));
-check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
+check("six primary tabs", () => ["Member details","Pension","Survivor / beneficiary","Health care","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
+check("Deductions is gone as a tab", () => lacks(FF.member, ">Deductions<"));
 check("the retired pension-detail link lands on Pension", () => has(FF.pensiondetail, "When do you plan to go"));
 
 // ── CalPERS service credit, straight off myCalPERS ──────────────────────────
@@ -434,8 +435,15 @@ check("compares pay growth against CPI", () => has(WDoff.wait, "beats inflation 
 check("no zero/zero banner when assumptions are set", () => lacks(WDoff.wait, "Nothing is assumed"));
 
 console.log("\n-- navigation --");
-check("four primary tabs", () => ["Member details","Pension","Deductions","Stay or go?"]
+check("six primary tabs", () => ["Member details","Pension","Survivor / beneficiary","Health care","Stay or go?"]
   .every(x => B.member.includes(x)) || "a primary tab is missing");
+// The two used to share one screen, which made a single decision look like two halves
+// of the same form. They are separate choices and now live on separate tabs.
+check("the survivor election is NOT on Health care", () => lacks(B.health, "Who gets it after you"));
+check("medical is NOT on Survivor / beneficiary", () => lacks(B.survivor, "Medical, dental"));
+check("an old ?tab=deductions link lands on the survivor election", () =>
+  has(B.deductions, "Who gets it after you"));
+check("an old ?tab=medical link lands on Health care", () => has(B.medical, "Medical, dental"));
 check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","Other income & tax","Guide"]
   .every(x => B.inputs.includes(x)) || "a detail screen is missing");
 check("retired detail screens are gone from the More row", () => ["Pension detail","Timeline"]
@@ -568,35 +576,35 @@ check("100% Beneficiary reduces it further", () => has(S2.pension, "$13,774"));
 check("the reduction reaches take-home", () => has(S2.pension, "$10,466"));
 check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,904"));
 check("a myCalPERS figure overrides the calibrated one", () => has(S2A.pension, "$12,699"));
-check("it says it is using your figure", () => has(S2A.deductions, "Using your figure"));
+check("it says it is using your figure", () => has(S2A.survivor, "Using your figure"));
 check("an election saved under the old key still works", () => has(SLEG.pension, "$13,774"));
 
 // ── The mechanic CalPERS' own estimate proved ─────────────────────────────
 // Survivor continuance is free, identical under every option, and NOT an election.
 // The option reduction comes out of the option portion only. The old tool got both wrong.
-check("survivor continuance is half the unmodified allowance", () => has(S1.deductions, "$7,215"));
-check("it is there even on the Unmodified election", () => has(S1.deductions, "free, every option"));
+check("survivor continuance is half the unmodified allowance", () => has(S1.survivor, "$7,215"));
+check("it is there even on the Unmodified election", () => has(S1.survivor, "free, every option"));
 check("Unmodified no longer claims the spouse gets nothing", () =>
-  lacks(S1.deductions, "leaves your spouse nothing"));
-check("it says so in plain words", () => has(S1.deductions, "does"));
+  lacks(S1.survivor, "leaves your spouse nothing"));
+check("it says so in plain words", () => has(S1.survivor, "does"));
 check("the spouse total adds the continuance to the beneficiary allowance", () =>
-  has(S2.deductions, "$13,774"));
+  has(S2.survivor, "$13,774"));
 check("under 100% the spouse keeps exactly the member's own check", () =>
-  has(S2.deductions, "Your spouse ends up with"));
-check("the option portion is named and priced", () => has(S2.deductions, "option portion"));
-check("no eligible survivor means no continuance", () => has(SNS.deductions, "no eligible survivor"));
+  has(S2.survivor, "Your spouse ends up with"));
+check("the option portion is named and priced", () => has(S2.survivor, "option portion"));
+check("no eligible survivor means no continuance", () => has(SNS.survivor, "no eligible survivor"));
 // The structure is verified; the reduction percentage is one member's. Say so.
 check("the reduction is flagged as calibrated, not the member's", () =>
-  has(S2.deductions, "calibrated, not yours"));
+  has(S2.survivor, "calibrated, not yours"));
 check("it names where the calibration came from", () =>
-  has(S2.deductions, "member 50, beneficiary 49"));
+  has(S2.survivor, "member 50, beneficiary 49"));
 check("it tells the member to get their own figure", () =>
-  has(S2.deductions, "Run your own estimate"));
+  has(S2.survivor, "Run your own estimate"));
 check("every option is priced in one table", () =>
   ["Unmodified","Return of contributions","100% Beneficiary","50% Beneficiary"]
-    .every(x => S2.deductions.includes(x)) || "an option is missing from the table");
-check("the pop-up behaviour is explained", () => has(S2.deductions, "dies before you"));
-check("the option selector is on Deductions", () => has(S2.deductions, "Who gets it after you"));
+    .every(x => S2.survivor.includes(x)) || "an option is missing from the table");
+check("the pop-up behaviour is explained", () => has(S2.survivor, "dies before you"));
+check("the option selector is on Survivor / beneficiary", () => has(S2.survivor, "Who gets it after you"));
 check("retirement date moved to Pension", () => has(S1.pension, "When do you plan to go?"));
 check("retirement date is off Member details", () => lacks(S1.member, "When do you plan to go?"));
 
@@ -727,7 +735,7 @@ check("retired gross is the allowance", () => has(HD.member, "$14,430"));
 check("retired take-home is there", () => has(HD.member, "$10,904"));
 check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
 check("all four appear on every tab", () =>
-  ["member","comp","pension","deductions","stayorgo"].every(t =>
+  ["member","comp","pension","survivor","health","stayorgo"].every(t =>
     HD[t].includes("While working") && HD[t].includes("While retired"))
   || "a tab is missing the header numbers");
 // A survivor election has to show in the header, since it moves the retired pair.
@@ -759,31 +767,31 @@ console.log("\n-- 2027 health premiums --");
   const M = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
     selectedMedicalPlan: "Kaiser Permanente", medicalCoverage: "ee",
     retireeMedicalPlan: "Kaiser Permanente", retireeCoverage: "ee" });
-  check("Kaiser 2027 employee-only premium", () => has(M.deductions, "$1,188"));
+  check("Kaiser 2027 employee-only premium", () => has(M.health, "$1,188"));
   check("the two plans CalPERS dropped are gone", () =>
-    lacks(M.deductions, "UnitedHealthcare Alliance") && lacks(M.deductions, "UnitedHealthcare Harmony"));
-  check("Sutter Health Plan is offered (new for 2027)", () => has(M.deductions, "Sutter Health Plan"));
-  check("Blue Shield EPO is offered (new in Placer)", () => has(M.deductions, "Blue Shield EPO"));
+    lacks(M.health, "UnitedHealthcare Alliance") && lacks(M.health, "UnitedHealthcare Harmony"));
+  check("Sutter Health Plan is offered (new for 2027)", () => has(M.health, "Sutter Health Plan"));
+  check("Blue Shield EPO is offered (new in Placer)", () => has(M.health, "Blue Shield EPO"));
   // Only the selected plan prints a dollar figure, so price these by electing them.
   const PLAT = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
     selectedMedicalPlan: "PERS Platinum (PPO)", medicalCoverage: "ee" });
-  check("PERS Platinum 2027", () => has(PLAT.deductions, "$1,779"));
+  check("PERS Platinum 2027", () => has(PLAT.health, "$1,779"));
   const WHA = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
     selectedMedicalPlan: "Western Health Advantage", medicalCoverage: "ee" });
-  check("Western Health Advantage 2027", () => has(WHA.deductions, "$1,031"));
+  check("Western Health Advantage 2027", () => has(WHA.health, "$1,031"));
   const FAM = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
     selectedMedicalPlan: "Kaiser Permanente", medicalCoverage: "fam" });
-  check("Kaiser 2027 family premium", () => has(FAM.deductions, "$3,088"));
+  check("Kaiser 2027 family premium", () => has(FAM.health, "$3,088"));
   // Medicare: what the same coverage costs at 65.
-  check("the Medicare table is on Deductions", () => has(M.deductions, "At 65 the premium drops"));
-  check("Kaiser Senior Advantage 2027", () => has(M.deductions, "$334"));
-  check("PERS Platinum Supplement 2027", () => has(M.deductions, "$666"));
-  check("it says Part B is not included", () => has(M.deductions, "Part B premium is paid"));
+  check("the Medicare table is on Health care", () => has(M.health, "At 65 the premium drops"));
+  check("Kaiser Senior Advantage 2027", () => has(M.health, "$334"));
+  check("PERS Platinum Supplement 2027", () => has(M.health, "$666"));
+  check("it says Part B is not included", () => has(M.health, "Part B premium is paid"));
   // A saved election pointing at a discontinued plan must not silently show Kaiser's money.
   const OLD = await scenario({ ...mkCola("2028-12-31", 50), medicalTier: "1",
     selectedMedicalPlan: "UnitedHealthcare Harmony", retireeMedicalPlan: "UnitedHealthcare Alliance" });
   check("a dropped plan migrates instead of silently mispricing", () =>
-    lacks(OLD.deductions, "UnitedHealthcare Harmony") && lacks(OLD.deductions, "UnitedHealthcare Alliance"));
+    lacks(OLD.health, "UnitedHealthcare Harmony") && lacks(OLD.health, "UnitedHealthcare Alliance"));
 }
 
 

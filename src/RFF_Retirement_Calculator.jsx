@@ -315,6 +315,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v38)", items: [
+    "<strong>Deductions is now two tabs: Survivor / beneficiary and Health care.</strong> They were sharing one screen, which made two completely separate decisions look like halves of the same form. Picking who gets your allowance after you die has nothing to do with picking a medical plan.",
+    "<strong>Survivor / beneficiary</strong> \u2014 the survivor continuance, the six-option comparison table, the explanation panel for whichever option you pick, and your beneficiary\u2019s age.",
+    "<strong>Health care</strong> \u2014 your plan and coverage while working, what the City pays, your cost from the paycheck, your retiree plan and premium, and the 2027 Medicare rates at 65.",
+    "Old links still land somewhere sensible: a saved link to Deductions opens Survivor / beneficiary, and the older Medical link opens Health care.",
+  ] },
   { date: "September 23, 2026 (v37)", items: [
     "<strong>Every health premium is now the 2027 rate.</strong> CalPERS Region 1 \u2014 the right region for Roseville, since it covers Placer and Sacramento counties \u2014 effective 1/1/2027. CalPERS held the overall increase to 4.97%. Kaiser employee-only goes $1,168.86 \u2192 <strong>$1,187.63</strong>, and because the City\u2019s contribution is a percentage of Kaiser, everyone\u2019s City share moves with it.",
     "<strong>UnitedHealthcare Alliance and Harmony are gone.</strong> Both exit every CalPERS county on 1/1/2027. If you had one saved, the tool moves you to a surviving plan instead of quietly showing you somebody else\u2019s premium.",
@@ -924,10 +930,10 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["member", "comp", "pension", "deductions", "stayorgo", "sickleave", "inputs", "income", "help", "updates"];
+  const VALID_TABS = ["member", "comp", "pension", "survivor", "health", "stayorgo", "sickleave", "inputs", "income", "help", "updates"];
   // Links sent out before each rebuild still have to land somewhere sensible.
   const LEGACY_TABS = { start: "member", pay: "member", now: "member", retired: "pension",
-                        wait: "stayorgo", medical: "deductions", advanced: "inputs",
+                        wait: "stayorgo", medical: "health", deductions: "survivor", advanced: "inputs",
                         pensiondetail: "pension", timeline: "stayorgo" };
   const initialTab = (() => {
     try {
@@ -2171,13 +2177,15 @@ export default function RFFRetirementCalculator() {
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
-          {["member", "comp", "pension", "deductions", "stayorgo", "advanced"].map(t => {
+          {["member", "comp", "pension", "survivor", "health", "stayorgo", "advanced"].map(t => {
             const active = t === "advanced" ? isAdvancedTab : tab === t;
             return (
               <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
                 onClick={() => setTab(t === "advanced" ? "sickleave" : t)}>
                 {{ member: isMobile ? "Member" : "Member details", comp: isMobile ? "Pay" : "Current compensation",
-                   pension: "Pension", deductions: "Deductions",
+                   pension: "Pension",
+                   survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
+                   health: isMobile ? "Health" : "Health care",
                    stayorgo: isMobile ? "Stay/go" : "Stay or go?", advanced: "More" }[t]}
               </button>
             );
@@ -4025,7 +4033,7 @@ export default function RFFRetirementCalculator() {
           </div>
           {/* RIGHT PANEL */}
           <div>
-            {tab === "deductions" && setupDone && (
+            {tab === "survivor" && setupDone && (
               <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
                 <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Who gets it after you</p>
                 <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
@@ -4245,7 +4253,7 @@ export default function RFFRetirementCalculator() {
                 </div>
               </div>
             )}
-            {tab === "deductions" && (
+            {tab === "health" && (
               <div style={styles.card}>
                 {sectionHeader("medplan", "Medical, dental & vision (while working)")}
                 {openSections.medplan !== false && (<>
