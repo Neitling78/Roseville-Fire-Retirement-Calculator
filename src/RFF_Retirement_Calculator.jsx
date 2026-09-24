@@ -358,6 +358,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v53)", items: [
+    "<strong>New on Stay or go?: your sweet-spot date.</strong> Not the year — the day. “You reach the 90% cap on your Roseville CalPERS service on January 1, 2036 — age 60. After that day, more service adds $0 to your pension percentage.” The only thing that still moves the check after that is your pay going up.",
+    "It tells you which side of that date your plan sits on. Short of it, you get a button to model retiring on it. Past it, the card says so and reframes the tables underneath — the gains those rows show are your final compensation climbing, not service, and that is a much smaller lever.",
+    "<strong>The cap is on the Roseville 3% @ 50 bucket</strong> — your service, the sick leave you convert, purchased credit and prior agencies on the same formula. Time under a <em>different</em> CalPERS formula is its own bucket and stacks on top, which is why a combined allowance can read above 90% while you are not yet at this cap.",
+    "Your sick-leave choice counts toward it, so converting hours pulls the date earlier and the card says so. The date never lands before age 50, because CalPERS pays no safety pension before then.",
+    "PEPRA 2.7% @ 57 has no cap, so PEPRA members get no card — there is no date to name.",
+  ] },
   { date: "September 24, 2026 (v52)", items: [
     "<strong>“What waiting actually costs” now prices every year at that year’s paycheck.</strong> It used to price all of them at this month’s — so a member weighing five more years was told those five years pay what 2026 pays. The <em>cash you give up getting there</em> column is now built year by year, and the break-even and 20-year columns follow from it.",
     "<strong>The cost of waiting drops sharply for most members</strong>, because the paycheck you give up grows while the earliest pension you are measuring it against does not. On the reference Captain it went from about $19,700 a year to about $9,400 for the first year.",
@@ -1704,6 +1711,37 @@ export default function RFFRetirementCalculator() {
   const calpersOverCap = benefitIsCapped && calpersRawPct > benefitMaxPct + 1e-9;
   const surplusYearsOverCap = calpersOverCap && rosevilleFactor > 0
     ? (calpersRawPct - benefitMaxPct) / rosevilleFactor : 0;
+  // ── THE DAY THE PERCENTAGE STOPS MOVING ─────────────────────────────
+  // Classic safety caps the Roseville-formula bucket at 90% (30 yrs × 3%). There is a specific
+  // DAY a member crosses it, and after that day more service adds nothing to the percentage —
+  // only final compensation still moves the check. PEPRA 2.7% @ 57 has no such cap, so there is
+  // no date to name. Sick-leave credit and purchased credit count toward the cap, so they pull
+  // the date earlier; service under a DIFFERENT CalPERS formula sits in its own bucket and does
+  // not, which is why a member can read above 90% in total and still not be at this cap.
+  const capDate = (() => {
+    if (!benefitIsCapped || rosevilleFactor <= 0) return null;
+    const neededRosevilleYears = (benefitMaxPct - sameFormulaPriorPct) / rosevilleFactor
+      - sickLeaveCreditYears - airtimeCountedSeparately;
+    const anchorDate = usingCalpersCredit ? calpersAsOfDate : hireDateObj;
+    const anchorYears = usingCalpersCredit ? (parseFloat(calpersCreditRoseville) || 0) : 0;
+    const d = new Date(anchorDate.getTime() + (neededRosevilleYears - anchorYears) * MS_PER_YEAR);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+  // Nobody draws a safety pension before 50, so that is the earliest the cap can actually pay.
+  const capEligibleDate = (capDate && dobDate)
+    ? new Date(Math.max(capDate.getTime(),
+        new Date(dobDate.getFullYear() + 50, dobDate.getMonth(), dobDate.getDate()).getTime()))
+    : capDate;
+  const capAgeAt = (capEligibleDate && dobDate) ? exactAgeOn(dobDate, capEligibleDate) : null;
+  const capHeldBackByAge50 = !!(capDate && capEligibleDate && capEligibleDate.getTime() > capDate.getTime() + 86400000);
+  const capAlreadyPassed = !!(capEligibleDate && capEligibleDate <= NOW);
+  const capAfterPlannedExit = !!(capEligibleDate && capEligibleDate > retirementDate);
+  const capDateStr = capEligibleDate
+    ? capEligibleDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    : null;
+  const capDateInput = capEligibleDate
+    ? `${capEligibleDate.getFullYear()}-${String(capEligibleDate.getMonth() + 1).padStart(2, "0")}-${String(capEligibleDate.getDate()).padStart(2, "0")}`
+    : null;
   // PEPRA caps the pensionable compensation the pension is figured on; Classic is not capped this way.
   const pensionableForPension = memberType === "pepra" ? Math.min(finalCompMonthly, peraCapMonthly) : finalCompMonthly;
   const peraCapApplies = memberType === "pepra" && finalCompMonthly > peraCapMonthly;
@@ -3401,6 +3439,74 @@ export default function RFFRetirementCalculator() {
             )}
 
             {/* ═══════════════ STAY OR GO ═══════════════ */}
+            {/* The one date that decides the whole tab for a Classic member: the day more service
+                stops buying percentage. Everything below is the cost/benefit of years; this says
+                which years can still move the formula at all. */}
+            {tab === "stayorgo" && setupDone && benefitIsCapped && capEligibleDate && (
+              <div style={{ ...styles.card, border: `1px solid ${capAlreadyPassed ? COLORS.gold : COLORS.green}`, marginBottom: "18px" }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Your sweet-spot date</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
+                  {capAlreadyPassed ? (
+                    <>You are <strong style={{ color: COLORS.gold }}>already past</strong> the {pct(benefitMaxPct)} cap
+                    on your Roseville CalPERS service — you reached it on
+                    {" "}<strong style={{ color: COLORS.text }}>{capDateStr}</strong>, at age {capAgeAt !== null ? capAgeAt.toFixed(0) : "—"}.</>
+                  ) : (
+                    <>You reach the {pct(benefitMaxPct)} cap on your Roseville CalPERS service on
+                    {" "}<strong style={{ color: COLORS.green }}>{capDateStr}</strong>
+                    {capAgeAt !== null && <> — age <strong style={{ color: COLORS.text }}>{capAgeAt.toFixed(0)}</strong></>}.</>
+                  )}
+                  {" "}<strong style={{ color: COLORS.text }}>After that day, more service adds $0 to your
+                  pension percentage.</strong> The only thing that still moves the check is your pay going up,
+                  and any service you hold under a different CalPERS formula.
+                </div>
+                <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "12px" }}>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>{capAlreadyPassed ? "Reached the cap" : "You reach the cap"}</span>
+                    <span style={capAlreadyPassed ? styles.tableValGold : styles.tableValGreen}>{capDateStr}</span>
+                  </div>
+                  <div style={styles.tableRow}>
+                    <span style={styles.tableKey}>Your planned last day</span>
+                    <span style={styles.tableVal}>{retirementDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
+                  </div>
+                  <div style={styles.tableRowLast}>
+                    <span style={styles.tableKey}>Which means</span>
+                    <span style={{ ...styles.tableVal, color: capAfterPlannedExit ? COLORS.green : COLORS.gold, fontWeight: 700 }}>
+                      {capAfterPlannedExit
+                        ? "years still buy percentage"
+                        : "you are leaving at or past the cap"}
+                    </span>
+                  </div>
+                </div>
+                {!capAfterPlannedExit && (
+                  <div style={{ padding: "10px 12px", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.35)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "12px" }}>
+                    <strong style={{ color: COLORS.text }}>Read the tables below with that in mind.</strong> Working past
+                    {" "}{capDateStr} does not raise your percentage — the gains those rows show come from your
+                    final compensation climbing, not from service. That is a real gain, but it is a much smaller
+                    lever than the one the cap just took away.
+                  </div>
+                )}
+                {capAfterPlannedExit && (
+                  <button style={{ ...styles.tab(false), width: "100%", textAlign: "center", marginBottom: "12px", fontWeight: 700 }}
+                    onClick={() => { setRetirementDateOverride(capDateInput); setSetupDone(true); }}>
+                    Model retiring on {capDateStr} →
+                  </button>
+                )}
+                <div style={{ fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                  The cap is on the <strong style={{ color: COLORS.textMuted }}>Roseville 3% @ 50 bucket</strong> — your
+                  Roseville service, the sick leave you convert and any purchased credit, plus prior agencies on the
+                  same formula. Service under a <em>different</em> CalPERS formula is its own bucket and stacks on top,
+                  which is why a combined allowance can read above {pct(benefitMaxPct)}.
+                  {sickLeaveCreditYears > 0 && <> Your {sickLeaveCreditYears.toFixed(2)} yrs of sick-leave credit is counted here, so
+                  it pulls this date earlier — change that choice and this date moves.</>}
+                  {capHeldBackByAge50 && <> Your service alone gets there sooner, but CalPERS pays no safety pension before age 50,
+                  so this is the first date it can actually matter.</>}
+                  {" "}Estimated from the same service figures as the pension, not from CalPERS. Confirm it with them
+                  before you plan a last day around it.
+                </div>
+              </div>
+            )}
+
+
             {/* The headline answer: what the paycheck-to-pension change actually is, in one line.
                 Overtime drives most of it for most members and is called out by name. */}
             {tab === "stayorgo" && setupDone && (() => {

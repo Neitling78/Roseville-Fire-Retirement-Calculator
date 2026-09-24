@@ -550,6 +550,67 @@ check("the tax figures say plainly that they are estimates", () => has(GH.pensio
 // Working a year instead of drawing the earliest pension has a price; the bigger
 // pension you buy repays it over time, or never does. Take-home basis, because the
 // 9% member contribution, dues and active medical only come out while working.
+// ── The sweet-spot date ───────────────────────────────────────────
+// Classic safety caps the Roseville bucket at 90%. There is a DAY you cross it, and past that
+// day service buys nothing. Every year-by-year table on this tab is read differently once you
+// know which side of that date you are on.
+console.log("\n-- sweet-spot date --");
+{
+  // Well short of the cap: 22 yrs in, no priors, sick leave converted.
+  const SS = await scenario({ setupDone:true, hireDate:"2006-01-01", dob:"1976-01-01",
+    memberType:"classic", medicalTier:"2", classification:"Fire Engineer", salaryStep:"H",
+    retirementDateOverride:"2028-01-01", retirementAge:52,
+    currentSickLeaveHours:0, sickLeaveDisposition:"credit" });
+  check("the card is on Stay or go?", () => has(SS.stayorgo, "Your sweet-spot date"));
+  check("it names a date, not just a year", () => /You reach the cap January 1, 2036/.test(SS.stayorgo)
+    || "no full cap date");
+  check("30 yrs x 3% from a 2006 hire lands in 2036", () => has(SS.stayorgo, "2036"));
+  check("it states what stops", () => has(SS.stayorgo, "more service adds $0 to your pension percentage"));
+  check("and what still moves the check", () => has(SS.stayorgo, "your pay going up"));
+  check("a member short of the cap is told years still count", () =>
+    has(SS.stayorgo, "years still buy percentage"));
+  check("and offered that date as a plan", () => has(SS.stayorgo, "Model retiring on January 1, 2036"));
+
+  // At or past the cap: myCalPERS credit plus same-formula priors.
+  const SSC = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50,
+    calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+    currentSickLeaveHours:1200, sickLeaveDisposition:"cash",
+    priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+                  { agencyName:"State of California", years:1.038, formula:"3@55" }] });
+  check("a capped member is told so plainly", () => has(SSC.stayorgo, "you are leaving at or past the cap"));
+  check("and the tables below are reframed, not left to be misread", () =>
+    has(SSC.stayorgo, "does not raise your percentage"));
+  check("no 'model that date' button once it is behind you", () =>
+    lacks(SSC.stayorgo, "Model retiring on October"));
+  // Prior service on a DIFFERENT formula stacks on top and does not count toward this cap.
+  check("it says which bucket the cap is on", () => has(SSC.stayorgo, "Roseville 3% @ 50 bucket"));
+  check("and why a total can read above the cap", () => has(SSC.stayorgo, "can read above"));
+  // CalPERS pays no safety pension before 50, so the date cannot be earlier than that birthday.
+  check("the date is never before age 50", () => has(SSC.stayorgo, "no safety pension before age 50"));
+
+  // PEPRA 2.7% @ 57 has no cap, so there is no date to name and no card to show.
+  const SSP = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-01-01",
+    memberType:"pepra", medicalTier:"3", classification:"Fire Engineer", salaryStep:"H",
+    retirementDateOverride:"2047-01-01", retirementAge:57,
+    currentSickLeaveHours:0, sickLeaveDisposition:"credit" });
+  check("PEPRA gets no sweet-spot card at all", () => lacks(SSP.stayorgo, "Your sweet-spot date"));
+
+  // The sick-leave choice moves the date, so the card has to say it is counted.
+  const SSK = await scenario({ setupDone:true, hireDate:"2006-01-01", dob:"1976-01-01",
+    memberType:"classic", medicalTier:"2", classification:"Fire Engineer", salaryStep:"H",
+    retirementDateOverride:"2028-01-01", retirementAge:52,
+    currentSickLeaveHours:4000, sickLeaveDisposition:"credit" });
+  check("sick-leave credit pulls the date earlier", () => {
+    const a = SS.stayorgo.match(/You reach the cap ([A-Z][a-z]+ \d+, (\d{4}))/);
+    const b = SSK.stayorgo.match(/You reach the cap ([A-Z][a-z]+ \d+, (\d{4}))/);
+    if (!a || !b) return "could not read both cap dates";
+    return +b[2] < +a[2] || `2 yrs of sick-leave credit did not move the date: ${a[1]} -> ${b[1]}`;
+  });
+  check("and the card says it is counted", () => has(SSK.stayorgo, "yrs of sick-leave credit is counted here"));
+}
+
 console.log("\n-- what waiting actually costs --");
 const CW = await scenario(mkCola("2028-12-31", 50));                       // 0% raises, 0% CPI
 const CW3 = await scenario({ ...mkCola("2028-12-31", 50), unionRaisePct:3, inflationRate:3 });
