@@ -806,6 +806,15 @@ console.log("\n-- 2027 health premiums --");
 }
 
 
+// ── The weeds tab keeps its name ───────────────────────────────────────────
+console.log("\n-- into the weeds --");
+{
+  const W = await scenario({ ...mkCola("2028-12-31", 50) });
+  check("the detail tab is called Into the weeds", () => has(W.member, "Into the weeds"));
+  check("it is no longer called More", () => lacks(W.member, ">More<"));
+}
+
+
 // ── Health care rate-year picker ───────────────────────────────────────────
 // CalPERS publishes next year's premiums around June. A year with no sheet must say
 // "pending" and show the newest published year — never a guess, never last year's

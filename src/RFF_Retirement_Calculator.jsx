@@ -358,6 +358,9 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v43)", items: [
+    "<strong>\u201cMore\u201d is now \u201cInto the weeds.\u201d</strong> Same screens, honest name \u2014 it is where the detail lives if you want it, and nothing you need is hiding behind it.",
+  ] },
   { date: "September 24, 2026 (v42)", items: [
     "<strong>Future raises moved to Current compensation</strong>, sitting between the pay table and the hourly rates. That is what it actually drives \u2014 the year picker on that table reads the MOU increases and the Labor Market Adjustment you type in \u2014 so having it a tab away meant changing a number on Pension to watch a table move on Current compensation.",
     "The 2028 warning on the pay table used to say \u201cput a number in on Pension \u203a Future raises.\u201d It now points just below, because that is where the box is.",
@@ -2261,7 +2264,8 @@ export default function RFFRetirementCalculator() {
                    pension: "Pension",
                    survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
                    health: isMobile ? "Health" : "Health care",
-                   stayorgo: isMobile ? "Stay/go" : "Stay or go?", advanced: "More" }[t]}
+                   stayorgo: isMobile ? "Stay/go" : "Stay or go?",
+                   advanced: isMobile ? "Weeds" : "Into the weeds" }[t]}
               </button>
             );
           })}
