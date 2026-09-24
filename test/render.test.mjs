@@ -80,15 +80,15 @@ check("says tax comes off the warrant, not the estimate", () => has(B.wait, "com
 check("warns later dollars buy less", () => has(B.wait, "which buy less"));
 
 console.log("\n-- sick leave decision screen --");
-check("frames the decision", () => has(B.sickleave, "Cash or credit?"));
-check("gives the CalPERS conversion rate", () => has(B.sickleave, "2,000 hours = 1 year"));
-check("says you cannot do both", () => has(B.sickleave, "cannot do both with the same hours"));
-check("the payoff ceiling is flagged as unconfirmed", () => has(B.sickleave, "base hourly plus longevity only"));
+check("frames the decision", () => has(B.member, "Cash or credit?"));
+check("gives the CalPERS conversion rate", () => has(B.member, "2,000 hours = 1 year"));
+check("says you cannot do both", () => has(B.member, "cannot do both with the same hours"));
+check("the payoff ceiling is flagged as unconfirmed", () => has(B.member, "base hourly plus longevity only"));
 // The cash/credit/split dropdown is gone — the two boxes on Member details are the only control.
-check("no second sick-leave control here", () => lacks(B.sickleave, "Split them"));
-check("points at the two boxes instead", () => has(B.sickleave, "Set the split on"));
-check("still shows both sides of the decision", () => has(B.sickleave, "As service credit") && has(B.sickleave, "As cash"));
-check("points at the Treasurer to confirm", () => has(B.sickleave, "Treasurer"));
+check("no second sick-leave control here", () => lacks(B.member, "Split them"));
+check("points at the two boxes instead", () => has(B.member, "Set the split in the two boxes"));
+check("still shows both sides of the decision", () => has(B.member, "As service credit") && has(B.member, "As cash"));
+check("points at the Treasurer to confirm", () => has(B.member, "Treasurer"));
 
 // ── A PEPRA member hired 2014 — the one the old code got wrong twice ────────
 console.log("\n-- PEPRA member hired 2014 (old code: wrong COLA AND a false cap) --");
@@ -137,7 +137,7 @@ check("shows specialty pay section", () => has(E.start, "Specialty pay and certi
 check("collapsed header still shows the incentive total", () => /Specialty pay and certificates \s*[\d.]+%/.test(E.start) || "no total in the collapsed header");
 check("the table ends at gross pay", () => has(E.comp, "Gross pay"));
 check("collapsed header still shows the hourly rate", () => /Your hourly rates \s*\$/.test(E.comp) || "no value in the collapsed header");
-check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.sickleave) || "no value in the collapsed header");
+check("collapsed header still shows the cash-out total", () => /Cash-out at retirement \s*\$/.test(E.member) || "no value in the collapsed header");
 check("offers the education incentive", () => has(Eo.start, "Bachelor's degree (10%)"));
 check("offers Chief Fire Officer for a Captain", () => has(Eo.start, "Chief Fire Officer cert (10%)"));
 check("offers hazmat", () => has(Eo.start, "Hazmat"));
@@ -154,17 +154,17 @@ check("monthly figures stay whole dollars", () => /\$[\d,]+\/mo/.test(Eo.pay)
   || "monthly figures should not have gained cents");
 check("shows future raises", () => has(E.comp, "Future raises"));
 check("shows the 2028 study is an assumption", () => has(Eo.comp, "Total Compensation Study"));
-check("shows the cash-out card", () => has(E.sickleave, "Cash-out at retirement"));
+check("shows the cash-out card", () => has(E.member, "Cash-out at retirement"));
 check("no holiday cash-out input anywhere", () => lacks(E.pay, "Unused holiday hours") === true
   && lacks(E.start, "Unused holiday hours") === true);
-check("explains holiday is special comp, not a payout", () => has(Eo.sickleave, "Holiday hours are not a separate cash-out"));
-check("cites the special-comp reporting", () => has(Eo.sickleave, "reported to CalPERS as special compensation"));
-check("says it cannot be both", () => has(Eo.sickleave, "cannot be both reported to CalPERS and paid out again"));
+check("explains holiday is special comp, not a payout", () => has(Eo.member, "Holiday hours are not a separate cash-out"));
+check("cites the special-comp reporting", () => has(Eo.member, "reported to CalPERS as special compensation"));
+check("says it cannot be both", () => has(Eo.member, "cannot be both reported to CalPERS and paid out again"));
 check("holiday pay still counts as pensionable", () => has(E.comp, "Holiday pay"));
 check("cash-out rate says base + longevity, no incentives", () => has(Eo.comp, "base + longevity, no incentives"));
-check("cash-out card spells out the exclusion", () => has(Eo.sickleave, "base hourly plus longevity only"));
-check("cash-out card excludes specialty pay explicitly", () => has(Eo.sickleave, "no education, certificate or specialty pay"));
-check("cash-out card distinguishes projected rate from today's", () => has(Eo.sickleave, "not today's"));
+check("cash-out card spells out the exclusion", () => has(Eo.member, "base hourly plus longevity only"));
+check("cash-out card excludes specialty pay explicitly", () => has(Eo.member, "no education, certificate or specialty pay"));
+check("cash-out card distinguishes projected rate from today's", () => has(Eo.member, "not today's"));
 check("shows what the pension is figured on", () => has(E.pension, "What the pension is figured on"));
 check("specialty pay is in the build-up", () => has(E.comp, "Specialty and certificate pay"));
 check("Classic sees holiday pay as pensionable", () => has(E.comp, "168 hrs at base"));
@@ -284,9 +284,9 @@ check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"
 check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
 check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
 check("asks beneficiary age on Survivor / beneficiary", () => has(FF.survivor, "beneficiary’s age at your retirement"));
-check("offers the pension type override", () => has(FF.inputs, "CalPERS reciprocity"));
+check("offers the pension type override", () => has(FF.member, "CalPERS reciprocity"));
 check("no pension answer on page one", () => lacks(FF.now, "Gross CalPERS pension"));
-check("no cash-out totals on Start here", () => lacks(FF.sickleave, "Total cash at separation"));
+check("no cash-out totals on Start here", () => lacks(FF.member, "Total cash at separation"));
 check("member details no longer ends in a call to action", () => lacks(FF.member, "That is everything"));
 
 console.log("\n-- the three tabs hold different things --");
@@ -294,7 +294,7 @@ check("pension tab has the answer", () => has(FF.pension, "Lands in your bank"))
 check("pension tab has no hourly rates", () => lacks(FF.pension, "FLSA regular rate"));
 check("pay tab has the rates", () => has(FF.comp, "Your hourly rates"));
 check("page one has no pension answer", () => lacks(FF.now, "of final comp"));
-check("pay tab has the cash-out card", () => has(FF.sickleave, "Cash-out at retirement"));
+check("pay tab has the cash-out card", () => has(FF.member, "Cash-out at retirement"));
 check("six primary tabs", () => ["Member details","Pension","Survivor / beneficiary","Health care","Stay or go?"]
   .every(x => FF.member.includes(x)) || "a primary tab is missing");
 check("Deductions is gone as a tab", () => lacks(FF.member, ">Deductions<"));
@@ -314,22 +314,22 @@ const CP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-
   ],
   openSections:{ startcalpers:true, startprior:true } });
 check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
-check("asks for CalPERS service credit", () => has(CP.inputs, "CalPERS service credit"));
-check("points at myCalPERS", () => has(CP.inputs, "my.calpers.ca.gov"));
-check("shows the figure on file", () => has(CP.inputs, "23.390"));
-check("projects it to retirement", () => has(CP.inputs, "Roseville credit at retirement"));
-check("asks whether purchased credit is included", () => has(CP.inputs, "already includes service credit I purchased"));
-check("warns about double-counting airtime", () => has(CP.inputs, "count it twice"));
-check("gives a total to reconcile", () => has(CP.inputs, "Check yourself"));
-check("total matches myCalPERS (29.110)", () => has(CP.inputs, "29.110 years"));
-check("explains same vs different formula buckets", () => has(CP.inputs, "is its own bucket and stacks on top"));
+check("asks for CalPERS service credit", () => has(CP.member, "CalPERS service credit"));
+check("points at myCalPERS", () => has(CP.member, "my.calpers.ca.gov"));
+check("shows the figure on file", () => has(CP.member, "23.390"));
+check("projects it to retirement", () => has(CP.member, "Roseville credit at retirement"));
+check("asks whether purchased credit is included", () => has(CP.member, "already includes service credit I purchased"));
+check("warns about double-counting airtime", () => has(CP.member, "count it twice"));
+check("gives a total to reconcile", () => has(CP.member, "Check yourself"));
+check("total matches myCalPERS (29.110)", () => has(CP.member, "29.110 years"));
+check("explains same vs different formula buckets", () => has(CP.member, "is its own bucket and stacks on top"));
 // no override supplied -> falls back to the hire date and says so
 const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-06-01", openSections:{ startcalpers:true } });
-check("falls back to the hire date when blank", () => has(NOCP.inputs, "estimating"));
-check("says the fallback is an estimate", () => has(NOCP.inputs, "it is an estimate"));
-check("no reconcile panel without a figure", () => lacks(NOCP.inputs, "Check yourself"));
+check("falls back to the hire date when blank", () => has(NOCP.member, "estimating"));
+check("says the fallback is an estimate", () => has(NOCP.member, "it is an estimate"));
+check("no reconcile panel without a figure", () => lacks(NOCP.member, "Check yourself"));
 
 // ── "Last reported" date and the balance-vs-pension comparison ─────────────
 console.log("\n-- reported date and account balance --");
@@ -344,12 +344,12 @@ const BAL = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1978-09
   ],
   openSections:{ startcalpers:true } });
 check("every screen renders", () => Object.values(BAL).every(h => h.length > 200) || "a screen came back empty");
-check("asks for the Last reported date", () => has(BAL.inputs, '"Last reported" date on myCalPERS'));
-check("explains the employer reporting lag", () => has(BAL.inputs, "reports on a lag"));
-check("counts service still to earn from that date", () => has(BAL.inputs, "Still to earn"));
-check("asks for the account balance", () => has(BAL.inputs, "CalPERS account balance"));
-check("says the balance changes nothing", () => has(BAL.inputs, "does not change your pension by a cent"));
-check("warns a refund forfeits the pension", () => has(BAL.inputs, "forfeit the pension entirely"));
+check("asks for the Last reported date", () => has(BAL.member, '"Last reported" date on myCalPERS'));
+check("explains the employer reporting lag", () => has(BAL.member, "reports on a lag"));
+check("counts service still to earn from that date", () => has(BAL.member, "Still to earn"));
+check("asks for the account balance", () => has(BAL.member, "CalPERS account balance"));
+check("says the balance changes nothing", () => has(BAL.member, "does not change your pension by a cent"));
+check("warns a refund forfeits the pension", () => has(BAL.member, "forfeit the pension entirely"));
 check("pension tab compares balance to pension value", () => has(BAL.pension, "Your account balance is not your pension"));
 check("shows the refund value", () => has(BAL.pension, "refund value"));
 check("shows the private-saver equivalent", () => has(BAL.pension, "What a private saver would need"));
@@ -378,11 +378,11 @@ check("quantifies the wasted years", () => /years<\/strong> of credit pays you n
   || "no surplus-years figure");
 check("names sick leave as part of the surplus", () => has(CAP.pension, "worth"));
 check("explains what still raises the pension", () => has(CAP.pension, "only through pay increases"));
-check("sick leave screen says worth $0", () => has(CAP.sickleave, "Worth $0 to you"));
-check("sick leave screen gives the cash alternative", () => has(CAP.sickleave, "Taking it as cash is worth"));
-check("airtime is not double-counted", () => has(CAP.inputs, "not") === true
-  && has(CAP.inputs, "already inside the figure above") === true);
-check("offers the rows-vs-total sanity check", () => has(CAP.inputs, "if the employer rows on myCalPERS add up to the Total"));
+check("sick leave screen says worth $0", () => has(CAP.member, "Worth $0 to you"));
+check("sick leave screen gives the cash alternative", () => has(CAP.member, "Taking it as cash is worth"));
+check("airtime is not double-counted", () => has(CAP.member, "not") === true
+  && has(CAP.member, "already inside the figure above") === true);
+check("offers the rows-vs-total sanity check", () => has(CAP.member, "if the employer rows on myCalPERS add up to the Total"));
 // a member well under the cap sees none of it
 const UNDER = await scenario({ setupDone:true, hireDate:"2015-01-01", dob:"1990-01-01",
   memberType:"pepra", medicalTier:"3", classification:"Firefighter Paramedic II", salaryStep:"H",
@@ -444,10 +444,23 @@ check("medical is NOT on Survivor / beneficiary", () => lacks(B.survivor, "Medic
 check("an old ?tab=deductions link lands on the survivor election", () =>
   has(B.deductions, "Who gets it after you"));
 check("an old ?tab=medical link lands on Health care", () => has(B.medical, "Medical, dental"));
-check("detail screens demoted, not deleted", () => ["Sick leave","All inputs","Other income & tax","Guide"]
-  .every(x => B.inputs.includes(x)) || "a detail screen is missing");
-check("retired detail screens are gone from the More row", () => ["Pension detail","Timeline"]
-  .every(x => !B.inputs.includes(x)) || "a retired screen is still listed");
+check("the weeds row holds only what is left", () => ["Other income & tax","Guide"]
+  .every(x => B.income.includes(x)) || "a detail screen is missing");
+check("screens folded into Member details are gone from the row", () =>
+  ["All inputs","Pension detail","Timeline"].every(x => !B.income.includes(x))
+  || "a folded screen is still listed");
+// Everything All inputs owned outright now lives on Member details.
+check("CalPERS service credit moved to Member details", () => has(B.member, "CalPERS service credit"));
+const BOPEN = await scenario({ setupDone: true, hireDate: "1998-06-01", dob: "1972-03-15",
+  memberType: "classic", medicalTier: "1", classification: "Fire Captain", salaryStep: "H",
+  openSections: { startcalpers: true } });
+check("the myCalPERS pointer came with it", () => has(BOPEN.member, "my.calpers.ca.gov"));
+check("the account balance came with it", () => has(BOPEN.member, "CalPERS account balance"));
+check("the reciprocity override came with it", () => has(B.member, "CalPERS reciprocity"));
+check("the sick-leave decision moved to Member details", () => has(B.member, "Cash or credit?"));
+check("the cash-out figure came with it", () => has(B.member, "Cash-out at retirement"));
+check("old ?tab=inputs and ?tab=sickleave links land on Member details", () =>
+  B.member.includes("CalPERS service credit") && B.member.includes("Cash or credit?"));
 check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("Gross CalPERS pension") && B.timeline.includes("Stay or go"));
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
@@ -622,7 +635,7 @@ check("accrual is added, not lost", () => has(SPL.member, "2927 hrs"));
 check("future accrual follows the same split", () => has(SPL.member, "1.13 yrs"));
 check("and the rest is cashed", () => /6[67]\d hrs cashed/.test(SPL.member) || "no cashed-hours figure near 670");
 check("the 2,400-hour payoff ceiling is called out when it bites", () =>
-  has(SPL.sickleave, "As cash") || "the cash side is missing");
+  has(SPL.member, "As cash") || "the cash side is missing");
 
 // ── Current compensation: one table, ends at W-2 gross ─────────────────────
 console.log("\n-- current compensation --");

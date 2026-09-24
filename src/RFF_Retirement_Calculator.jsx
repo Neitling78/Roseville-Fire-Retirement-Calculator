@@ -358,6 +358,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v44)", items: [
+    "<strong>All inputs and Sick leave are gone \u2014 folded into Member details, not deleted.</strong> Seven things lived only on All inputs, and four of them were the myCalPERS figures that make your pension accurate rather than estimated. They now sit under 2 \u00b7 Roseville, where the service question already is.",
+    "<strong>Moved from All inputs:</strong> your CalPERS service credit and its as-of date, whether that figure already includes purchased time, your CalPERS account balance, and the Classic/PEPRA reciprocity override.",
+    "<strong>Moved from Sick leave:</strong> the cash-out figure, the rate it is paid at (base plus longevity only, at your retirement-year rate), the note that holiday hours are not a second payout, and the cash-versus-credit comparison \u2014 now directly under the two boxes that set the split, which is where the decision is actually made.",
+    "Old links to either screen land on Member details.",
+    "<strong>Into the weeds</strong> is now just Other income &amp; tax and the Guide.",
+  ] },
   { date: "September 24, 2026 (v43)", items: [
     "<strong>\u201cMore\u201d is now \u201cInto the weeds.\u201d</strong> Same screens, honest name \u2014 it is where the detail lives if you want it, and nothing you need is hiding behind it.",
   ] },
@@ -997,10 +1004,11 @@ const SAVED = loadSavedState();
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["member", "comp", "pension", "survivor", "health", "stayorgo", "sickleave", "inputs", "income", "help", "updates"];
+  const VALID_TABS = ["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help", "updates"];
   // Links sent out before each rebuild still have to land somewhere sensible.
   const LEGACY_TABS = { start: "member", pay: "member", now: "member", retired: "pension",
-                        wait: "stayorgo", medical: "health", deductions: "survivor", advanced: "inputs",
+                        wait: "stayorgo", medical: "health", deductions: "survivor", advanced: "income",
+                        sickleave: "member", inputs: "member",
                         pensiondetail: "pension", timeline: "stayorgo" };
   const initialTab = (() => {
     try {
@@ -2039,7 +2047,7 @@ export default function RFFRetirementCalculator() {
   const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
     && (parseFloat(inflationRate) || 0) === 0
     && (parseFloat(lmaPct) || 0) === 0;
-  const ADVANCED_TABS = ["sickleave", "inputs", "income", "help"];
+  const ADVANCED_TABS = ["income", "help"];
   const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
@@ -2259,7 +2267,7 @@ export default function RFFRetirementCalculator() {
             const active = t === "advanced" ? isAdvancedTab : tab === t;
             return (
               <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
-                onClick={() => setTab(t === "advanced" ? "sickleave" : t)}>
+                onClick={() => setTab(t === "advanced" ? ADVANCED_TABS[0] : t)}>
                 {{ member: isMobile ? "Member" : "Member details", comp: isMobile ? "Pay" : "Current compensation",
                    pension: "Pension",
                    survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
@@ -2274,7 +2282,7 @@ export default function RFFRetirementCalculator() {
           <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
             {ADVANCED_TABS.map(t => (
               <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ sickleave: "Sick leave", inputs: "All inputs", income: "Other income & tax", help: "Guide" }[t]}
+                {{ income: "Other income & tax", help: "Guide" }[t]}
               </button>
             ))}
           </div>
@@ -2355,6 +2363,244 @@ export default function RFFRetirementCalculator() {
                         rate instead. Leave both blank and the tool converts everything.</>}
                   </div>
                 </div>
+
+            {tab === "member" && (
+              <>
+                  <div style={styles.card}>
+                    {sectionHeaderValue("startcalpers", "CalPERS service credit (from myCalPERS)",
+                      usingCalpersCredit ? `${(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs on file` : "estimated from hire date")}
+                    {openSections.startcalpers !== false && (<>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
+                        CalPERS earns service credit on the hours your employer reports, so it does not have to
+                        equal calendar years since your hire date. If you give the tool the real figure, your
+                        pension percentage stops being an estimate.
+                        <div style={{ marginTop: "8px", color: COLORS.textDim }}>
+                          Log in to <strong style={{ color: COLORS.text }}>my.calpers.ca.gov</strong> and open
+                          <strong style={{ color: COLORS.text }}> Service Credit</strong>. You will see a Total, and a
+                          Service Credit History table listing each employer with its own retirement formula.
+                        </div>
+                      </div>
+                      <label style={styles.label}>Roseville service credit today <span style={{ fontSize: "10px", color: COLORS.textDim }}>· years, to 3 decimals</span></label>
+                      <input type="number" step="0.001" min={0} style={styles.input}
+                        value={calpersCreditRoseville || ""} placeholder="leave blank to estimate from hire date"
+                        onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
+                      {usingCalpersCredit && (<>
+                        <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
+                        <input type="date" style={styles.input} value={calpersCreditAsOf}
+                          onChange={e => setCalpersCreditAsOf(e.target.value)} />
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
+                          Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
+                          can be weeks old. Service still to be earned is counted from this date, not from today.
+                          Leave blank to count from today.
+                        </div>
+                        <label style={{ ...styles.checkRow, marginTop: "10px" }}>
+                          <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
+                            onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
+                          <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
+                            This figure already includes service credit I purchased
+                          </span>
+                        </label>
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
+                          myCalPERS folds purchased credit into the employer lines and says so under the Total.
+                          Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
+                          top, which would count it twice.
+                          {calpersCreditIncludesPurchased && airtimeYears > 0 && (
+                            <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                              Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
+                              <strong> not</strong> being added separately — it is already inside the figure above.
+                            </div>
+                          )}
+                          <div style={{ marginTop: "6px" }}>
+                            Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
+                            already in them. If the Total is higher than the rows, it is not.
+                          </div>
+                        </div>
+                        <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>On file today</span>
+                            <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
+                          </div>
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
+                            <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
+                          </div>
+                          <div style={styles.tableRowLast}>
+                            <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
+                            <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
+                          </div>
+                        </div>
+                        {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
+                          <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                            Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
+                            {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
+                            The CalPERS figure is the one your pension is paid on. Calendar years still drive your
+                            longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
+                          </div>
+                        )}
+                        {calpersTotalToday > 0 && (
+                          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                            <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
+                            agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
+                            That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
+                            missing from the list below.
+                          </div>
+                        )}
+                      </>)}
+                      {!usingCalpersCredit && (
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                          Blank for now, so the tool is estimating <strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} years</strong> from
+                          your hire date to your retirement date. That is usually close, but it is an estimate.
+                        </div>
+                      )}
+                      <label style={{ ...styles.label, marginTop: "16px" }}>CalPERS account balance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
+                      <input type="number" step="0.01" min={0} style={styles.input} value={calpersBalance || ""}
+                        placeholder="contributions + interest, from your Account Summary"
+                        onChange={e => setCalpersBalance(Math.max(0, +e.target.value || 0))} />
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.7 }}>
+                        This does not change your pension by a cent. It is what you would be refunded if you
+                        quit and cashed out — which would forfeit the pension entirely. It is here only because
+                        the two get confused, and the comparison is worth seeing once.
+                      </div>
+                    </>)}
+                  </div>
+                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "10px" }}>Which formula you are on</p>
+                  <div style={styles.fieldGroup}>
+                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
+                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
+                      value={memberType} disabled={!overridePensionType}
+                      onChange={e => setMemberType(e.target.value)}>
+                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
+                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
+                    </select>
+                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
+                      <input style={styles.checkbox} type="checkbox"
+                        checked={overridePensionType}
+                        onChange={e => setOverridePensionType(e.target.checked)} />
+                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
+                        Override (only if Classic via CalPERS reciprocity)
+                      </span>
+                    </label>
+                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
+                      Agencies on the <strong style={{ color: COLORS.textMuted }}>same</strong> formula as Roseville merge into
+                      one bucket under a single 90% cap; a <strong style={{ color: COLORS.textMuted }}>different</strong> CalPERS
+                      formula is its own bucket and stacks on top.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {tab === "member" && setupDone && (
+                <div style={styles.card}>
+                  {sectionHeaderValue("startpayout", "Cash-out at retirement", fmt(sickLeavePayoff))}
+                  {openSections.startpayout !== false && (<>
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>Sick leave <span style={{ fontSize: "10px", color: COLORS.textDim }}>· set in section 2 on Member details</span></span>
+                      <span style={{ ...styles.tableValGreen, fontWeight: 800, fontSize: "15px" }}>{fmt(sickLeavePayoff)}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                      Paid at <strong style={{ color: COLORS.text }}>base hourly plus longevity only</strong> — no
+                      education, certificate or specialty pay (MOU Ch.3 Art.III.A.1).
+                      {Math.abs(sickLeaveHourlyRate - sickLeaveHourlyRateToday) > 0.01 && (
+                        <> The rate used here is <strong style={{ color: COLORS.gold }}>{fmtHr(sickLeaveHourlyRate)}/hr</strong>, your
+                        projected rate in {retirementYear}, not today's {fmtHr(sickLeaveHourlyRateToday)}/hr — you are paid out
+                        at your rate on your last day.</>
+                      )}
+                      <div style={{ marginTop: "8px" }}>
+                        It lands in one tax year and is taxed as wages, and it is not pensionable.
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                      <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
+                      {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
+                      (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
+                      They cannot be both reported to CalPERS and paid out again at separation.
+                    </div>
+                  </>)}
+                </div>
+            )}
+
+            {tab === "member" && setupDone && (
+              <>
+                <div style={styles.card}>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Cash or credit?</p>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                    This is the one retirement decision you cannot undo, and for most members it is worth
+                    five figures. Your CalPERS contract (¶11.e, Gov. Code §20965) lets unused sick leave
+                    become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
+                    out instead, on a sliding scale. You cannot do both with the same hours.
+                  </div>
+                  {/* The two boxes on Member details are the only way to set this now. Leaving a
+                      second control here is how two screens start disagreeing with each other. */}
+                  <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "14px" }}>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Hours today</span>
+                      <span style={styles.tableVal}>{(splitEntered ? splitTotalToday : currentSickLeaveHours).toFixed(0)} hrs</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Projected at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr accrual</span></span>
+                      <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
+                    </div>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>→ converted to service credit</span>
+                      <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
+                    </div>
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>→ cashed out</span>
+                      <span style={styles.tableValGold}>{sickLeaveHoursToCash.toFixed(0)} hrs · {fmt(sickLeavePayoff)}</span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                      Set the split in the two boxes under <strong style={{ color: COLORS.textMuted }}>2 · Roseville</strong>
+                      above. Hours can be cashed <em>or</em> converted, never both.
+                    </div>
+                  </div>
+                  {/* The comparison that decides it — kept, minus the controls. */}
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.10)",
+                      border: `1px solid ${sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.35)"}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: sickLeavePensionBoostMonthly > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
+                        {sickLeavePensionBoostMonthly > 0 ? fmt(sickLeavePensionBoostMonthly) + "/mo" : "Worth $0 to you"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        {sickLeavePensionBoostMonthly > 0
+                          ? <>+{sickLeaveCreditYears.toFixed(2)} yrs of credit, for life, growing with your COLA.</>
+                          : <>You are already at the {pct(benefitMaxPct)} cap, so converting hours adds nothing to the pension.
+                            Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(sickLeavePayoff)}</strong> instead.</>}
+                      </div>
+                    </div>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(sickLeavePayoff)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        One payment at separation, taxed as wages in that year. Paid at base hourly plus longevity only —
+                        no education, certificate or specialty pay.
+                      </div>
+                    </div>
+                  </div>
+                  {sickLeaveHoursAbovePayCap > 0 && (
+                    <div style={{ ...styles.certNote, marginLeft: 0, marginBottom: "12px" }}>
+                      ⚠ Only the first {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours are payable under the MOU table as I read it,
+                      so about {sickLeaveHoursAbovePayCap.toFixed(0)} of your hours would be cashed at nothing. This ceiling is my
+                      reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
+                    </div>
+                  )}
+                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
+                    <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
+                    {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
+                    {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
+                    {sickLeavePayoff > 0 && <> {fmt(sickLeavePayoff)} cash</>}
+                    {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && " nothing yet — enter your hours above."}
+                  </div>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                    Cash percentages come from the MOU table (Ch. 3, Art. III) and depend on your total balance —
+                    70% at 1,800 hours and up, less below that. Confirm your own balance and the City's reading of
+                    the table with the Treasurer before you commit.
+                  </div>
+                </div>
+              </>
+            )}
 
                 {/* ── Pay detail: collapsed, but every header shows its own total ── */}
                 <div style={styles.card}>
@@ -3386,731 +3632,8 @@ export default function RFFRetirementCalculator() {
               </div>
             )}
 
-            {tab === "sickleave" && setupDone && (
-                <div style={styles.card}>
-                  {sectionHeaderValue("startpayout", "Cash-out at retirement", fmt(sickLeavePayoff))}
-                  {openSections.startpayout !== false && (<>
-                    <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}>Sick leave <span style={{ fontSize: "10px", color: COLORS.textDim }}>· set on the Sick leave tab</span></span>
-                      <span style={{ ...styles.tableValGreen, fontWeight: 800, fontSize: "15px" }}>{fmt(sickLeavePayoff)}</span>
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                      Paid at <strong style={{ color: COLORS.text }}>base hourly plus longevity only</strong> — no
-                      education, certificate or specialty pay (MOU Ch.3 Art.III.A.1).
-                      {Math.abs(sickLeaveHourlyRate - sickLeaveHourlyRateToday) > 0.01 && (
-                        <> The rate used here is <strong style={{ color: COLORS.gold }}>{fmtHr(sickLeaveHourlyRate)}/hr</strong>, your
-                        projected rate in {retirementYear}, not today's {fmtHr(sickLeaveHourlyRateToday)}/hr — you are paid out
-                        at your rate on your last day.</>
-                      )}
-                      <div style={{ marginTop: "8px" }}>
-                        It lands in one tax year and is taxed as wages, and it is not pensionable.
-                      </div>
-                    </div>
-                    <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
-                      <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
-                      {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
-                      (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
-                      They cannot be both reported to CalPERS and paid out again at separation.
-                    </div>
-                  </>)}
-                </div>
-            )}
             {/* ═══════════════ SICK LEAVE ═══════════════ */}
-            {tab === "sickleave" && (
-              <>
-                <div style={styles.card}>
-                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Cash or credit?</p>
-                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
-                    This is the one retirement decision you cannot undo, and for most members it is worth
-                    five figures. Your CalPERS contract (¶11.e, Gov. Code §20965) lets unused sick leave
-                    become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
-                    out instead, on a sliding scale. You cannot do both with the same hours.
-                  </div>
-                  {/* The two boxes on Member details are the only way to set this now. Leaving a
-                      second control here is how two screens start disagreeing with each other. */}
-                  <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "14px" }}>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Hours today</span>
-                      <span style={styles.tableVal}>{(splitEntered ? splitTotalToday : currentSickLeaveHours).toFixed(0)} hrs</span>
-                    </div>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Projected at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr accrual</span></span>
-                      <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
-                    </div>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>→ converted to service credit</span>
-                      <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
-                    </div>
-                    <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}>→ cashed out</span>
-                      <span style={styles.tableValGold}>{sickLeaveHoursToCash.toFixed(0)} hrs · {fmt(sickLeavePayoff)}</span>
-                    </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
-                      Set the split on <strong style={{ color: COLORS.textMuted }}>Member details</strong> — the two boxes
-                      under section 2. Hours can be cashed <em>or</em> converted, never both.
-                    </div>
-                  </div>
-                  {/* The comparison that decides it — kept, minus the controls. */}
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-                    <div style={{ padding: "12px", borderRadius: "8px", background: sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.10)",
-                      border: `1px solid ${sickLeavePensionBoostMonthly > 0 ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.35)"}` }}>
-                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
-                      <div style={{ fontSize: "20px", fontWeight: 800, color: sickLeavePensionBoostMonthly > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
-                        {sickLeavePensionBoostMonthly > 0 ? fmt(sickLeavePensionBoostMonthly) + "/mo" : "Worth $0 to you"}
-                      </div>
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                        {sickLeavePensionBoostMonthly > 0
-                          ? <>+{sickLeaveCreditYears.toFixed(2)} yrs of credit, for life, growing with your COLA.</>
-                          : <>You are already at the {pct(benefitMaxPct)} cap, so converting hours adds nothing to the pension.
-                            Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(sickLeavePayoff)}</strong> instead.</>}
-                      </div>
-                    </div>
-                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}` }}>
-                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
-                      <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(sickLeavePayoff)}</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                        One payment at separation, taxed as wages in that year. Paid at base hourly plus longevity only —
-                        no education, certificate or specialty pay.
-                      </div>
-                    </div>
-                  </div>
-                  {sickLeaveHoursAbovePayCap > 0 && (
-                    <div style={{ ...styles.certNote, marginLeft: 0, marginBottom: "12px" }}>
-                      ⚠ Only the first {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours are payable under the MOU table as I read it,
-                      so about {sickLeaveHoursAbovePayCap.toFixed(0)} of your hours would be cashed at nothing. This ceiling is my
-                      reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
-                    </div>
-                  )}
-                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
-                    <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
-                    {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
-                    {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
-                    {sickLeavePayoff > 0 && <> {fmt(sickLeavePayoff)} cash</>}
-                    {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && " nothing yet — enter your hours above."}
-                  </div>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
-                    Cash percentages come from the MOU table (Ch. 3, Art. III) and depend on your total balance —
-                    70% at 1,800 hours and up, less below that. Confirm your own balance and the City's reading of
-                    the table with the Treasurer before you commit.
-                  </div>
-                </div>
-              </>
-            )}
 
-            {tab === "inputs" && (
-              <>
-                {/* Privacy + Reset bar */}
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  gap: "12px", flexWrap: "wrap",
-                  padding: "10px 14px", marginBottom: "16px",
-                  background: "rgba(255, 255, 255, 0.06)",
-                  border: `1px solid rgba(255, 255, 255, 0.2)`,
-                  borderRadius: "8px", fontSize: "11px",
-                }}>
-                  <span style={{ color: COLORS.textMuted, lineHeight: "1.5" }}>
-                    Your inputs are saved<strong style={{ color: COLORS.green }}>on this device only</strong> — never sent anywhere.
-                  </span>
-                  <button onClick={resetAll} style={{
-                    background: "transparent", color: COLORS.textMuted,
-                    border: `1px solid ${COLORS.border}`, borderRadius: "6px",
-                    padding: "4px 10px", fontSize: "11px", cursor: "pointer",
-                    fontWeight: "600", letterSpacing: "0.5px", textTransform: "uppercase",
-                  }}>
-                    Reset
-                  </button>
-                </div>
-                {/* INPUT BOXES — responsive 2-column grid */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", alignItems: "start" }}>
-                {/* Box 1 — Birthdate & retirement */}
-                <div style={styles.card}>
-                  {sectionHeader("profile", "1 · Hire date, birthdate & retirement")}
-                  {openSections.profile !== false && (<>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Roseville Hire Date <span style={{ color: COLORS.green, fontSize: "10px" }}>· drives Classic/PEPRA, medical tier &amp; longevity</span></label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
-                      <select style={styles.select} value={hireMonth} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${String(+e.target.value).padStart(2, "0")}-${hireDate.slice(8, 10)}`)}>
-                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
-                      </select>
-                      <select style={styles.select} value={hireDay} onChange={e => setHireDate(`${hireDate.slice(0, 4)}-${hireDate.slice(5, 7)}-${String(+e.target.value).padStart(2, "0")}`)}>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
-                      </select>
-                      <select style={styles.select} value={hireYear} onChange={e => setHireDate(`${e.target.value}-${hireDate.slice(5, 7)}-${hireDate.slice(8, 10)}`)}>
-                        {Array.from({ length: 2026 - 1980 + 1 }, (_, i) => 2026 - i).map(y => (<option key={y} value={y}>{y}</option>))}
-                      </select>
-                    </div>
-                    <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>{yearsOfService.toFixed(1)} yrs at retirement</span>
-                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>Schedule {scheduleLetter}</span>
-                      <span style={{ ...styles.badge, ...styles.badgeGreen }}>Medical Tier {medicalTier}</span>
-                      <span style={{ fontSize: "11px", color: COLORS.textMuted }}>
-                        {medicalTier === "1" ? "Pre-2004 · $1,200 base" :
-                          medicalTier === "2" ? "2004–2011 · $1,200 base + vesting" :
-                            medicalTier === "3" ? "1/2012–8/14/2015 · $720 base + vesting" :
-                              "2015+ · RHS account"}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Date of Birth <span style={{ color: COLORS.green, fontSize: "10px" }}>· sets your exact age for CalPERS factors</span></label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1fr", gap: "8px" }}>
-                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(5, 7), 10) : 1} onChange={e => setDob(`${dobValid ? dob.slice(0, 4) : "1990"}-${String(+e.target.value).padStart(2, "0")}-${dobValid ? dob.slice(8, 10) : "01"}`)}>
-                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
-                      </select>
-                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(8, 10), 10) : 1} onChange={e => setDob(`${dobValid ? dob.slice(0, 4) : "1990"}-${dobValid ? dob.slice(5, 7) : "01"}-${String(+e.target.value).padStart(2, "0")}`)}>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (<option key={d} value={d}>{d}</option>))}
-                      </select>
-                      <select style={styles.select} value={dobValid ? parseInt(dob.slice(0, 4), 10) : 1990} onChange={e => setDob(`${e.target.value}-${dobValid ? dob.slice(5, 7) : "01"}-${dobValid ? dob.slice(8, 10) : "01"}`)}>
-                        {Array.from({ length: (NOW.getFullYear() - 17) - 1945 + 1 }, (_, i) => (NOW.getFullYear() - 17) - i).map(y => (<option key={y} value={y}>{y}</option>))}
-                      </select>
-                    </div>
-                    <div style={{ marginTop: "6px", fontSize: "11px", color: COLORS.textMuted }}>
-                      Current age: <strong style={{ color: COLORS.gold }}>{currentAge}</strong> · At retirement: <strong style={{ color: COLORS.gold }}>{Math.floor(exactRetireAge)} yr {Math.round((exactRetireAge - Math.floor(exactRetireAge)) * 12)} mo</strong> → benefit-factor age {retireAgeQ}
-                    </div>
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Retirement Age</label>
-                      <input style={styles.input} type="number" value={retirementAge || ""}
-                        onChange={e => { setRetirementAge(+e.target.value || 0); setRetirementDateOverride(""); }}
-                        min={currentAge + 1} max={65} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        Retirement Date
-                        <span style={{ color: COLORS.green, fontSize: "10px" }}> · auto from age — edit exact day</span>
-                      </label>
-                      <input style={styles.input} type="date" value={effectiveRetDateStr}
-                        onChange={e => setRetirementDateOverride(e.target.value)}
-                        min={`${NOW.getFullYear()}-01-01`} max="2060-12-31" />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: "4px", fontSize: "11px", color: COLORS.textMuted }}>
-                    Retiring {effectiveRetDateStr} · <strong style={{ color: COLORS.gold }}>{yearsOfService.toFixed(1)} yrs</strong> of service
-                    {retirementDateOverride
-                      ? <> · exact date set <button onClick={() => setRetirementDateOverride("")} style={{ background: "none", border: "none", color: COLORS.accent, cursor: "pointer", fontSize: "11px", padding: 0, textDecoration: "underline" }}>reset to age</button></>
-                      : <> · set from age {retirementAge}</>}
-                  </div>
-                  </>)}
-                </div>
-                {/* Box 2 — Prior agency service */}
-                <div style={styles.card}>
-                  {sectionHeader("prior", "2 · Prior agency service")}
-                  {openSections.prior !== false && (<>
-                  {priorServiceEditor}
-                  </>)}
-                </div>
-                {/* Box 3 — Rank */}
-                <div style={styles.card}>
-                <div style={styles.card}>
-                  {sectionHeaderValue("startcalpers", "CalPERS service credit (from myCalPERS)",
-                    usingCalpersCredit ? `${(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs on file` : "estimated from hire date")}
-                  {openSections.startcalpers !== false && (<>
-                    <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "12px", lineHeight: 1.7 }}>
-                      CalPERS earns service credit on the hours your employer reports, so it does not have to
-                      equal calendar years since your hire date. If you give the tool the real figure, your
-                      pension percentage stops being an estimate.
-                      <div style={{ marginTop: "8px", color: COLORS.textDim }}>
-                        Log in to <strong style={{ color: COLORS.text }}>my.calpers.ca.gov</strong> and open
-                        <strong style={{ color: COLORS.text }}> Service Credit</strong>. You will see a Total, and a
-                        Service Credit History table listing each employer with its own retirement formula.
-                      </div>
-                    </div>
-                    <label style={styles.label}>Roseville service credit today <span style={{ fontSize: "10px", color: COLORS.textDim }}>· years, to 3 decimals</span></label>
-                    <input type="number" step="0.001" min={0} style={styles.input}
-                      value={calpersCreditRoseville || ""} placeholder="leave blank to estimate from hire date"
-                      onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
-                    {usingCalpersCredit && (<>
-                      <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
-                      <input type="date" style={styles.input} value={calpersCreditAsOf}
-                        onChange={e => setCalpersCreditAsOf(e.target.value)} />
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
-                        Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
-                        can be weeks old. Service still to be earned is counted from this date, not from today.
-                        Leave blank to count from today.
-                      </div>
-                      <label style={{ ...styles.checkRow, marginTop: "10px" }}>
-                        <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
-                          onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
-                        <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
-                          This figure already includes service credit I purchased
-                        </span>
-                      </label>
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
-                        myCalPERS folds purchased credit into the employer lines and says so under the Total.
-                        Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
-                        top, which would count it twice.
-                        {calpersCreditIncludesPurchased && airtimeYears > 0 && (
-                          <div style={{ marginTop: "6px", color: COLORS.gold }}>
-                            Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
-                            <strong> not</strong> being added separately — it is already inside the figure above.
-                          </div>
-                        )}
-                        <div style={{ marginTop: "6px" }}>
-                          Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
-                          already in them. If the Total is higher than the rows, it is not.
-                        </div>
-                      </div>
-                      <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>On file today</span>
-                          <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
-                        </div>
-                        <div style={styles.tableRow}>
-                          <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
-                          <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
-                        </div>
-                        <div style={styles.tableRowLast}>
-                          <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
-                          <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
-                        </div>
-                      </div>
-                      {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
-                        <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
-                          Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
-                          {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
-                          The CalPERS figure is the one your pension is paid on. Calendar years still drive your
-                          longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
-                        </div>
-                      )}
-                      {calpersTotalToday > 0 && (
-                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                          <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
-                          agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
-                          That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
-                          missing from the list below.
-                        </div>
-                      )}
-                    </>)}
-                    {!usingCalpersCredit && (
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                        Blank for now, so the tool is estimating <strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} years</strong> from
-                        your hire date to your retirement date. That is usually close, but it is an estimate.
-                      </div>
-                    )}
-                    <label style={{ ...styles.label, marginTop: "16px" }}>CalPERS account balance <span style={{ fontSize: "10px", color: COLORS.textDim }}>· optional</span></label>
-                    <input type="number" step="0.01" min={0} style={styles.input} value={calpersBalance || ""}
-                      placeholder="contributions + interest, from your Account Summary"
-                      onChange={e => setCalpersBalance(Math.max(0, +e.target.value || 0))} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.7 }}>
-                      This does not change your pension by a cent. It is what you would be refunded if you
-                      quit and cashed out — which would forfeit the pension entirely. It is here only because
-                      the two get confused, and the comparison is worth seeing once.
-                    </div>
-                  </>)}
-                </div>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Pension Type {!overridePensionType && <span style={{ color: COLORS.green, fontSize: "10px" }}>· auto from hire date</span>}</label>
-                    <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
-                      value={memberType} disabled={!overridePensionType}
-                      onChange={e => setMemberType(e.target.value)}>
-                      <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
-                      <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
-                    </select>
-                    <label style={{ ...styles.checkRow, marginTop: "8px", marginBottom: "0" }}>
-                      <input style={styles.checkbox} type="checkbox"
-                        checked={overridePensionType}
-                        onChange={e => setOverridePensionType(e.target.checked)} />
-                      <span style={{ ...styles.checkLabel, fontSize: "11px", color: COLORS.textMuted }}>
-                        Override (only if Classic via CalPERS reciprocity)
-                      </span>
-                    </label>
-                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>
-                      Agencies on the <strong style={{ color: COLORS.textMuted }}>same</strong> formula as Roseville merge into
-                      one bucket under a single 90% cap; a <strong style={{ color: COLORS.textMuted }}>different</strong> CalPERS
-                      formula is its own bucket and stacks on top.
-                    </div>
-                  </div>
-                  {sectionHeader("rank", "3 · Rank")}
-                  {openSections.rank !== false && (<>
-                  <div style={styles.fieldGroup}>
-                    <label style={styles.label}>Classification</label>
-                    <select style={styles.select} value={classification} onChange={e => setClassification(e.target.value)}>
-                      {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  </>)}
-                </div>
-                {/* Box 5 — Pay scale step */}
-                <div style={styles.card}>
-                  {sectionHeader("paystep", "4 · Pay scale step")}
-                  {openSections.paystep !== false && (<>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Salary Step</label>
-                      <select style={styles.select} value={salaryStep} onChange={e => setSalaryStep(e.target.value)}>
-                        {Object.keys(activeSchedule[classification]?.steps || {}).map(s =>
-                          <option key={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>Monthly Base</label>
-                      <input style={{ ...styles.input, color: COLORS.gold }} value={fmt(baseSalary)} readOnly />
-                    </div>
-                  </div>
-                  </>)}
-                </div>
-                {/* Box 6 — Incentive & certification pays */}
-                <div style={styles.card}>
-                  {sectionHeader("incentives", "5 · Incentive & certification pays")}
-                  {openSections.incentives && (<>
-                  {/* Longevity (pre-2017 hires) OR Service Term Bonus (2017+ hires) */}
-                  {showLongevity && (
-                    <div style={{ ...styles.tableRow, borderBottom: "none", marginBottom: "8px" }}>
-                      <span style={styles.tableKey}>
-                        Longevity ({yearsOfService >= 20 ? "20+ yrs" : yearsOfService >= 15 ? "15-19 yrs" : yearsOfService >= 10 ? "10-14 yrs" : "< 10 yrs"})
-                        {memberType !== "classic" && <span style={{ fontSize: "10px", color: COLORS.textDim, marginLeft: "4px" }}>(non-pensionable)</span>}
-                      </span>
-                      <span style={memberType === "classic" ? styles.tableValGold : styles.tableValDim}>
-                        {pct(LONGEVITY(yearsOfService))}
-                      </span>
-                    </div>
-                  )}
-                  {showServiceTermBonus && (
-                    <div style={{ ...styles.tableRow, borderBottom: "none", marginBottom: "8px" }}>
-                      <span style={styles.tableKey}>
-                        Service Term Bonus ({yearsOfService >= 15 ? "15+ yrs" : yearsOfService >= 10 ? "10-14 yrs" : "< 10 yrs"})
-                        <span style={{ fontSize: "10px", color: COLORS.textDim, marginLeft: "4px" }}>(non-pensionable)</span>
-                      </span>
-                      <span style={styles.tableValDim}>{pct(SERVICE_TERM_BONUS(yearsOfService))}</span>
-                    </div>
-                  )}
-                  {/* Paramedic — for FE and Captain (Captain ceases 1/9/2027) */}
-                  {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                    <>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasParamedic} onChange={e => setHasParamedic(e.target.checked)} />
-                        <span style={styles.checkLabel}>Paramedic License (5%)</span>
-                      </label>
-                      {hasParamedic && classification === "Fire Captain" && !captainIncentivesActive && (
-                        <div style={styles.warningBox}>
-                          ⚠ Captain Paramedic Incentive ceases 1/9/2027 per MOU Art X.B.2.c. Retirement year {retirementYear} → this pay is NOT included.
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {/* Rescue */}
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasRescue} onChange={e => setHasRescue(e.target.checked)} />
-                    <span style={styles.checkLabel}>Rescue Certification</span>
-                  </label>
-                  {hasRescue && (
-                    <div style={{ marginLeft: "28px", marginBottom: "10px" }}>
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px" }}
-                        value={rescueLevel} onChange={e => setRescueLevel(e.target.value)}>
-                        <option value="team">Team (2.5%)</option>
-                        <option value="taskforce">Task Force (5%)</option>
-                      </select>
-                    </div>
-                  )}
-                  {/* Hazmat */}
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasHazmat} onChange={e => setHasHazmat(e.target.checked)} />
-                    <span style={styles.checkLabel}>Hazmat Certification</span>
-                  </label>
-                  {hasHazmat && (
-                    <div style={{ marginLeft: "28px", marginBottom: "10px" }}>
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px" }}
-                        value={hazmatLevel} onChange={e => setHazmatLevel(e.target.value)}>
-                        <option value="team">Team (2.5%)</option>
-                        <option value="taskforce">Task Force (5%)</option>
-                      </select>
-                    </div>
-                  )}
-                  {/* Fire Investigation (NEW) */}
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasInvestigation} onChange={e => setHasInvestigation(e.target.checked)} />
-                    <span style={styles.checkLabel}>Fire Investigation Assignment</span>
-                  </label>
-                  {hasInvestigation && (
-                    <div style={{ marginLeft: "28px", marginBottom: "10px" }}>
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px" }}
-                        value={investigationLevel} onChange={e => setInvestigationLevel(e.target.value)}>
-                        <option value="team">Team (2.5%) · up to 3 members</option>
-                        <option value="lead">Team Lead (5%) · up to 6 leads</option>
-                      </select>
-                    </div>
-                  )}
-                  {/* Education */}
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasBachelor}
-                      onChange={e => { setHasBachelor(e.target.checked); if (e.target.checked) setHasAssociate(false); }} />
-                    <span style={styles.checkLabel}>Bachelor's Degree (10%)</span>
-                  </label>
-                  <label style={styles.checkRow}>
-                    <input style={styles.checkbox} type="checkbox" checked={hasAssociate}
-                      onChange={e => { setHasAssociate(e.target.checked); if (e.target.checked) setHasBachelor(false); }} />
-                    <span style={styles.checkLabel}>Associate's Degree (5%)</span>
-                  </label>
-                  {/* Classification-specific CSFM certs */}
-                  {classification === "Fire Engineer" && (
-                    <>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasEngineerCert} onChange={e => setHasEngineerCert(e.target.checked)} />
-                        <span style={styles.checkLabel}>Engineer Cert / FA Driver-Op (5%)</span>
-                      </label>
-                      <div style={styles.certNote}>
-                        Includes grandfathered Fire Officer Cert (pre-12/31/16) at same 5%.
-                      </div>
-                      {hasEngineerCert && !engineerCertActive && (
-                        <div style={styles.warningBox}>
-                          ⚠ Engineer cert pay ceases 1/9/2027 per MOU Art VI.B. Retirement year {retirementYear} → this pay is NOT included.
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {classification === "Fire Captain" && (
-                    <>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasChiefFireOfficer}
-                          onChange={e => {
-                            setHasChiefFireOfficer(e.target.checked);
-                            if (e.target.checked) setHasCompanyOfficer(false);
-                          }} />
-                        <span style={styles.checkLabel}>Chief Fire Officer Cert (10%)</span>
-                      </label>
-                      <div style={styles.certNote}>
-                        Requires AA degree. Includes grandfathered Chief Officer Cert (pre-12/31/18) at same 10%.
-                      </div>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasCompanyOfficer}
-                          onChange={e => {
-                            setHasCompanyOfficer(e.target.checked);
-                            if (e.target.checked) setHasChiefFireOfficer(false);
-                          }} />
-                        <span style={styles.checkLabel}>Company Officer Cert (5%)</span>
-                      </label>
-                      <div style={styles.certNote}>
-                        Includes grandfathered Fire Officer Cert (pre-12/31/16) at same 5%. Choose this OR Chief Fire Officer above — not both.
-                      </div>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasEngineBoss}
-                          onChange={e => {
-                            setHasEngineBoss(e.target.checked);
-                            if (e.target.checked) setHasParamedic(false);
-                          }} />
-                        <span style={styles.checkLabel}>Engine Boss NWCG Cert (5%)</span>
-                      </label>
-                      <div style={styles.certNote}>
-                        Captain-only. Mutually exclusive with Paramedic Incentive above. Both cease 1/9/2027.
-                      </div>
-                      {hasEngineBoss && !captainIncentivesActive && (
-                        <div style={styles.warningBox}>
-                          ⚠ Captain Engine Boss pay ceases 1/9/2027 per MOU Art X.B.2.c. Retirement year {retirementYear} → this pay is NOT included.
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {(classification === "Firefighter Paramedic I" || classification === "Firefighter Paramedic II") && (
-                    <>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasFFII} onChange={e => setHasFFII(e.target.checked)} />
-                        <span style={styles.checkLabel}>Fire Fighter II Cert (5%)</span>
-                      </label>
-                      <div style={styles.certNote}>
-                        Includes grandfathered Fire Officer Cert (pre-12/31/16) at same 5%.
-                      </div>
-                    </>
-                  )}
-                  <div style={{ marginTop: "12px", padding: "10px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", fontSize: "12px", color: COLORS.textMuted }}>
-                    ⓘ Education + CSFM cert pay combined cap: <strong style={{ color: COLORS.blue }}>15% max</strong> per MOU Art VI.B
-                  </div>
-                  </>)}
-                </div>
-                {/* Box 7 — Sick leave at retirement */}
-                <div style={styles.card}>
-                  {sectionHeader("sickleave", "6 · Sick leave at retirement")}
-                  {openSections.sickleave && (
-                    <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
-                      Set on <strong style={{ color: COLORS.text }}>Member details</strong>, section 2 — two boxes,
-                      hours to cash out and hours to convert. As it stands:{" "}
-                      <strong style={{ color: COLORS.green }}>{sickLeaveCreditYears.toFixed(2)} yrs</strong> of service credit
-                      and <strong style={{ color: COLORS.gold }}>{sickLeaveHoursToCash.toFixed(0)} hrs</strong> cashed
-                      ({fmt(sickLeavePayoff)}), from {sickLeaveHours.toFixed(0)} projected hours.
-                      <div style={{ ...styles.certNote, marginLeft: 0, marginTop: "8px" }}>
-                        ⚠ Service credit from sick leave generally applies only if you retire within ~120 days of leaving
-                        City service, and it cannot be used to reach the 5-year vesting or the minimum retirement age.
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div style={styles.card}>
-                  {sectionHeader("raises", "7 · Projected raises (2027 → retirement)")}
-                  {openSections.raises && (<>
-                  <div style={{ marginBottom: "12px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
-                    Raises compound and apply based on your planned retirement year. 2027 and 2029 are fixed by
-                    the MOU and follow your classification, so they are shown rather than typed. Only the 2028
-                    compensation study and the post-contract years are assumptions.
-                  </div>
-                  <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "12px" }}>
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Jan 2027 general wage increase <span style={{ fontSize: "10px", color: COLORS.textDim }}>· {isPreventionClass(classification) ? "prevention" : "suppression"}</span></span>
-                      <span style={styles.tableVal}>{pct(mouGwiFor(2027, classification))}</span>
-                    </div>
-                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Jan 2027 rank separation</span>
-                        <span style={styles.tableValGold}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP2 ×1.075" : "Eng = FFP2 ×1.075"}</span>
-                      </div>
-                    )}
-                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                      <div style={styles.tableRow}>
-                        <span style={styles.tableKey}>Jan 2028 alignment</span>
-                        <span style={styles.tableValGold}>{classification === "Fire Captain" ? "Capt = Eng ×1.10, Eng = FFP ×1.10" : "Eng = FFP ×1.10"}</span>
-                      </div>
-                    )}
-                    <div style={styles.tableRowLast}>
-                      <span style={styles.tableKey}>Jan 2029 general wage increase</span>
-                      <span style={styles.tableVal}>{pct(mouGwiFor(2029, classification))}</span>
-                    </div>
-                    <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px" }}>MOU Ch.2 Art.I.A(2), (3) and (4).</div>
-                  </div>
-                  <div style={styles.row}>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        Labor Market Adjustment <span style={{ color: COLORS.gold, fontSize: "10px" }}>· one-time %, Jan 2028</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={30}
-                        value={lmaPct || ""}
-                        placeholder="0"
-                        onChange={e => setLmaPct(Math.max(0, parseFloat(e.target.value) || 0))} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        Raises Local 1592 bargains <span style={{ color: COLORS.gold, fontSize: "10px" }}>· %/yr, est.</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.01" min={0} max={20}
-                        value={unionRaisePct || ""}
-                        placeholder="0"
-                        onChange={e => setUnionRaisePct(Math.max(0, parseFloat(e.target.value) || 0))} />
-                    </div>
-                    <div style={styles.fieldGroup}>
-                      <label style={styles.label}>
-                        CPI / inflation <span style={{ color: COLORS.gold, fontSize: "10px" }}>· %/yr, est.</span>
-                      </label>
-                      <input style={styles.input} type="number" step="0.1" min={0} max={15}
-                        value={inflationRate || ""}
-                        placeholder="0"
-                        onChange={e => setInflationRate(Math.max(0, parseFloat(e.target.value) || 0))} />
-                    </div>
-                  </div>
-                  <div style={{ ...styles.certNote, marginLeft: "0" }}>
-                    The MOU's 2027 and 2029 increases are contractual and always applied. The bargaining figure
-                    covers the 2028 compensation study and every year from 2030 on. CPI converts future pay to
-                    today's dollars and caps your retiree COLA. Both at 0 means nothing is assumed — only the
-                    service credit you earn changes the numbers.
-                  </div>
-                  {retirementYear >= 2027 && (
-                    <div style={{ marginTop: "10px", padding: "12px", background: "rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "12px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span style={{ color: COLORS.textMuted }}>Projected base at retirement ({retirementYear})</span>
-                        <span style={{ color: COLORS.gold, fontWeight: "700", fontSize: "15px" }}>{fmt(projectedBaseSalary)}/mo</span>
-                      </div>
-                      <div style={{ color: COLORS.textDim, fontSize: "11px", marginTop: "2px" }}>
-                        Today's base: {fmt(baseSalary)}/mo · Change: {projectedBaseSalary > baseSalary ? "+" : ""}{fmt(projectedBaseSalary - baseSalary)}/mo
-                      </div>
-                      {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                        <div style={{ marginTop: "6px", color: COLORS.blue, fontSize: "11px", lineHeight: "1.5" }}>
-                          ⓘ MOU rank sep applied: {retirementYear >= 2028 ? "10%" : "7.5%"} above FF Para II
-                          {classification === "Fire Captain" && " + 10% Captain premium"}
-                          {" "}(effective {retirementYear >= 2028 ? "2028" : "2027"})
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  </>)}
-                </div>
-                </div>
-                {/* Retirement summary — full width at the bottom of the inputs tab */}
-                <div style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  {sectionHeader("retsum", "Retirement summary")}
-                  {openSections.retsum !== false && (<>
-                  <div style={{ fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.5", marginBottom: "12px" }}>
-                    Where every dollar goes each month â total income at top, minus what you keep and what's paid out, balancing to $0.
-                  </div>
-                  <div style={{ ...styles.tableRow, borderBottom: `1px solid ${COLORS.accent}` }}>
-                    <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Total monthly income</span>
-                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(ledgerTotalIncome)}</span>
-                  </div>
-                  <div style={{ fontSize: "10px", color: COLORS.textDim, margin: "4px 0 12px", lineHeight: 1.5 }}>
-                    Gross PERS benefit {fmt(monthlyPension)}{monthly457 > 0 ? ` + 457 income ${fmt(monthly457)}` : ""}{foldExtraIncome && extraIncomeAnnual > 0 ? ` + extra income ${fmt(extraIncomeAnnual / 12)}` : ""}
-                  </div>
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.green, marginBottom: "4px" }}>Money you keep</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>PERS deposit <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax &amp; medical</span></span>
-                    <span style={styles.tableValGreen}>−{fmt(ledgerPensionDeposit)}</span>
-                  </div>
-                  {monthly457 > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>457 income <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
-                      <span style={styles.tableValGreen}>−{fmt(ledger457TakeHome)}</span>
-                    </div>
-                  )}
-                  {foldExtraIncome && extraIncomeAnnual > 0 && (
-                    <div style={styles.tableRow}>
-                      <span style={styles.tableKey}>Extra income (folded in) <span style={{ fontSize: "10px", color: COLORS.textDim }}>· after tax</span></span>
-                      <span style={styles.tableValGreen}>−{fmt(extraNetMonthly)}</span>
-                    </div>
-                  )}
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.accent, margin: "12px 0 4px" }}>Money paid out</div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Income taxes <span style={{ fontSize: "10px", color: COLORS.textDim }}>· ~{pct(retEffRate)} est., withheld</span></span>
-                    <span style={styles.tableVal}>−{fmt(ledgerTax)}</span>
-                  </div>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Retiree medical <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your out-of-pocket · detail on Medical tab</span></span>
-                    <span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}</span>
-                  </div>
-                  <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`, marginTop: "8px", paddingTop: "10px" }}>
-                    <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: "700" }}>Balance</span>
-                    <span style={{ ...styles.tableValAccent, fontSize: "16px" }}>{fmt(Math.abs(ledgerBalance) < 0.5 ? 0 : ledgerBalance)}</span>
-                  </div>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: "1.6" }}>
-                    Every dollar is accounted for: what you keep (deposits) + what's paid out (taxes &amp; your medical share) = total income, so it nets to $0. The City's retiree-medical contribution is not counted as income — it only exists if you take CalPERS medical and it goes straight to the premium, so only your out-of-pocket share shows here. Full premium and City contribution detail is on the Medical tab. Tax is estimated monthly withholding (no HELPS); your situation may differ.
-                  </div>
-
-                  {(sickLeavePayoff > 0 || value457 > 0 || priorPensionMonthly > 0) && (<>
-                  <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: COLORS.textMuted, margin: "18px 0 8px" }}>Also at retirement</div>
-                  {value457 > 0 && (
-                    <div style={styles.tableRow}><span style={styles.tableKey}>457 balance ({returnRate}% return)</span><span style={styles.tableVal}>{fmt(value457)}</span></div>
-                  )}
-                  {sickLeavePayoff > 0 && (
-                    <div style={styles.tableRow}><span style={styles.tableKey}>Sick leave lump sum</span><span style={styles.tableVal}>{fmt(sickLeavePayoff)}</span></div>
-                  )}
-                  {priorPensionMonthly > 0 && (
-                    <div style={styles.tableRow}><span style={styles.tableKey}>Prior agency pension ({priorTotalYears} yrs)</span><span style={styles.tableVal}>{fmt(priorPensionMonthly)}/mo</span></div>
-                  )}
-                  </>)}
-                  </>)}
-                </div>
-                <div style={{ ...styles.card, border: `2px solid ${COLORS.green}`, background: "rgba(16,185,129,0.06)", marginTop: "20px" }}>
-                  <div style={{ ...styles.metricLabel, fontSize: isMobile ? "12px" : "14px", textAlign: "center", marginBottom: "16px" }}>Take-home pay — working now vs. retired</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: isMobile ? "6px" : "16px", alignItems: "center" }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ ...styles.metricLabel, fontSize: "11px" }}>Working now</div>
-                      <div style={{ ...styles.bigNumber, color: COLORS.blue, fontSize: isMobile ? "26px" : "46px" }}>{fmt(workingTakeHome)}</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo after taxes &amp; deductions{otMonthly > 0 ? ", incl. overtime" : ""}</div>
-                    </div>
-                    <div style={{ fontSize: isMobile ? "18px" : "26px", color: COLORS.textDim }}>→</div>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ ...styles.metricLabel, fontSize: "11px" }}>Retired</div>
-                      <div style={{ ...styles.bigNumber, color: COLORS.green, fontSize: isMobile ? "26px" : "46px" }}>{fmt(totalMonthlyTakeHome)}</div>
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted }}>/mo take-home</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "center", marginTop: "16px", fontSize: "13px", color: COLORS.text, lineHeight: 1.6 }}>
-                    That's <strong style={{ color: COLORS.gold }}>{workingTakeHome > 0 ? ((totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement)) / workingTakeHome * 100).toFixed(0) : "—"}%</strong> of your current take-home in today's dollars ({fmt(totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement))}/mo){monthly457 > 0 ? ` — plus ~${fmt(monthly457)}/mo if you draw your 457` : ""}.
-                  </div>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, textAlign: "center", marginTop: "8px", lineHeight: 1.5 }}>
-                    Net-to-net: in retirement you stop paying into PERS, 457, and union dues. The retired figure is in retirement-year dollars; the percentage adjusts to today's buying power.
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "12px" }}>
-                    <label style={{ ...styles.label, marginBottom: 0, flex: "none" }}>Inflation assumption (%)</label>
-                    <input style={{ ...styles.input, width: "90px" }} type="number" step="0.1" min={0} max={10} value={inflationRate || ""} placeholder="2.5" onChange={e => setInflationRate(parseFloat(e.target.value) || 0)} />
-                  </div>
-                </div>
-              </>
-            )}
           </div>
           {/* RIGHT PANEL */}
           <div>
