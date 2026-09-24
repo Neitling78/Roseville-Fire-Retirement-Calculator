@@ -60,7 +60,8 @@ console.log("\n-- returning member: Classic Captain, 28 yrs, retiring 2028 --");
 const B = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1",
   classification:"Fire Captain", salaryStep:"H", currentSickLeaveHours:2600,
-  retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit" });
+  retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit",
+  openSections:{ sickdetail:true } });
 check("every screen renders", () => Object.values(B).every(h => h.length > 200) || "a screen came back empty");
 check("shows the answer on the pension tab", () => has(B.pension, "Your number"));
 check("shows what lands in the bank", () => has(B.pension, "Lands in your bank"));
@@ -81,6 +82,9 @@ check("warns later dollars buy less", () => has(B.wait, "which buy less"));
 
 console.log("\n-- sick leave decision screen --");
 check("frames the decision", () => has(B.member, "Cash or credit?"));
+// Collapsed by default: a member breezing through gets the two checkboxes and their two
+// figures, and never has to scroll past the reasoning behind them.
+check("the reasoning is behind a disclosure", () => has(B.member, "Want more details?"));
 check("gives the CalPERS conversion rate", () => has(B.member, "2,000 hours = 1 year"));
 check("says you cannot do both", () => has(B.member, "cannot do both with the same hours"));
 check("the payoff ceiling is flagged as unconfirmed", () => has(B.member, "base hourly plus longevity only"));
@@ -124,7 +128,7 @@ const E = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
   classification:"Fire Captain", salaryStep:"H", currentSickLeaveHours:2600,
   retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit",
   hasBachelor:true, hasChiefFireOfficer:true, hasHazmat:true, hazmatLevel:"taskforce",
-  unusedHolidayHours:96 });
+  unusedHolidayHours:96, openSections:{ sickdetail:true } });
 check("every screen renders", () => Object.values(E).every(h => h.length > 200) || "a screen came back empty");
 check("shows the compensation table", () => has(E.comp, "Current compensation"));
 // same member, every pay section expanded
@@ -133,7 +137,7 @@ const Eo = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   classification:"Fire Captain", salaryStep:"H", currentSickLeaveHours:2600,
   retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit",
   hasBachelor:true, hasChiefFireOfficer:true, hasHazmat:true, hazmatLevel:"taskforce",
-  openSections:{ startpay:true, startincent:true, starthourly:true, startraises:true, startpayout:true } });
+  openSections:{ startpay:true, startincent:true, starthourly:true, startraises:true, startpayout:true, sickdetail:true } });
 check("shows specialty pay section", () => has(E.start, "Specialty pay and certificates"));
 check("collapsed header still shows the incentive total", () => /Specialty pay and certificates \s*[\d.]+%/.test(E.start) || "no total in the collapsed header");
 check("the table ends at gross pay", () => has(E.comp, "Gross pay"));
@@ -391,7 +395,7 @@ const CAP = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-09
   calpersCreditAsOf:"2026-08-21", airtime:3,
   currentSickLeaveHours:2600, sickLeaveDisposition:"credit",
   priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" }],
-  openSections:{ startcalpers:true } });
+  openSections:{ startcalpers:true, sickdetail:true } });
 check("every screen renders", () => Object.values(CAP).every(h => h.length > 200) || "a screen came back empty");
 check("warns you are past the cap", () => has(CAP.pension, "You are past the cap"));
 check("quantifies the wasted years", () => /years<\/strong> of credit pays you nothing|of credit pays you nothing/.test(CAP.pension)
@@ -653,6 +657,25 @@ const SLC = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours:
   sickLeaveDisposition: "credit" });
 const SLX = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
   sickLeaveDisposition: "cash" });
+check("the details panel is closed until asked for", () =>
+  has(SLC.member, "Want more details?") && lacks(SLC.member, "cannot do both with the same hours"));
+// The MOU pays a PERCENTAGE of the balance, set by the size of the balance. Members expect
+// hours x hourly rate and get roughly half of it, so show the table and the arithmetic.
+const SLD = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 1200,
+  sickLeaveDisposition: "cash", openSections: { sickdetail: true } });
+check("the payoff tiers are listed", () =>
+  has(SLD.member, "Why the cash figure is not hours") && has(SLD.member, "1,800 hrs and up"));
+check("every band is shown, not just the member's", () =>
+  ["not payable", "20.0%", "30.0%", "40.0%", "50.0%", "60.0%", "70.0%"].every(x => SLD.member.includes(x))
+  || "a band is missing");
+check("the member's own band is marked", () => has(SLD.member, "1,146\u20131,433 hrs \u2190 you"));
+check("the percentages are percentages, not 5000%", () => lacks(SLD.member, "5000"));
+check("the arithmetic is spelled out", () =>
+  /1,200 hrs \u00d7 \$\d+\.\d\d\/hr \u00d7 50\.0% = \$3\d,\d{3}/.test(SLD.member)
+  || "no hours x rate x pct = total line");
+check("and the 100% figure it is NOT", () => has(SLD.member, "At 100% those hours would be"));
+check("the unconfirmed parts are flagged as mine, not the City's", () =>
+  has(SLD.member, "my reading of the") && has(SLD.member, "Treasurer"));
 check("asks one question, for the balance at retirement", () =>
   has(SLC.member, "How many sick leave hours will you have on the books at retirement?"));
 check("no second box for today's balance", () => lacks(SLC.member, "hours to cash out"));

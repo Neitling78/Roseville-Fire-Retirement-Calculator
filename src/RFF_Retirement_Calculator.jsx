@@ -363,7 +363,9 @@ const CHANGELOG = [
     "<strong>The tool has stopped guessing your balance.</strong> It used to take today’s hours and add 144 hrs/yr all the way to your last day, which is only right for a member who never calls in sick. The accrual figure is still shown, underneath, labelled as a ceiling rather than a forecast.",
     "Tick <strong>add to service time</strong> and you see exactly what it buys, to the hundredth of a year. Tick <strong>cash out</strong> and the dollar figure carries through to <strong>Pension → Also waiting for you at retirement</strong>.",
     "Both figures are quoted on both boxes whichever one you tick — that comparison is the whole decision, and it should not disappear the moment you choose.",
-    "“Cash or credit?” moved up into section 2, directly under the choice it explains. It was a separate card further down telling you to scroll back up.",
+    "<strong>“Cash or credit?” is now a closed box you open if you want it.</strong> It moved up into section 2, under the choice it explains, and collapsed behind <em>Want more details?</em> — breeze past it and you still have both figures on the checkboxes.",
+    "<strong>New inside it: why your cash-out is about half of hours × your hourly rate.</strong> The City does not buy sick leave at 100%. The MOU pays a percentage set by the size of your balance (Ch. 3, Art. III, 24-hour-shift column) — 0% below 282 hrs, then 20/30/40/50/60%, reaching 70% at 1,800 hrs. The full table is listed with your own band marked, and the arithmetic written out: hours × rate × percentage = your figure, against what 100% would have been.",
+    "Two parts of that panel are labelled as <strong>my reading of the MOU, not confirmed City practice</strong>: that the percentage applies to the whole balance, and that hours above 2,400 fall outside the table. Confirm both with the Treasurer.",
     "Knock-on: <strong>Stay or go?</strong> no longer grows your sick-leave balance for each year you wait. Your estimate is your estimate.",
   ] },
   { date: "September 24, 2026 (v46)", items: [
@@ -2483,81 +2485,137 @@ export default function RFFRetirementCalculator() {
                     (Gov. Code §20965); cashed hours pay at your base rate on a sliding scale (MOU Ch.3 Art.III).
                     {sickLeaveDisposition === "cash" && <> Your cash figure also shows up under <strong style={{ color: COLORS.textMuted }}>Pension → Also waiting for you at retirement</strong>.</>}
                   </div>
-                <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>Cash or credit?</p>
-                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
-                  This is the one retirement decision you cannot undo, and for most members it is worth
-                  five figures. Your CalPERS contract (¶11.e, Gov. Code §20965) lets unused sick leave
-                  become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
-                  out instead, on a sliding scale. You cannot do both with the same hours.
-                </div>
-                <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "14px" }}>
-                  <div style={styles.tableRow}>
-                    <span style={styles.tableKey}>Hours at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your estimate</span></span>
-                    <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
+                  {/* Everything below is the reasoning, not the decision. The two checkboxes above
+                      already carry both figures, so a member breezing through never has to open this. */}
+                  <div onClick={() => toggleSection("sickdetail")}
+                    style={{ cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between",
+                      alignItems: "center", padding: "10px 12px", borderRadius: "8px",
+                      background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.border}`,
+                      fontSize: "12px", color: COLORS.textMuted, marginBottom: openSections.sickdetail ? "14px" : "0" }}>
+                    <span><strong style={{ color: COLORS.text }}>Cash or credit?</strong> Want more details?</span>
+                    <span style={{ color: COLORS.textDim }}>{openSections.sickdetail ? "▾" : "▸"}</span>
                   </div>
-                  <div style={styles.tableRowLast}>
-                    <span style={styles.tableKey}>{sickLeaveDisposition === "credit" ? "→ added to service time" : "→ cashed out"}</span>
-                    {sickLeaveDisposition === "credit"
-                      ? <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
-                      : <span style={styles.tableValGold}>{sickLeaveHoursToCash.toFixed(0)} hrs · {fmt(sickLeavePayoff)}</span>}
+                  {openSections.sickdetail && (<>
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
+                    This is the one retirement decision you cannot undo, and for most members it is worth
+                    five figures. Your CalPERS contract (¶11.e, Gov. Code §20965) lets unused sick leave
+                    become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
+                    out instead, on a sliding scale. You cannot do both with the same hours.
                   </div>
-                </div>
-                {/* The comparison that decides it — kept, minus the controls. */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-                  <div style={{ padding: "12px", borderRadius: "8px", background: altCreditMonthlyIfAllCredit > 0 ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.10)",
-                    border: `1px solid ${altCreditMonthlyIfAllCredit > 0 ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.35)"}` }}>
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, color: altCreditMonthlyIfAllCredit > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
-                      {altCreditMonthlyIfAllCredit > 0 ? fmt(altCreditMonthlyIfAllCredit) + "/mo" : "Worth $0 to you"}
+                  <div style={{ padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", marginBottom: "14px" }}>
+                    <div style={styles.tableRow}>
+                      <span style={styles.tableKey}>Hours at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your estimate</span></span>
+                      <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
                     </div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                      {altCreditMonthlyIfAllCredit > 0
-                        ? <>+{sickLeaveMaxCreditYears.toFixed(2)} yrs of credit, for life, growing with your COLA.</>
-                        : <>You are already at the {pct(benefitMaxPct)} cap, so converting hours adds nothing to the pension.
-                          Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong> instead.</>}
+                    <div style={styles.tableRowLast}>
+                      <span style={styles.tableKey}>{sickLeaveDisposition === "credit" ? "→ added to service time" : "→ cashed out"}</span>
+                      {sickLeaveDisposition === "credit"
+                        ? <span style={styles.tableValGreen}>+{sickLeaveCreditYears.toFixed(2)} yrs</span>
+                        : <span style={styles.tableValGold}>{sickLeaveHoursToCash.toFixed(0)} hrs · {fmt(sickLeavePayoff)}</span>}
                     </div>
                   </div>
-                  <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}` }}>
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(altCashIfAllCash)}</div>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
-                      One payment at separation, taxed as wages in that year. Paid at base hourly plus longevity only —
-                      no education, certificate or specialty pay.
+                  {/* The comparison that decides it — kept, minus the controls. */}
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: altCreditMonthlyIfAllCredit > 0 ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.10)",
+                      border: `1px solid ${altCreditMonthlyIfAllCredit > 0 ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.35)"}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: altCreditMonthlyIfAllCredit > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
+                        {altCreditMonthlyIfAllCredit > 0 ? fmt(altCreditMonthlyIfAllCredit) + "/mo" : "Worth $0 to you"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        {altCreditMonthlyIfAllCredit > 0
+                          ? <>+{sickLeaveMaxCreditYears.toFixed(2)} yrs of credit, for life, growing with your COLA.</>
+                          : <>You are already at the {pct(benefitMaxPct)} cap, so converting hours adds nothing to the pension.
+                            Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong> instead.</>}
+                      </div>
+                    </div>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}` }}>
+                      <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
+                      <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(altCashIfAllCash)}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
+                        One payment at separation, taxed as wages in that year. Paid at base hourly plus longevity only —
+                        no education, certificate or specialty pay.
+                      </div>
                     </div>
                   </div>
-                </div>
-                {sickLeaveHoursAbovePayCap > 0 && (
-                  <div style={{ ...styles.certNote, marginLeft: 0, marginBottom: "12px" }}>
-                    ⚠ Only the first {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours are payable under the MOU table as I read it,
-                    so about {sickLeaveHoursAbovePayCap.toFixed(0)} of your hours would be cashed at nothing. This ceiling is my
-                    reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
+                  {sickLeaveHoursAbovePayCap > 0 && (
+                    <div style={{ ...styles.certNote, marginLeft: 0, marginBottom: "12px" }}>
+                      ⚠ Only the first {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} hours are payable under the MOU table as I read it,
+                      so about {sickLeaveHoursAbovePayCap.toFixed(0)} of your hours would be cashed at nothing. This ceiling is my
+                      reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
+                    </div>
+                  )}
+                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
+                    <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
+                    {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
+                    {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
+                    {sickLeavePayoff > 0 && <> {fmt(sickLeavePayoff)} cash</>}
+                    {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && " nothing yet — enter your hours at the top of this section."}
                   </div>
-                )}
-                <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
-                  <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
-                  {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
-                  {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
-                  {sickLeavePayoff > 0 && <> {fmt(sickLeavePayoff)} cash</>}
-                  {sickLeaveCreditYears === 0 && sickLeavePayoff === 0 && " nothing yet — enter your hours at the top of this section."}
-                </div>
-                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                  The cash figure uses <strong style={{ color: COLORS.text }}>{fmtHr(ratesForYear(retirementYear).cashOut)}/hr</strong>, your
-                  projected rate in {retirementYear} — <strong style={{ color: COLORS.text }}>not today&rsquo;s</strong>
-                  {" "}{fmtHr(ratesForYear(NOW.getFullYear()).cashOut)}/hr. You are paid out at your rate on your last day. It lands in one tax
-                  year, is taxed as wages, and is not pensionable.
-                </div>
-                <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
-                    <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
-                    {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
-                    (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
-                    They cannot be both reported to CalPERS and paid out again at separation.
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                    The cash figure uses <strong style={{ color: COLORS.text }}>{fmtHr(ratesForYear(retirementYear).cashOut)}/hr</strong>, your
+                    projected rate in {retirementYear} — <strong style={{ color: COLORS.text }}>not today&rsquo;s</strong>
+                    {" "}{fmtHr(ratesForYear(NOW.getFullYear()).cashOut)}/hr. You are paid out at your rate on your last day. It lands in one tax
+                    year, is taxed as wages, and is not pensionable.
                   </div>
+                  <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(37,99,235,0.08)", border: `1px solid rgba(37,99,235,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                      <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
+                      {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
+                      (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
+                      They cannot be both reported to CalPERS and paid out again at separation.
+                    </div>
 
-                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
-                  Cash percentages come from the MOU table (Ch. 3, Art. III) and depend on your total balance —
-                  70% at 1,800 hours and up, less below that. Confirm your own balance and the City's reading of
-                  the table with the Treasurer before you commit.
-                </div>
+                  {/* Members reliably expect hours × hourly rate and get roughly half of it. The MOU pays a
+                      percentage set by the size of the balance, so show the table and the arithmetic rather
+                      than leaving them to wonder where the money went. */}
+                  <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: COLORS.text, marginBottom: "6px" }}>
+                      Why the cash figure is not hours × your hourly rate
+                    </p>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: 1.7 }}>
+                      The City does not buy your sick leave at 100%. The MOU pays a percentage of it, and the
+                      percentage is set by how many hours you have accumulated (Ch. 3, Art. III — the 24-hour-shift
+                      column). The rate applies to the whole balance, not just the hours above each step, so
+                      crossing into the next band is worth real money.
+                    </div>
+                    {[...SICK_LEAVE_TIERS].sort((a, b) => a.min - b.min).map(t => {
+                      const mine = sickLeaveHours >= t.min && sickLeaveHours <= t.max;
+                      return (
+                        <div key={t.min} style={{ display: "flex", justifyContent: "space-between",
+                          padding: "4px 8px", borderRadius: "5px", fontSize: "11px", lineHeight: 1.7,
+                          background: mine ? "rgba(245,158,11,0.14)" : "transparent",
+                          color: mine ? COLORS.text : COLORS.textDim, fontWeight: mine ? 700 : 400 }}>
+                          <span>
+                            {t.max === Infinity
+                              ? <>{t.min.toLocaleString()} hrs and up</>
+                              : <>{t.min.toLocaleString()}&ndash;{Math.floor(t.max).toLocaleString()} hrs</>}
+                            {mine && " ← you"}
+                          </span>
+                          <span style={{ color: mine ? COLORS.gold : COLORS.textDim }}>
+                            {t.pct > 0 ? pct(t.pct) + " of base pay" : "not payable"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {sickLeaveHours > 0 && altCashIfAllCash > 0 && (
+                      <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: `1px solid ${COLORS.border}`,
+                        fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.8 }}>
+                        Your figure: <strong style={{ color: COLORS.text }}>{Math.min(sickLeaveHours, SICK_LEAVE_PAYOFF_MAX_HOURS).toLocaleString()} hrs</strong>
+                        {" × "}<strong style={{ color: COLORS.text }}>{fmtHr(sickLeaveHourlyRate)}/hr</strong>
+                        {" × "}<strong style={{ color: COLORS.gold }}>{pct(SICK_LEAVE_TIERS.find(t => sickLeaveHours >= t.min && sickLeaveHours <= t.max)?.pct || 0)}</strong>
+                        {" = "}<strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong>.
+                        {" "}At 100% those hours would be {fmt(Math.min(sickLeaveHours, SICK_LEAVE_PAYOFF_MAX_HOURS) * sickLeaveHourlyRate)} —
+                        the gap is the MOU percentage, not an error in the math.
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                      The hourly rate above is base pay plus longevity only. Two things here are my reading of the
+                      MOU table rather than confirmed City practice: that the percentage applies to the whole balance,
+                      and that hours above {SICK_LEAVE_PAYOFF_MAX_HOURS.toLocaleString()} fall outside the table
+                      entirely. Confirm both, and your own balance, with the Treasurer before you commit.
+                    </div>
+                  </div>
+                  </>)}
                 </div>
 
 
