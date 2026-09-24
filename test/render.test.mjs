@@ -288,7 +288,7 @@ const FF = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-
   openSections:{ startincent:true, startprior:true, startextras:true } });
 const FFC = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
-  openSections:{ startcalpers:true } });
+  openSections:{ startcalpers:true, whyclassic:true } });
 check("asks rank and step", () => has(FF.member, "Rank and pay step"));
 check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date, at the end of Member details", () => has(FF.member, "When do you plan to go?"));
@@ -325,10 +325,10 @@ const CP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-
     { agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
     { agencyName:"State of California", years:1.038, formula:"3@55" },
   ],
-  openSections:{ startcalpers:true, startprior:true } });
+  openSections:{ startcalpers:true, startprior:true, whyclassic:true, whycalpers:true } });
 const CPO = await scenario({ setupDone:true, hireDate:"2014-01-01", dob:"1985-03-15",
   memberType:"pepra", medicalTier:"3", classification:"Fire Captain", salaryStep:"H",
-  overridePensionType:true, openSections:{ startcalpers:true } });
+  overridePensionType:true, openSections:{ startcalpers:true, whyclassic:true, whycalpers:true } });
 check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
 // The reason the override exists: PEPRA by Roseville hire date, Classic via reciprocity.
 check("one plain question sets the formula", () => has(CP.member, "Are you Classic, 3% @ 50?"));
@@ -476,7 +476,7 @@ check("screens folded into Member details are gone from the row", () =>
 // Everything All inputs owned outright now lives on Member details.
 const BOPEN = await scenario({ setupDone: true, hireDate: "1998-06-01", dob: "1972-03-15",
   memberType: "classic", medicalTier: "1", classification: "Fire Captain", salaryStep: "H",
-  calpersBalance: 570000, openSections: { startcalpers: true } });
+  calpersBalance: 570000, openSections: { startcalpers: true, whyclassic: true } });
 check("CalPERS service credit moved to Member details", () => has(BOPEN.member, "Roseville service credit today"));
 check("the myCalPERS pointer came with it", () => has(BOPEN.member, "my.calpers.ca.gov"));
 check("the account balance sits with the pension it explains", () => has(BOPEN.pension, "CalPERS account balance"));
@@ -654,9 +654,17 @@ check("retirement date is off Pension", () => lacks(S1.pension, "When do you pla
 // forecast, and the tool used to print it as if it were the member's actual balance.
 console.log("\n-- sick leave: one number, one choice --");
 const SLC = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
-  sickLeaveDisposition: "credit" });
+  sickLeaveDisposition: "credit", openSections: { whysickhours: true, whysickchoice: true } });
 const SLX = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
   sickLeaveDisposition: "cash" });
+// Every explainer on this screen starts shut. The labels carry the instruction; these carry
+// the reasoning, and a member breezing through should see a form, not a wall of grey text.
+const SLSHUT = await scenario({ ...mkCola("2028-12-31", 50), currentSickLeaveHours: 2000,
+  sickLeaveDisposition: "credit" });
+check("the explainers start collapsed", () =>
+  has(SLSHUT.member, "why the tool will not fill this in")
+  && lacks(SLSHUT.member, "Most members use sick leave along the")
+  && lacks(SLSHUT.member, "cannot be cashed and converted"));
 check("the details panel is closed until asked for", () =>
   has(SLC.member, "Want more details?") && lacks(SLC.member, "cannot do both with the same hours"));
 // The MOU pays a PERCENTAGE of the balance, set by the size of the balance. Members expect
@@ -684,7 +692,7 @@ check("the accrual figure is a ceiling, not a default", () => has(SLC.member, "c
 check("two choices, both offered", () =>
   has(SLC.member, "Add to service time") && has(SLC.member, "Cash out"));
 check("credit ticked shows the years to two decimals", () => /\+1\.00 yrs/.test(SLC.member) || "no +1.00 yrs");
-check("and only one of them can be true", () => has(SLC.member, "One or the other, never both"));
+check("and only one of them can be true", () => has(SLC.member, "cannot be cashed and converted"));
 // 2,000 hrs at 70% of the retirement-year base rate. The figure must appear on the
 // checkbox whichever box is ticked — that is the comparison the member is making.
 check("cash ticked prices the payout", () => /\$\d{2},\d{3}<?\/?[^ ]* ?at separation|\$\d{2},\d{3} at separation/.test(SLX.member) || has(SLX.member, "at separation"));

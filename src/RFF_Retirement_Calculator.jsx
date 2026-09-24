@@ -358,6 +358,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v48)", items: [
+    "<strong>Section 2 is a form again, not a wall of grey text.</strong> Every explanatory paragraph on Member details collapsed into a one-line <em>▸ more</em> link that opens when you want it: why the exact myCalPERS figure is worth pulling, when you would tick the Classic box yourself, why the tool will not fill in your sick leave hours, and why cash and credit are one-or-the-other.",
+    "The labels still say what to enter. Only the reasoning is behind a click, so a member breezing through sees six short questions instead of six paragraphs.",
+    "<strong>Fixed:</strong> a disclosure that starts closed took two clicks to open — the first click set it to a state that still read as closed. It opens on the first click now. This also affected “have the exact figure?”, which has been there a while.",
+  ] },
   { date: "September 24, 2026 (v47)", items: [
     "<strong>Sick leave is now one question and one choice.</strong> “How many sick leave hours will you have on the books at retirement?” — your number, for your last day. Then two boxes: <strong>add to service time</strong> or <strong>cash out</strong>. Only one can be ticked, because only one is legal with the same hour.",
     "<strong>The tool has stopped guessing your balance.</strong> It used to take today’s hours and add 144 hrs/yr all the way to your last day, which is only right for a member who never calls in sick. The accrual figure is still shown, underneath, labelled as a ceiling rather than a forecast.",
@@ -1058,6 +1063,23 @@ export default function RFFRetirementCalculator() {
       startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false,
       startprior: false, startextras: false, startcalpers: false });
   const toggleSection = (k) => setOpenSections(s => ({ ...s, [k]: s[k] === false }));
+  // toggleSection treats "unset" as open, which is right for the big collapsible cards.
+  // A disclosure that starts CLOSED needs the plain flip, or the first click does nothing
+  // visible (unset -> false is still closed) and it takes two clicks to open.
+  const toggleClosed = (k) => setOpenSections(s => ({ ...s, [k]: !s[k] }));
+  // Condensed explainer. Every label already says what to enter; this holds the reasoning
+  // behind it, shut, so the form reads as a form rather than a wall of grey text.
+  const moreInfo = (key, label, body) => (
+    <div style={{ marginTop: "2px", marginBottom: "14px" }}>
+      <span onClick={() => toggleClosed(key)}
+        style={{ cursor: "pointer", userSelect: "none", fontSize: "11px", color: COLORS.textDim }}>
+        {openSections[key] ? "\u25be" : "\u25b8"} {label}
+      </span>
+      {openSections[key] && (
+        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.7 }}>{body}</div>
+      )}
+    </div>
+  );
   const sectionHeader = (key, title) => (
     <p
       style={{ ...styles.cardTitle, cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center", ...(openSections[key] !== false ? {} : { marginBottom: 0, borderBottom: "none", paddingBottom: 0 }) }}
@@ -2345,7 +2367,7 @@ export default function RFFRetirementCalculator() {
                       ? <><strong style={{ color: COLORS.green }}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</strong> from myCalPERS.</>
                       : <><strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} yrs</strong> at retirement, estimated from your hire date.</>}
                     <span style={{ color: COLORS.textDim, cursor: "pointer", userSelect: "none" }}
-                      onClick={() => toggleSection("startcalpers")}>
+                      onClick={() => toggleClosed("startcalpers")}>
                       {" "}{openSections.startcalpers ? "▾" : "▸"} {usingCalpersCredit ? "edit" : "have the exact figure?"}
                     </span>
                   </div>
@@ -2356,11 +2378,11 @@ export default function RFFRetirementCalculator() {
                     <input type="number" step="0.001" min={0} style={styles.input}
                       value={calpersCreditRoseville || ""} placeholder="leave blank to keep the estimate"
                       onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "8px", lineHeight: 1.6 }}>
+                    {moreInfo("whycalpers", "why the exact figure is worth pulling", <>
                       CalPERS credits the hours your employer reports, which is not the same as calendar years since you
                       started — unpaid leave and reporting gaps earn none. At 3% a year every tenth of a year is real
                       money for life, so the real figure turns your pension percentage from an estimate into a number.
-                    </div>
+                    </>)}
                             {usingCalpersCredit && (<>
                               <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
                               <input type="date" style={styles.input} value={calpersCreditAsOf}
@@ -2429,12 +2451,12 @@ export default function RFFRetirementCalculator() {
                       onChange={e => { setOverridePensionType(true); setMemberType(e.target.checked ? "classic" : "pepra"); }} />
                     <span style={{ ...styles.checkLabel, fontWeight: 700 }}>Are you Classic, 3% @ 50?</span>
                   </label>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "12px", lineHeight: 1.6 }}>
+                  {moreInfo("whyclassic", "when you would tick this yourself", <>
                     Ticked from your hire date — Roseville hires before 1/1/2013 are Classic, after are PEPRA
                     (2.7% @ 57). Tick it yourself only if you are <strong style={{ color: COLORS.textMuted }}>Classic through
                     CalPERS reciprocity</strong> from an agency before Roseville. It is worth checking: Classic is a bigger
                     benefit and a different cap, and nothing else in this tool is right if it is wrong.
-                  </div>
+                  </>)}
 
                   <label style={styles.label}>Date of birth</label>
                   <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
@@ -2455,13 +2477,13 @@ export default function RFFRetirementCalculator() {
                   <input type="number" min={0} style={{ ...styles.input, marginBottom: "4px" }}
                     value={currentSickLeaveHours === 0 ? "" : currentSickLeaveHours} placeholder="0"
                     onChange={e => { setCurrentSickLeaveHours(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "12px", lineHeight: 1.6 }}>
-                    Your own estimate for your last day — not today’s balance. The tool will not fill this in,
-                    because most members use sick leave along the way. For reference only: at
+                  {moreInfo("whysickhours", "why the tool will not fill this in", <>
+                    Your own estimate for your last day — not today’s balance. Most members use sick leave along the
+                    way, so projecting today’s number forward overstates it. For reference only: at
                     {" "}{SICK_LEAVE_ANNUAL_ACCRUAL_HOURS} hrs/yr accrued and none used, {yearsToRetirement.toFixed(1)} yrs
                     of accrual is <strong style={{ color: COLORS.textMuted }}>{(SICK_LEAVE_ANNUAL_ACCRUAL_HOURS * yearsToRetirement).toFixed(0)} hrs</strong> on
                     top of whatever you have now. That is a ceiling, not a forecast.
-                  </div>
+                  </>)}
 
                   <label style={styles.label}>What will you do with them?</label>
                   <label style={styles.checkRow}>
@@ -2480,14 +2502,15 @@ export default function RFFRetirementCalculator() {
                       {sickLeaveHours > 0 && <> — <strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong> at separation</>}
                     </span>
                   </label>
-                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "18px", lineHeight: 1.6 }}>
-                    One or the other, never both with the same hour. 2,000 hours = 1 year of service credit
-                    (Gov. Code §20965); cashed hours pay at your base rate on a sliding scale (MOU Ch.3 Art.III).
+                  {moreInfo("whysickchoice", "one or the other, never both — why", <>
+                    The same hour cannot be cashed and converted. 2,000 hours = 1 year of service credit
+                    (Gov. Code §20965); cashed hours pay at your base rate on a sliding scale (MOU Ch.3 Art.III),
+                    which is why the cash figure is well under hours × your hourly rate — the table below breaks it down.
                     {sickLeaveDisposition === "cash" && <> Your cash figure also shows up under <strong style={{ color: COLORS.textMuted }}>Pension → Also waiting for you at retirement</strong>.</>}
-                  </div>
+                  </>)}
                   {/* Everything below is the reasoning, not the decision. The two checkboxes above
                       already carry both figures, so a member breezing through never has to open this. */}
-                  <div onClick={() => toggleSection("sickdetail")}
+                  <div onClick={() => toggleClosed("sickdetail")}
                     style={{ cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between",
                       alignItems: "center", padding: "10px 12px", borderRadius: "8px",
                       background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.border}`,
