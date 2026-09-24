@@ -358,6 +358,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v46)", items: [
+    "<strong>Section 2 asks for your hire date and answers the rest itself.</strong> Service credit is now a sentence, not an empty box \u2014 \u201cService credit: 22.7 yrs at retirement, estimated from your hire date\u201d \u2014 with the exact myCalPERS figure behind one word if you have your statement open. It no longer reads like something you forgot to fill in.",
+    "<strong>One plain question underneath it: \u201cAre you Classic, 3% @ 50?\u201d</strong> Your hire date ticks it (before 1/1/2013 = Classic, after = PEPRA). The reason it is a question at all is the member who is Classic through CalPERS reciprocity from an agency before Roseville \u2014 the hire date cannot see that, and nothing else in the tool is right if it is wrong.",
+    "Gone: the formula dropdown, the separate \u201coverride\u201d checkbox, and the gold warning that made a working estimate look like an error.",
+  ] },
   { date: "September 24, 2026 (v45)", items: [
     "<strong>Member details got its three extra cards back down to nothing.</strong> Section 2 now carries one quiet grey line \u2014 \u201cHave your myCalPERS numbers?\u201d \u2014 and everything else is behind it. Breeze past it and you get the estimate; open it and you get an exact pension.",
     "Behind that line: your Roseville service credit (with the \u201clast reported\u201d date and the purchased-credit flag appearing only once you fill it in), and one checkbox \u2014 <strong>\u201cI am locked into Classic (3% @ 50) through CalPERS reciprocity\u201d</strong>. Tick it and the formula picker appears; leave it and the badge at the top of section 2 already tells you which formula you are on.",
@@ -2329,113 +2334,104 @@ export default function RFFRetirementCalculator() {
                     <span style={{ ...styles.badge, ...styles.badgeGreen }}>{showLongevity ? "Longevity pay" : "Service term bonus"}</span>
                   </div>
 
-                  {/* One quiet line for the two myCalPERS numbers. Someone breezing through skips it;
-                      someone with their statement open gets an exact pension instead of an estimate. */}
-                  <p style={{ fontSize: "11px", color: COLORS.textDim, cursor: "pointer", userSelect: "none", margin: "2px 0 8px" }}
-                    onClick={() => toggleSection("startcalpers")}>
-                    {openSections.startcalpers ? "▾" : "▸"} Have your myCalPERS numbers?
-                    <span style={{ color: COLORS.textDim }}> · optional · {usingCalpersCredit || overridePensionType
-                      ? "set" : "makes your pension exact instead of estimated"}</span>
-                  </p>
+                  {/* The hire date already answers both of these. Service credit is estimated from it and the
+                      formula is set by it — so state the estimate in one line and ask the one question the hire
+                      date can get wrong: a member who is Classic through reciprocity from a prior agency. */}
+                  <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
+                    Service credit: {usingCalpersCredit
+                      ? <><strong style={{ color: COLORS.green }}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</strong> from myCalPERS.</>
+                      : <><strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} yrs</strong> at retirement, estimated from your hire date.</>}
+                    <span style={{ color: COLORS.textDim, cursor: "pointer", userSelect: "none" }}
+                      onClick={() => toggleSection("startcalpers")}>
+                      {" "}{openSections.startcalpers ? "▾" : "▸"} {usingCalpersCredit ? "edit" : "have the exact figure?"}
+                    </span>
+                  </div>
                   {openSections.startcalpers && (<>
-                    {/* Service credit and formula both refine what the hire date implies, so they sit with it. */}
-                    <label style={styles.label}>Service credit, if you know it
-                      <span style={{ fontSize: "10px", color: COLORS.textDim }}> · optional · my.calpers.ca.gov › Service Credit</span>
+                    <label style={styles.label}>Roseville service credit today
+                      <span style={{ fontSize: "10px", color: COLORS.textDim }}> · my.calpers.ca.gov › Service Credit</span>
                     </label>
                     <input type="number" step="0.001" min={0} style={styles.input}
-                      value={calpersCreditRoseville || ""}
-                      placeholder={`blank — estimating ${yearsOfService.toFixed(1)} yrs from your hire date`}
+                      value={calpersCreditRoseville || ""} placeholder="leave blank to keep the estimate"
                       onChange={e => { setCalpersCreditRoseville(Math.max(0, +e.target.value || 0)); setSetupDone(true); }} />
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "10px", lineHeight: 1.6 }}>
-                      {!usingCalpersCredit && <><strong style={{ color: COLORS.gold }}>Blank, so the tool is
-                      estimating {yearsOfService.toFixed(1)} yrs from your hire date.</strong> </>}
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "8px", lineHeight: 1.6 }}>
                       CalPERS credits the hours your employer reports, which is not the same as calendar years since you
-                      started — unpaid leave and reporting gaps earn none. At 3% a year, every tenth of a year off is real
+                      started — unpaid leave and reporting gaps earn none. At 3% a year every tenth of a year is real
                       money for life, so the real figure turns your pension percentage from an estimate into a number.
                     </div>
-                          {usingCalpersCredit && (<>
-                            <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
-                            <input type="date" style={styles.input} value={calpersCreditAsOf}
-                              onChange={e => setCalpersCreditAsOf(e.target.value)} />
-                            <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
-                              Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
-                              can be weeks old. Service still to be earned is counted from this date, not from today.
-                              Leave blank to count from today.
-                            </div>
-                            <label style={{ ...styles.checkRow, marginTop: "10px" }}>
-                              <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
-                                onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
-                              <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
-                                This figure already includes service credit I purchased
-                              </span>
-                            </label>
-                            <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
-                              myCalPERS folds purchased credit into the employer lines and says so under the Total.
-                              Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
-                              top, which would count it twice.
-                              {calpersCreditIncludesPurchased && airtimeYears > 0 && (
-                                <div style={{ marginTop: "6px", color: COLORS.gold }}>
-                                  Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
-                                  <strong> not</strong> being added separately — it is already inside the figure above.
+                            {usingCalpersCredit && (<>
+                              <label style={{ ...styles.label, marginTop: "10px" }}>"Last reported" date on myCalPERS</label>
+                              <input type="date" style={styles.input} value={calpersCreditAsOf}
+                                onChange={e => setCalpersCreditAsOf(e.target.value)} />
+                              <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", marginBottom: "6px", lineHeight: 1.6 }}>
+                                Printed at the top of your Account Summary. Your employer reports on a lag, so the figure
+                                can be weeks old. Service still to be earned is counted from this date, not from today.
+                                Leave blank to count from today.
+                              </div>
+                              <label style={{ ...styles.checkRow, marginTop: "10px" }}>
+                                <input style={styles.checkbox} type="checkbox" checked={calpersCreditIncludesPurchased}
+                                  onChange={e => setCalpersCreditIncludesPurchased(e.target.checked)} />
+                                <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
+                                  This figure already includes service credit I purchased
+                                </span>
+                              </label>
+                              <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "10px", lineHeight: 1.6 }}>
+                                myCalPERS folds purchased credit into the employer lines and says so under the Total.
+                                Leave this ticked unless you know otherwise — unticking it adds your airtime entry on
+                                top, which would count it twice.
+                                {calpersCreditIncludesPurchased && airtimeYears > 0 && (
+                                  <div style={{ marginTop: "6px", color: COLORS.gold }}>
+                                    Your purchased-service entry of {airtimeYears} yr{airtimeYears === 1 ? "" : "s"} is
+                                    <strong> not</strong> being added separately — it is already inside the figure above.
+                                  </div>
+                                )}
+                                <div style={{ marginTop: "6px" }}>
+                                  Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
+                                  already in them. If the Total is higher than the rows, it is not.
+                                </div>
+                              </div>
+                              <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
+                                <div style={styles.tableRow}>
+                                  <span style={styles.tableKey}>On file today</span>
+                                  <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
+                                </div>
+                                <div style={styles.tableRow}>
+                                  <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
+                                  <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
+                                </div>
+                                <div style={styles.tableRowLast}>
+                                  <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
+                                  <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
+                                </div>
+                              </div>
+                              {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
+                                <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                                  Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
+                                  {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
+                                  The CalPERS figure is the one your pension is paid on. Calendar years still drive your
+                                  longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
                                 </div>
                               )}
-                              <div style={{ marginTop: "6px" }}>
-                                Quick check: if the employer rows on myCalPERS add up to the Total, the purchase is
-                                already in them. If the Total is higher than the rows, it is not.
-                              </div>
-                            </div>
-                            <div style={{ padding: "12px", background: "rgba(16,185,129,0.06)", border: `1px solid rgba(16,185,129,0.25)`, borderRadius: "8px" }}>
-                              <div style={styles.tableRow}>
-                                <span style={styles.tableKey}>On file today</span>
-                                <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
-                              </div>
-                              <div style={styles.tableRow}>
-                                <span style={styles.tableKey}>Still to earn, to {effectiveRetDateStr}</span>
-                                <span style={styles.tableVal}>+{serviceStillToEarn.toFixed(3)} yrs</span>
-                              </div>
-                              <div style={styles.tableRowLast}>
-                                <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>Roseville credit at retirement</span>
-                                <span style={{ ...styles.tableValGold, fontWeight: 800 }}>{rosevilleServiceForPension.toFixed(3)} yrs</span>
-                              </div>
-                            </div>
-                            {Math.abs(rosevilleServiceForPension - yearsOfService) > 0.5 && (
-                              <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "8px", padding: "10px 12px", background: "rgba(180,83,9,0.10)", border: `1px solid rgba(180,83,9,0.30)`, borderRadius: "8px", lineHeight: 1.7 }}>
-                                Your hire date implies {yearsOfService.toFixed(1)} calendar years, but CalPERS will credit
-                                {" "}{rosevilleServiceForPension.toFixed(3)} — a gap of {Math.abs(rosevilleServiceForPension - yearsOfService).toFixed(2)} years.
-                                The CalPERS figure is the one your pension is paid on. Calendar years still drive your
-                                longevity pay and retiree-medical vesting, which the MOU writes in years of City employment.
-                              </div>
-                            )}
-                            {calpersTotalToday > 0 && (
-                              <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                                <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
-                                agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
-                                That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
-                                missing from the list below.
-                              </div>
-                            )}
-                          </>)}
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={overridePensionType}
-                        onChange={e => setOverridePensionType(e.target.checked)} />
-                      <span style={{ ...styles.checkLabel, fontSize: "12px" }}>
-                        I am locked into Classic (3% @ 50) through CalPERS reciprocity
-                      </span>
-                    </label>
-                    {overridePensionType && (<>
-                        <select style={{ ...styles.select, opacity: overridePensionType ? 1 : 0.7 }}
-                          value={memberType} disabled={!overridePensionType}
-                          onChange={e => setMemberType(e.target.value)}>
-                          <option value="classic">Classic (3% @ 50) — hired before 1/1/2013</option>
-                          <option value="pepra">PEPRA (2.7% @ 57) — hired 1/1/2013 or later</option>
-                        </select>
-                      <div style={{ fontSize: "10px", color: COLORS.textDim, marginTop: "6px", marginBottom: "10px", lineHeight: 1.6 }}>
-                        Agencies on the <strong style={{ color: COLORS.textMuted }}>same</strong> formula as Roseville merge into one
-                        bucket under a single 90% cap; a <strong style={{ color: COLORS.textMuted }}>different</strong> CalPERS formula is
-                        its own bucket and stacks on top.
-                      </div>
-                    </>)}
+                              {calpersTotalToday > 0 && (
+                                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                                  <strong style={{ color: COLORS.text }}>Check yourself:</strong> Roseville plus every CalPERS
+                                  agency you have entered below comes to <strong style={{ color: COLORS.gold }}>{calpersTotalToday.toFixed(3)} years</strong>.
+                                  That should match the Total Service Credit on myCalPERS. If it does not, a prior agency is
+                                  missing from the list below.
+                                </div>
+                              )}
+                            </>)}
                   </>)}
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={memberType === "classic"}
+                      onChange={e => { setOverridePensionType(true); setMemberType(e.target.checked ? "classic" : "pepra"); }} />
+                    <span style={{ ...styles.checkLabel, fontWeight: 700 }}>Are you Classic, 3% @ 50?</span>
+                  </label>
+                  <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "2px", marginBottom: "12px", lineHeight: 1.6 }}>
+                    Ticked from your hire date — Roseville hires before 1/1/2013 are Classic, after are PEPRA
+                    (2.7% @ 57). Tick it yourself only if you are <strong style={{ color: COLORS.textMuted }}>Classic through
+                    CalPERS reciprocity</strong> from an agency before Roseville. It is worth checking: Classic is a bigger
+                    benefit and a different cap, and nothing else in this tool is right if it is wrong.
+                  </div>
 
                   <label style={styles.label}>Date of birth</label>
                   <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}

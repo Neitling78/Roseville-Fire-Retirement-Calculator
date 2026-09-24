@@ -326,10 +326,13 @@ const CPO = await scenario({ setupDone:true, hireDate:"2014-01-01", dob:"1985-03
   overridePensionType:true, openSections:{ startcalpers:true } });
 check("every screen renders", () => Object.values(CP).every(h => h.length > 200) || "a screen came back empty");
 // The reason the override exists: PEPRA by Roseville hire date, Classic via reciprocity.
-check("the reciprocity lock is one checkbox", () => has(CP.member, "locked into Classic (3% @ 50) through CalPERS reciprocity"));
-check("ticking it reveals the formula picker", () => has(CPO.member, "Classic (3% @ 50)"));
-check("unticked, the picker stays hidden", () => lacks(CP.member, "hired 1/1/2013 or later"));
-check("asks for CalPERS service credit", () => has(CP.member, "Service credit, if you know it"));
+check("one plain question sets the formula", () => has(CP.member, "Are you Classic, 3% @ 50?"));
+// The hire date ticks it; a member Classic via reciprocity ticks it themselves.
+check("it explains reciprocity without making you find a picker", () =>
+  has(CP.member, "Classic through") && has(CP.member, "CalPERS reciprocity"));
+check("no formula dropdown to wade through", () => lacks(CP.member, "hired 1/1/2013 or later"));
+check("states the service credit instead of demanding it", () => has(CP.member, "Service credit:"));
+check("and offers the exact figure behind one word", () => has(CP.member, "Roseville service credit today"));
 check("points at myCalPERS", () => has(CP.member, "my.calpers.ca.gov"));
 check("shows the figure on file", () => has(CP.member, "23.390"));
 check("projects it to retirement", () => has(CP.member, "Roseville credit at retirement"));
@@ -337,12 +340,12 @@ check("asks whether purchased credit is included", () => has(CP.member, "already
 check("warns about double-counting airtime", () => has(CP.member, "count it twice"));
 check("gives a total to reconcile", () => has(CP.member, "Check yourself"));
 check("total matches myCalPERS (29.110)", () => has(CP.member, "29.110 years"));
-check("explains same vs different formula buckets", () => has(CPO.member, "its own bucket and stacks on top"));
+check("says why the Classic question matters", () => has(CP.member, "nothing else in this tool is right"));
 // no override supplied -> falls back to the hire date and says so
 const NOCP = await scenario({ setupDone:true, hireDate:"2002-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-06-01", openSections:{ startcalpers:true } });
-check("falls back to the hire date when blank", () => has(NOCP.member, "yrs from your hire date"));
+check("falls back to the hire date when blank", () => has(NOCP.member, "estimated from your hire date"));
 check("says the fallback is not exact", () => has(NOCP.member, "estimate"));
 check("no reconcile panel without a figure", () => lacks(NOCP.member, "Check yourself"));
 
@@ -469,7 +472,7 @@ check("screens folded into Member details are gone from the row", () =>
 const BOPEN = await scenario({ setupDone: true, hireDate: "1998-06-01", dob: "1972-03-15",
   memberType: "classic", medicalTier: "1", classification: "Fire Captain", salaryStep: "H",
   calpersBalance: 570000, openSections: { startcalpers: true } });
-check("CalPERS service credit moved to Member details", () => has(BOPEN.member, "Service credit, if you know it"));
+check("CalPERS service credit moved to Member details", () => has(BOPEN.member, "Roseville service credit today"));
 check("the myCalPERS pointer came with it", () => has(BOPEN.member, "my.calpers.ca.gov"));
 check("the account balance sits with the pension it explains", () => has(BOPEN.pension, "CalPERS account balance"));
 check("the reciprocity override came with it", () => has(BOPEN.member, "CalPERS reciprocity"));
