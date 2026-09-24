@@ -358,6 +358,10 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 24, 2026 (v49)", items: [
+    "<strong>“Into the weeds” is gone.</strong> It held exactly two screens and charged you a click to reach either one. <strong>Other income &amp; tax</strong> and <strong>Guide</strong> now sit in the main tab row with everything else — eight tabs, one row, no parent.",
+    "Old links to <em>?tab=advanced</em> land on Other income &amp; tax.",
+  ] },
   { date: "September 24, 2026 (v48)", items: [
     "<strong>Section 2 is a form again, not a wall of grey text.</strong> Every explanatory paragraph on Member details collapsed into a one-line <em>▸ more</em> link that opens when you want it: why the exact myCalPERS figure is worth pulling, when you would tick the Classic box yourself, why the tool will not fill in your sick leave hours, and why cash and credit are one-or-the-other.",
     "The labels still say what to enter. Only the reasoning is behind a click, so a member breezing through sees six short questions instead of six paragraphs.",
@@ -2087,8 +2091,6 @@ export default function RFFRetirementCalculator() {
   const noAssumptions = (parseFloat(unionRaisePct) || 0) === 0
     && (parseFloat(inflationRate) || 0) === 0
     && (parseFloat(lmaPct) || 0) === 0;
-  const ADVANCED_TABS = ["income", "help"];
-  const isAdvancedTab = ADVANCED_TABS.includes(tab);
   // ── "WHAT IF I WAIT" ─────────────────────────────────────────────────────
   // Re-runs the pension chain for any candidate retirement year, reusing the same
   // projections, factors, caps and final-comp rules as the headline number. Tax uses the
@@ -2300,30 +2302,21 @@ export default function RFFRetirementCalculator() {
           </div>
         )}
         <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
-          {["member", "comp", "pension", "survivor", "health", "stayorgo", "advanced"].map(t => {
-            const active = t === "advanced" ? isAdvancedTab : tab === t;
-            return (
-              <button key={t} style={{ ...styles.tab(active), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
-                onClick={() => setTab(t === "advanced" ? ADVANCED_TABS[0] : t)}>
-                {{ member: isMobile ? "Member" : "Member details", comp: isMobile ? "Pay" : "Current compensation",
-                   pension: "Pension",
-                   survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
-                   health: isMobile ? "Health" : "Health care",
-                   stayorgo: isMobile ? "Stay/go" : "Stay or go?",
-                   advanced: isMobile ? "Weeds" : "Into the weeds" }[t]}
-              </button>
-            );
-          })}
+          {/* One row, no parent tab. "Into the weeds" held exactly two screens and cost a click
+              to reach either of them. Old ?tab=advanced links land on Other income & tax. */}
+          {["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help"].map(t => (
+            <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
+              onClick={() => setTab(t)}>
+              {{ member: isMobile ? "Member" : "Member details", comp: isMobile ? "Pay" : "Current compensation",
+                 pension: "Pension",
+                 survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
+                 health: isMobile ? "Health" : "Health care",
+                 stayorgo: isMobile ? "Stay/go" : "Stay or go?",
+                 income: isMobile ? "Tax" : "Other income & tax",
+                 help: "Guide" }[t]}
+            </button>
+          ))}
         </div>
-        {isAdvancedTab && (
-          <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: "6px", marginTop: "-6px", marginBottom: "14px", opacity: 0.92 }}>
-            {ADVANCED_TABS.map(t => (
-              <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "10px" : "12px", padding: isMobile ? "8px 2px" : "8px 10px", whiteSpace: "nowrap" }} onClick={() => setTab(t)}>
-                {{ income: "Other income & tax", help: "Guide" }[t]}
-              </button>
-            ))}
-          </div>
-        )}
         <div style={{ ...styles.grid, gridTemplateColumns: "1fr" }}>
           {/* LEFT PANEL */}
           <div>

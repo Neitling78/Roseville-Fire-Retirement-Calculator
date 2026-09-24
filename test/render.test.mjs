@@ -32,7 +32,7 @@ async function scenario(saved) {
   if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
-  for (const t of ["member","comp","pension","survivor","health","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline","deductions"]) {
+  for (const t of ["member","comp","pension","survivor","health","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline","deductions","advanced"]) {
     globalThis.window.location.search = "?tab=" + t;
     out[t] = strip(renderToString(React.createElement(Calc)));
   }
@@ -884,12 +884,20 @@ console.log("\n-- 2027 health premiums --");
 }
 
 
-// ── The weeds tab keeps its name ───────────────────────────────────────────
-console.log("\n-- into the weeds --");
+// ── One tab row, no parent ─────────────────────────────────────
+// "Into the weeds" held exactly two screens and cost a click to reach either of them.
+console.log("\n-- tab row --");
 {
   const W = await scenario({ ...mkCola("2028-12-31", 50) });
-  check("the detail tab is called Into the weeds", () => has(W.member, "Into the weeds"));
-  check("it is no longer called More", () => lacks(W.member, ">More<"));
+  check("the parent tab is gone", () => lacks(W.member, "Into the weeds"));
+  check("it is not called More either", () => lacks(W.member, ">More<"));
+  check("both screens sit in the headline row", () =>
+    has(W.member, "Other income & tax") && has(W.member, "Guide"));
+  check("and they still render", () =>
+    (W.income.length > 200 && W.help.length > 200) || "a promoted screen came back empty");
+  // Links sent out before this change still have to land somewhere sensible.
+  check("old ?tab=advanced still lands somewhere", () =>
+    (W.advanced && W.advanced.length > 200) || "?tab=advanced did not render");
 }
 
 
