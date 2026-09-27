@@ -47,8 +47,14 @@ async function scenario(saved) {
 console.log("\n-- first visit: questions, not somebody else's numbers --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
-check("opens with prior service", () => has(A.member, "1 \u00b7 Prior service"));
-check("then Roseville", () => has(A.member, "2 \u00b7 Roseville"));
+check("opens with Roseville", () => has(A.member, "1 \u00b7 Roseville"));
+check("then prior service", () => has(A.member, "2 \u00b7 Prior service"));
+// Date of birth is asked before the hire date: it is the question with no wrong answer, and
+// the line under the hire date reads an age back, so the age has to exist first.
+check("date of birth is asked before the hire date", () => {
+  const dob = A.member.indexOf("Date of birth"), hire = A.member.indexOf("Roseville hire date");
+  return (dob >= 0 && hire >= 0 && dob < hire) || `dob at ${dob}, hire date at ${hire}`;
+});
 check("then specialty pay", () => has(A.member, "3 \u00b7 Specialty pay and certificates"));
 // The overtime + gross-pay card only appears once the member has entered something.
 check("asks what you do", () => has(A.member, "Rank and pay step"));
@@ -298,7 +304,7 @@ check("asks hire date", () => has(FF.member, "Roseville hire date"));
 check("asks retirement date, at the end of Member details", () => has(FF.member, "When do you plan to go?"));
 check("asks sick leave", () => has(FF.start, "sick leave hours will you have on the books at retirement"));
 check("asks specialty pay", () => has(FF.start, "Specialty pay and certificates"));
-check("asks prior agency service", () => has(FF.member, "1 \u00b7 Prior service"));
+check("asks prior agency service", () => has(FF.member, "2 \u00b7 Prior service"));
 check("asks purchased service credit", () => has(FF.member, "Air Time purchased"));
 check("asks beneficiary age on Survivor / beneficiary", () => has(FF.survivor, "beneficiary’s age at your retirement"));
 check("offers the pension type override", () => has(FFC.member, "CalPERS reciprocity"));
@@ -488,7 +494,7 @@ check("the reciprocity override came with it", () => has(BOPEN.member, "CalPERS 
 check("the sick-leave decision moved to Member details", () => has(B.member, "Cash or credit?"));
 check("the cash-out figure came with it", () => has(B.member, "As cash"));
 check("old ?tab=inputs and ?tab=sickleave links land on Member details", () =>
-  B.member.includes("2 \u00b7 Roseville") && B.member.includes("Cash or credit?"));
+  B.member.includes("1 \u00b7 Roseville") && B.member.includes("Cash or credit?"));
 check("their old links redirect instead of 404ing", () => B.pensiondetail.includes("Gross CalPERS pension") && B.timeline.includes("Stay or go"));
 check("old links still land somewhere", () => B.start.includes("Working now") && B.wait.includes("Stay or go"));
 
@@ -720,7 +726,7 @@ check("page one shows the OT dollars", () => has(OT40.now, "$3,268"));
 check("page one says OT is not pensionable", () => has(OT40.member, "none of it is in your pension"));
 check("overtime is section 4", () => has(OT40.member, "4 \u00b7 Overtime"));
 check("the sections run in order down the page", () => {
-  const order = ["1 \u00b7 Prior service","2 \u00b7 Roseville","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
+  const order = ["1 \u00b7 Roseville","2 \u00b7 Prior service","3 \u00b7 Specialty pay","4 \u00b7 Overtime"];
   const at = order.map(x => OT40.member.indexOf(x));
   return at.every((v,i) => v >= 0 && (i === 0 || v > at[i-1])) || "sections out of order: " + at.join(",");
 });

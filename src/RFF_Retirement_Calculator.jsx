@@ -358,6 +358,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v57)", items: [
+    "<strong>Roseville is section 1 now, prior service is section 2.</strong> Most members have no prior agency, and the ones who do can add it after. Opening on a question that does not apply to you is a bad first screen.",
+    "<strong>Date of birth is asked before your hire date.</strong> It is the one question with no wrong answer, and the line under the hire date reads your age back to you — so the age has to exist before that line can say anything.",
+    "Nothing else moved and no number changed.",
+  ] },
   { date: "September 27, 2026 (v56)", items: [
     "<strong>A “Start over” button, top right of every screen.</strong> It clears everything saved on your device and takes the tool back to defaults. The code to do it has been in here for a while with no button attached to it — there was no way for a member to actually reach it.",
     "<strong>It takes two taps.</strong> The first arms it and the label changes to <em>Tap again to erase</em>, with a Cancel beside it; nothing is erased until the second tap, and if you walk away it disarms itself after ten seconds. No browser pop-up — those are easy to click through without reading and look broken on a phone.",
@@ -2506,22 +2511,17 @@ export default function RFFRetirementCalculator() {
             {tab === "member" && (
               <>
                 <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  {sectionHeaderValue("startprior", "1 · Prior service",
-                    (priorTotalYears + airtimeYears) > 0 ? `+${(priorTotalYears + airtimeYears).toFixed(1)} yrs` : "none")}
-                  {openSections.startprior !== false && (<>
-                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: 1.5 }}>
-                      Agencies before Roseville, oldest first. Years and formula are on your myCalPERS
-                      Service Credit History. Skip it if Roseville is all you have.
-                    </div>
-                    {priorServiceEditor}
-                  </>)}
-                </div>
-                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
-                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>2 · Roseville</p>
+                  <p style={{ ...styles.cardTitle, marginBottom: "4px" }}>1 · Roseville</p>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px", lineHeight: 1.6 }}>
                     When Roseville hired you, and where you sit today. Your retirement date lives on
                     <strong style={{ color: COLORS.textMuted }}> Pension</strong> — that is the one you get to change your mind about.
                   </div>
+
+                  {/* Date of birth first: it is the question with no wrong answer, and the
+                      hire-date line underneath reads back an age, so the age has to exist first. */}
+                  <label style={styles.label}>Date of birth</label>
+                  <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
+                    onChange={e => { setDob(e.target.value); setSetupDone(true); }} />
 
                   <label style={styles.label}>Roseville hire date</label>
                   <input type="date" style={{ ...styles.input, marginBottom: "6px" }} value={hireDate}
@@ -2632,10 +2632,6 @@ export default function RFFRetirementCalculator() {
                     CalPERS reciprocity</strong> from an agency before Roseville. It is worth checking: Classic is a bigger
                     benefit and a different cap, and nothing else in this tool is right if it is wrong.
                   </>)}
-
-                  <label style={styles.label}>Date of birth</label>
-                  <input type="date" style={{ ...styles.input, marginBottom: "14px" }} value={dob}
-                    onChange={e => { setDob(e.target.value); setSetupDone(true); }} />
 
                   <label style={styles.label}>Rank and pay step</label>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "8px", marginBottom: "14px" }}>
@@ -2813,6 +2809,17 @@ export default function RFFRetirementCalculator() {
                       entirely. Confirm both, and your own balance, with the Treasurer before you commit.
                     </div>
                   </div>
+                  </>)}
+                </div>
+                <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
+                  {sectionHeaderValue("startprior", "2 · Prior service",
+                    (priorTotalYears + airtimeYears) > 0 ? `+${(priorTotalYears + airtimeYears).toFixed(1)} yrs` : "none")}
+                  {openSections.startprior !== false && (<>
+                    <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "10px", lineHeight: 1.5 }}>
+                      Agencies before Roseville, oldest first. Years and formula are on your myCalPERS
+                      Service Credit History. Skip it if Roseville is all you have.
+                    </div>
+                    {priorServiceEditor}
                   </>)}
                 </div>
 
