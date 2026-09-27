@@ -358,6 +358,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v56)", items: [
+    "<strong>A “Start over” button, top right of every screen.</strong> It clears everything saved on your device and takes the tool back to defaults. The code to do it has been in here for a while with no button attached to it — there was no way for a member to actually reach it.",
+    "<strong>It takes two taps.</strong> The first arms it and the label changes to <em>Tap again to erase</em>, with a Cancel beside it; nothing is erased until the second tap, and if you walk away it disarms itself after ten seconds. No browser pop-up — those are easy to click through without reading and look broken on a phone.",
+    "Everything lives on your own device, so this is the only copy — once it is erased there is nothing to restore it from.",
+  ] },
   { date: "September 27, 2026 (v55)", items: [
     "<strong>Section 3 now adds up on screen.</strong> The header said 27.5% and the ticked boxes came to 20% — because longevity was in the total and in no box. Longevity (or the Service Term Bonus, for 2017-and-later hires) now has its own row at the top: ticked, greyed, and labelled <em>automatic, from your hire date</em>, because it is not a choice.",
     "<strong>A ticked box that does not count now looks like it.</strong> Engine Boss, Captain Paramedic and the Engineer cert all end 1/9/2027 in exchange for rank separation. If you retire after that, those rows are struck through with an <em>ends 1/9/2027 · not counted</em> tag instead of sitting there ticked and looking like part of the total.",
@@ -1131,6 +1136,10 @@ export default function RFFRetirementCalculator() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMounted(true), 80); return () => clearTimeout(t); }, []);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Start over is a two-click button rather than a browser confirm(). A native dialog is easy
+  // to dismiss without reading and looks like a bug on a phone; this makes the second click
+  // say out loud what it is about to do, and gives up after ten seconds of hesitation.
+  const [resetArmed, setResetArmed] = useState(false);
   // Collapsible input sections — tap a title to open/close (choice persists on device)
   const [openSections, setOpenSections] = useState(SAVED.openSections ?? { profile: true, prior: true, hiredate: true, rank: true, paystep: true, raises: false, incentives: false, sickleave: false, yourprofile: false, breakdown: false, cola: false, survivor: false,
       startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false,
@@ -1479,13 +1488,20 @@ export default function RFFRetirementCalculator() {
     unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
     hasEligibleSurvivor,
   ]);
-  // Reset handler — clears localStorage and reloads page to defaults
+  // Reset handler — clears localStorage and reloads page to defaults.
+  // First click arms it, second click does it. Nothing is erased on the first click.
   const resetAll = () => {
-    if (window.confirm("Clear all your saved inputs and reset the calculator to defaults? This only affects this device.")) {
-      clearSavedState();
-      if (typeof window !== "undefined") window.location.reload();
-    }
+    if (!resetArmed) { setResetArmed(true); return; }
+    clearSavedState();
+    if (typeof window !== "undefined") window.location.reload();
   };
+  // Armed and then ignored means they thought better of it. Disarm rather than leaving a
+  // live erase button sitting under their thumb.
+  useEffect(() => {
+    if (!resetArmed) return;
+    const t = setTimeout(() => setResetArmed(false), 10000);
+    return () => clearTimeout(t);
+  }, [resetArmed]);
   // ── INCENTIVE CALCULATION ────────────────────────────────────────────────
   // Returns: { pensionablePct, nonPensionablePct, pensionableAmt, nonPensionableAmt, breakdown }
   const calcIncentives = useCallback((base, cls, mType, yos, retDate, hireYr) => {
@@ -2387,7 +2403,25 @@ export default function RFFRetirementCalculator() {
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={styles.app}>
-      <div className="no-print" style={{ position: "absolute", top: "12px", right: "12px", zIndex: 40 }}>
+      <div className="no-print" style={{ position: "absolute", top: "12px", right: "12px", zIndex: 40,
+        display: "flex", alignItems: "center", gap: "8px" }}>
+        {/* Two clicks, never one. The label changes so the second click is an informed one. */}
+        <button onClick={resetAll} title="Clear everything saved on this device and start from defaults"
+          style={{ background: resetArmed ? "rgba(210,31,51,0.9)" : "rgba(0,0,0,0.45)",
+            border: `1px solid ${resetArmed ? COLORS.accentLight : COLORS.border}`,
+            color: resetArmed ? "#fff" : COLORS.textMuted, borderRadius: "8px",
+            padding: "7px 12px", fontSize: "12px", fontWeight: resetArmed ? 700 : 600,
+            lineHeight: 1.1, cursor: "pointer", whiteSpace: "nowrap",
+            transition: "background 0.15s, color 0.15s, border-color 0.15s" }}>
+          {resetArmed ? "Tap again to erase" : "Start over"}
+        </button>
+        {resetArmed && (
+          <button onClick={() => setResetArmed(false)}
+            style={{ background: "none", border: "none", color: COLORS.textMuted,
+              fontSize: "12px", cursor: "pointer", padding: "7px 2px", whiteSpace: "nowrap" }}>
+            Cancel
+          </button>
+        )}
         <button onClick={() => setMenuOpen(o => !o)} aria-label="Menu" style={{ background: "rgba(0,0,0,0.45)", border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: "8px", padding: "4px 12px", fontSize: "20px", lineHeight: 1.1, cursor: "pointer" }}>⋯</button>
         {menuOpen && (
           <div style={{ position: "absolute", top: "42px", right: 0, background: "#17171b", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "6px", minWidth: "190px", boxShadow: "0 10px 30px rgba(0,0,0,0.55)" }}>

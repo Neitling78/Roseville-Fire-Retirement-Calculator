@@ -557,6 +557,20 @@ check("the tax figures say plainly that they are estimates", () => has(GH.pensio
 // ── Specialty pay: the boxes have to add up to the header ─────────────────
 // Two things stopped them adding up: longevity was IN the total but in no box, and a box can
 // be ticked and still not counted when its pay ends before the member retires.
+// ── Start over ────────────────────────────────────────────────
+// resetAll existed but was wired to nothing, so a member had no way to clear the tool.
+console.log("\n-- start over --");
+{
+  const R = await scenario({ ...mkCola("2028-12-31", 50) });
+  check("the button is on every screen", () =>
+    ["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help"]
+      .every(t => R[t] && R[t].includes("Start over")) || "missing on a screen");
+  // One click must never erase. The armed label only appears after the first click, so a
+  // freshly rendered page showing it would mean the button fires on sight.
+  check("it does not start armed", () => lacks(R.member, "Tap again to erase"));
+  check("and no Cancel is showing either", () => lacks(R.member, "Cancel"));
+}
+
 console.log("\n-- specialty pay adds up --");
 {
   const IN = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
