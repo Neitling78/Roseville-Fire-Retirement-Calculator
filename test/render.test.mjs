@@ -83,18 +83,29 @@ check("says what part of the form you are in", () => has(A.member, "The basics")
 check("and roughly what is left", () => has(A.member, "The first five decide your pension"));
 // Every question the tool has an input for should be walked past once, not discovered
 // three tabs deep a week later.
-check("setup covers the whole calculator", () => {
-  const titles = ["When were you born?", "When did Roseville hire you?", "Are you Classic, 3% @ 50?",
-    "What is your rank and step?", "When do you plan to go?", "Any service before Roseville?",
-    "What specialty pay do you hold?", "How much overtime do you work?", "Sick leave at retirement",
-    "Your health plan while working", "Your health plan in retirement", "How do you file?",
-    "Your deferred comp (457)"];
-  return titles.length === 13 || "step list drifted from the titles asserted here";
-});
+// This list used to assert only its OWN length, so it could not fail no matter what the
+// wizard did. It now has to agree with the step count the app prints, and every title has
+// to actually render at its own step.
+const WIZ_TITLES = ["When were you born?", "When did Roseville hire you?", "Are you Classic, 3% @ 50?",
+  "What is your rank and step?", "When do you plan to go?", "Any service before Roseville?",
+  "What specialty pay do you hold?", "How much overtime do you work?", "Sick leave at retirement",
+  "Your health plan while working", "Your health plan in retirement", "Dental and vision in retirement",
+  "How do you file?", "Your deferred comp (457)"];
+check("setup covers the whole calculator", () =>
+  has(A.member, `Step 1 of ${WIZ_TITLES.length}`));
+{
+  const missing = [];
+  for (let i = 0; i < WIZ_TITLES.length; i++) {
+    const S = await scenario({ wizardStep: i, dob: "1978-10-31", hireDate: "2003-01-01" });
+    if (!S.member.includes(WIZ_TITLES[i])) missing.push(`${i}: ${WIZ_TITLES[i]}`);
+  }
+  check("every step named here really renders", () =>
+    missing.length === 0 || "step titles not found: " + missing.join(" | "));
+}
 check("says data stays in the browser", () => has(A.member, "leaves your browser"));
 // A URL pointing at any tab still lands in setup -- there is nothing else to show.
 check("every entry point lands in setup", () =>
-  ["pension", "comp", "stayorgo", "health"].every(t => A[t].includes("Step 1 of 13"))
+  ["pension", "comp", "stayorgo", "health"].every(t => A[t].includes(`Step 1 of ${WIZ_TITLES.length}`))
   || "a tab skipped the wizard");
 
 // Thirteen questions is long enough that somebody will close the tab partway.
@@ -775,10 +786,11 @@ console.log("\n-- side by side --");
   const colSum = (html, which) => {
     const cells = [...html.matchAll(new RegExp(`data-side="${which}"[\\s\\S]*?</div>`, "g"))].map(m => m[0]);
     return cells.reduce((t, c) => {
-      // The LAST figure in the cell is the value; an earlier one is part of the caption
-      // ("92.5% of your $15,597 final compensation"), which must not be summed.
-      const all = [...strip(c).matchAll(/([-\u2212+]?)\$([\d,]+)/g)];
-      const m = all[all.length - 1];
+      // Read ONLY the value span (data-v). Captions carry dollar figures of their own --
+      // "92.5% of your $15,597 final compensation", "the City's $180 credit" -- and picking
+      // by position rather than by the marker quietly sums those instead.
+      const val = c.match(/<span data-v=""[\s\S]*$/);
+      const m = val && strip(val[0]).match(/([-\u2212+]?)\$([\d,]+)/);
       if (!m) return t;                       // a dash row contributes nothing
       const n = +m[2].replace(/,/g, "");
       return t + (m[1] === "-" || m[1] === "\u2212" ? -n : n);
@@ -834,6 +846,64 @@ console.log("\n-- side by side --");
     return Math.abs(Math.abs(tot[1] - tot[0]) - +gap[1].replace(/,/g, "")) <= 1
       || `${tot[0]} vs ${tot[1]} does not give ${gap[1]}`;
   });
+}
+
+// ── Dental and vision in retirement ──────────────────────────────
+// The City's $180 dental/vision credit is an ACTIVE-employee benefit; the retiree side runs
+// on PEMHCA, which is medical. Nothing we can find says Roseville carries retiree dental or
+// vision, so the tool assumes the member pays -- and has to SAY that it is assuming.
+console.log("\n-- retiree dental and vision --");
+{
+  const DV = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50 });
+  check("the Health care tab has a retiree dental and vision section", () =>
+    has(DV.health, "Dental and vision") && has(DV.health, "you pay these yourself"));
+  check("it prices the default election", () =>
+    has(DV.health, "Delta Dental High PPO") && has(DV.health, "Out of your own pocket"));
+  // The whole point of the section is that the assumption is visible. A confident-looking
+  // number with no flag on it is worse than no number at all.
+  check("it is labelled unverified, not stated as fact", () =>
+    has(DV.health, "Unverified") && has(DV.health, "retireemedical@roseville.ca.us"));
+  check("it says where the $180 credit actually lives", () =>
+    has(DV.health, "active") && has(DV.health, "C.3"));
+  check("and that Kaiser does not cover it for you", () =>
+    has(DV.health, "not covered") && has(DV.health, "$175"));
+  check("the comparison card carries its own paired row", () => {
+    const card = DV.comp.slice(DV.comp.indexOf("Working vs retired, line by line"),
+                               DV.comp.indexOf("The gap is smaller than the drop"));
+    return (card.match(/Dental and vision/g) || []).length === 2
+      || "the dental and vision row is not paired across the two sides";
+  });
+  check("the working side shows it as covered, the retired side as a cost", () => {
+    const card = DV.comp.slice(DV.comp.indexOf("Working vs retired, line by line"),
+                               DV.comp.indexOf("The gap is smaller than the drop"));
+    return (has(card, "covered by the City's $180 credit") === true
+            && has(card, "you pay these yourself") === true)
+      || "the two sides are not described differently";
+  });
+  // Dropping the election has to remove it from BOTH columns, or the card goes out of line.
+  const DVoff = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, retireeKeepsDV:false });
+  check("dropping it removes the row from both sides at once", () => {
+    const card = DVoff.comp.slice(DVoff.comp.indexOf("Working vs retired, line by line"),
+                                  DVoff.comp.indexOf("The gap is smaller than the drop"));
+    const n = (card.match(/Dental and vision/g) || []).length;
+    return n === 0 || `${n} half-row(s) left behind`;
+  });
+  // If HR ever says the City does contribute, the override has to actually reduce the cost.
+  const DVcity = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, retireeDVCityPays:"40" });
+  check("a City contribution entered by hand reduces the member's share", () =>
+    has(DVcity.health, "City pays toward it") && has(DVcity.health, "$31"));
+  // And it can never turn into a payout -- the City's share stops at the premium.
+  const DVover = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, retireeDVCityPays:"9999" });
+  check("an oversized City figure cannot become income", () =>
+    has(DVover.health, "Out of your own pocket") && has(DVover.health, "$0"));
 }
 
 // ── The navigation rail ─────────────────────────────────────────
@@ -1105,8 +1175,20 @@ const SNS = await scenario({ ...mkSurv("ben100"), hasEligibleSurvivor: false });
 check("Unmodified pays the unmodified allowance", () => has(S1.pension, "$14,430"));
 check("50% Beneficiary reduces the allowance", () => has(S3.pension, "$14,086"));
 check("100% Beneficiary reduces it further", () => has(S2.pension, "$13,774"));
-check("the reduction reaches take-home", () => has(S2.pension, "$10,466"));
-check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,904"));
+// These two carry the retiree dental/vision cost now (default: the member pays it).
+check("the reduction reaches take-home", () => has(S2.pension, "$10,395"));
+check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,832"));
+// Proving it is the dental/vision line that moved them, not a drifting golden figure:
+// turn the election off and the old numbers come back exactly.
+{
+  const noDV1 = await scenario({ ...mkSurv("unmod"),  retireeKeepsDV: false });
+  const noDV2 = await scenario({ ...mkSurv("ben100"), retireeKeepsDV: false });
+  check("dropping dental and vision restores the old take-home", () =>
+    has(noDV1.pension, "$10,904") && has(noDV2.pension, "$10,466"));
+  check("and carrying them costs the premium, not a penny more", () =>
+    (!noDV1.pension.includes("$10,832") && !noDV2.pension.includes("$10,395"))
+    || "the two elections render the same figure -- the toggle is not wired to the money");
+}
 check("a myCalPERS figure overrides the calibrated one", () => has(S2A.pension, "$12,699"));
 check("it says it is using your figure", () => has(S2A.survivor, "Using your figure"));
 check("an election saved under the old key still works", () => has(SLEG.pension, "$13,774"));
@@ -1341,7 +1423,7 @@ const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...
 check("working gross includes overtime", () => has(HD.member, "$17,677"));
 check("working take-home is there", () => has(HD.member, "$11,392"));
 check("retired gross is the allowance", () => has(HD.member, "$14,430"));
-check("retired take-home is there", () => has(HD.member, "$10,904"));
+check("retired take-home is there", () => has(HD.member, "$10,832"));
 check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
 check("all four appear on every tab", () =>
   ["member","comp","pension","survivor","health","stayorgo"].every(t =>

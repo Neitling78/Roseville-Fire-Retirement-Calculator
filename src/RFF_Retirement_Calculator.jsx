@@ -364,6 +364,17 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v69)", items: [
+    "<strong>Dental and vision in retirement are now asked about, and costed.</strong> There is a step in guided setup for it, and a section on Health care under your retiree medical. The tool assumes <strong>you pay the whole premium yourself</strong> \u2014 about $71/mo for Delta Dental High PPO plus VSP, employee only \u2014 and it comes off your retirement take-home.",
+    "<strong>Why that assumption:</strong> the City\u2019s $180 dental/vision credit is part of the <em>active</em> flex plan (MOU Ch.4 Art.I \u00a7C.3). The retiree contribution runs through PEMHCA, which is a medical programme \u2014 CalPERS states dental and vision for a public-agency retiree are billed separately from the CalPERS health premium.",
+    "<strong>It is labelled unverified, because it is.</strong> Nothing on the City\u2019s retiree benefits page or in the 2026 Benefits Guide says whether Roseville offers retirees dental or vision at all. Ask retireemedical@roseville.ca.us, and there is a box to enter the City\u2019s contribution if there turns out to be one.",
+    "<strong>Kaiser is not a substitute.</strong> The CalPERS Kaiser Medicare plan lists dental as <em>not covered</em>; its vision is a $175 eyewear allowance every 24 months plus routine exams, not a VSP-style plan.",
+    "Rates shown are the City\u2019s <strong>active-group</strong> 2026 figures. Coverage bought outside the group usually costs more, not less.",
+    "<strong>The comparison card shows it as a pair:</strong> covered by the City on the working side, out of your pocket on the retired side \u2014 which is the single line most likely to make a first retired month smaller than planned for.",
+    "<strong>Fixed:</strong> the two columns of that card only lined up by accident. Every row is now paired, and a deduction that stops in retirement shows as a dash rather than a missing row, so the two sides read straight across. Rules are drawn per row and cross both columns at the same height.",
+    "<strong>Fixed:</strong> the gross pension line printed as \u201c+$14,425\u201d in body weight instead of bold with no sign \u2014 the total flag never reached the grid.",
+    "<strong>Fixed (tests):</strong> the check that guided setup covers the whole calculator only asserted the length of its own list, so it could not fail. It now has to agree with the step count the app prints, and every step title has to really render.",
+  ] },
   { date: "September 27, 2026 (v68)", items: [
     "<strong>New at the top of Compensation: working vs retired, line by line.</strong> Two columns side by side — every line of your paycheck on the left, every line of your pension on the right, both landing on the same bottom line, with the gap between them stated underneath.",
     "<strong>The left column is the whole check:</strong> base, specialty pay, longevity, holiday, uniform, FLSA overtime, your overtime, gross — then federal tax, state tax, Medicare, the CalPERS member contribution, your 457, union dues and your share of medical.",
@@ -1406,6 +1417,18 @@ export default function RFFRetirementCalculator() {
   const [healthRateYear, setHealthRateYear] = useState(SAVED.healthRateYear ?? HEALTH_RATE_CURRENT);
   const [dentalPlan, setDentalPlan] = useState(SAVED.dentalPlan ?? "Delta Dental High PPO");
   const [hasVision, setHasVision] = useState(SAVED.hasVision ?? true);
+  // Dental and vision IN RETIREMENT. The City's $180 dental/vision credit lives in the ACTIVE
+  // flex/cafeteria plan (MOU Ch.4 Art.I §C.3); the retiree side runs on PEMHCA, which is a
+  // medical programme. CalPERS says dental and vision for a public-agency retiree are "billed
+  // directly by the health plan or dental or vision plan... separate from your CalPERS health
+  // premium." So the default here is that the member pays the whole thing. That default is a
+  // READING of how the two systems fit together, not a line anyone has shown us in writing --
+  // it is labelled as unverified everywhere it is shown, and retireeDVCityPays exists so it can
+  // be corrected the day Roseville HR answers.
+  const [retireeKeepsDV, setRetireeKeepsDV] = useState(SAVED.retireeKeepsDV ?? true);
+  const [retireeDentalPlan, setRetireeDentalPlan] = useState(SAVED.retireeDentalPlan ?? SAVED.dentalPlan ?? "Delta Dental High PPO");
+  const [retireeHasVision, setRetireeHasVision] = useState(SAVED.retireeHasVision ?? true);
+  const [retireeDVCityPays, setRetireeDVCityPays] = useState(SAVED.retireeDVCityPays ?? "");
   const [filingStatus, setFilingStatus] = useState(SAVED.filingStatus ?? "single");
   const [retirementState, setRetirementState] = useState(SAVED.retirementState ?? "CA");
   const [otherStateRate, setOtherStateRate] = useState(SAVED.otherStateRate ?? 5);
@@ -1660,7 +1683,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       setupDone, classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeHasVision, retireeDVCityPays, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1675,7 +1698,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeHasVision, retireeDVCityPays, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -2370,12 +2393,26 @@ export default function RFFRetirementCalculator() {
   const cityMedicalContribution = PEMHCA_MIN_MONTHLY + cityMedicalCheck;
   // Retiree out-of-pocket medical — the member pays only what the City's contribution doesn't cover.
   const retireeMedicalOOP = Math.max(0, retireePremium - cityMedicalContribution);
+  // ── DENTAL AND VISION IN RETIREMENT ──────────────────────────────────────
+  // Priced off the same Delta Dental / VSP tables as the working side, at the RETIREE coverage
+  // tier. Those are the City's active-group 2026 rates: if a retiree has to buy coverage outside
+  // the group, the real number is likely higher, not lower. Said plainly on the page.
+  const retireeDentalObj = DENTAL_PLANS_2026.find(p => p.name === retireeDentalPlan) || DENTAL_PLANS_2026[0];
+  const retireeDentalPremium = retireeKeepsDV ? (retireeDentalObj[DENTAL_TIER_FROM_MED[retireeCoverage]] || 0) : 0;
+  const retireeVisionPremium = retireeKeepsDV && retireeHasVision ? (VISION_2026[retireeCoverage] || 0) : 0;
+  const retireeDVPremium = retireeDentalPremium + retireeVisionPremium;
+  // If HR ever confirms the City puts money toward retiree dental/vision, it goes in here and
+  // the member's share drops. Blank means the honest default: nothing.
+  const retireeDVCityPaid = Math.min(retireeDVPremium, Math.max(0, parseFloat(retireeDVCityPays) || 0));
+  const retireeDVOOP = Math.max(0, retireeDVPremium - retireeDVCityPaid);
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
   // check + (only when folded in) the net of any extra household income.
   // The headline retirement figure is the PENSION, full stop. A 457 draw is money you choose to
   // start when you choose to start it — folding it in makes the pension look bigger than it is.
   // The 457 has its own projections under More › Other income & tax.
-  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly;
+  // Dental and vision come out of the retiree's own pocket, so they come off the deposit --
+  // the same way the active premium comes off a paycheck.
+  const totalMonthlyTakeHome = pensionTakeHome + cityMedicalCheck + extraNetMonthly - retireeDVOOP;
   // ── Balancing ledger (Retirement summary): total money in resolves into money kept + money paid out, nets to $0.
   const ledgerExtraIncome = foldExtraIncome ? extraIncomeAnnual / 12 : 0;
   const ledgerTotalIncome = monthlyPension + monthly457 + ledgerExtraIncome;
@@ -2473,6 +2510,12 @@ export default function RFFRetirementCalculator() {
         r: { k: "Health premium", sub: `${retireeMedicalPlan}, Tier ${medicalTier}`, v: -retireePremium } },
       { w: { k: "City pays toward it", sub: "active-employee allowance", v: cityBenefitTotal },
         r: { k: "City pays toward it", sub: "PEMHCA minimum + tier allowance", v: cityMedicalContribution } },
+      // Dental and vision get their own pair, because the working side's City credit covers them
+      // and the retired side's almost certainly does not -- which is the single line most likely
+      // to make a member's first retired month smaller than they planned for.
+      { drop: !retireeKeepsDV && retireeDVOOP <= 0,
+        w: { k: "Dental and vision", sub: "covered by the City's $180 credit", v: 0, zero: true },
+        r: { k: "Dental and vision", sub: "you pay these yourself \u2014 unverified", v: -retireeDVOOP } },
     ].filter(x => !x.drop)
      // Stamp the pair's flags onto both halves so the grid path and the stacked mobile path
      // style the row identically -- the grid reads pr.w/pr.r straight, with no wrapper to
@@ -2975,6 +3018,50 @@ export default function RFFRetirementCalculator() {
       <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "14px", lineHeight: 1.7 }}>
         You are <strong style={{ color: COLORS.green }}>Medical Tier {medicalTier}</strong>, set by your hire date.
         The full detail is on the Health care tab once setup is done.
+      </div>
+    </>
+  ) },
+{ key: "dvret", title: "Dental and vision in retirement",
+  blurb: "The City's $180 dental/vision credit is part of the ACTIVE flex plan. The retiree contribution runs through PEMHCA, which is a medical programme \u2014 CalPERS bills dental and vision separately from your health premium. So plan on paying your own unless HR tells you otherwise.",
+  valid: true,
+  body: (
+    <>
+      <div style={{ marginBottom: "14px" }}>
+        <label style={styles.checkRow}>
+          <input style={styles.checkbox} type="checkbox" checked={retireeKeepsDV}
+            onChange={() => setRetireeKeepsDV(true)} />
+          <span style={styles.checkLabel}>I will carry dental and vision
+            {retireeKeepsDV && retireeDVPremium > 0 && <> \u2014 <strong style={{ color: COLORS.gold }}>{fmt(retireeDVPremium)}/mo</strong></>}</span>
+        </label>
+        <label style={styles.checkRow}>
+          <input style={styles.checkbox} type="checkbox" checked={!retireeKeepsDV}
+            onChange={() => setRetireeKeepsDV(false)} />
+          <span style={styles.checkLabel}>I will drop them at retirement</span>
+        </label>
+      </div>
+      {retireeKeepsDV && (
+        <>
+          <label style={styles.label}>Dental plan</label>
+          <select className="rff-select" style={{ ...styles.select, marginBottom: "14px" }} value={retireeDentalPlan}
+            onChange={e => setRetireeDentalPlan(e.target.value)}>
+            {DENTAL_PLANS_2026.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+          </select>
+          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+            <input type="checkbox" checked={retireeHasVision} onChange={e => setRetireeHasVision(e.target.checked)} />
+            Keep VSP vision too
+          </label>
+          <div style={{ fontSize: "13px", color: COLORS.text, marginTop: "14px", fontWeight: 700 }}>
+            {fmt(retireeDVPremium)}/mo out of your own pocket
+          </div>
+        </>
+      )}
+      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "14px", lineHeight: 1.7 }}>
+        \u26a0 Two things here are not confirmed. Whether Roseville offers retirees any dental or vision
+        at all is not stated on the City's retiree benefits page or in the 2026 Benefits Guide \u2014 ask HR
+        at retireemedical@roseville.ca.us. And these are the City's <strong>active-group</strong> 2026 rates;
+        coverage bought outside the group usually costs more, not less. Kaiser is not a substitute:
+        its CalPERS Medicare plan lists dental as <strong>not covered</strong>, and its vision is a $175
+        eyewear allowance every 24 months, not a VSP-style plan.
       </div>
     </>
   ) },
@@ -4019,7 +4106,7 @@ export default function RFFRetirementCalculator() {
                         {r.k}
                         {r.sub && <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}> · {r.sub}</span>}
                       </span>
-                      <span style={{ ...styles.tableVal, fontWeight: r.total ? 800 : 650,
+                      <span data-v="" style={{ ...styles.tableVal, fontWeight: r.total ? 800 : 650,
                         color: r.zero ? COLORS.green : r.v < 0 ? COLORS.text : r.total ? tone : COLORS.text }}>
                         {r.zero ? "—" : (r.v < 0 ? "−" : r.total ? "" : "+") + fmt(Math.abs(r.v))}
                       </span>
@@ -5145,6 +5232,75 @@ export default function RFFRetirementCalculator() {
                     </div>
                     <div style={styles.tableRow}><span style={styles.tableKey}>{retireeMedicalPlan} premium</span><span style={styles.tableVal}>{fmt(retireePremium)}/mo</span></div>
                     <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
+                    {/* ── DENTAL AND VISION IN RETIREMENT ──
+                        The City's $180 dental/vision credit sits in the ACTIVE flex plan (MOU Ch.4
+                        Art.I \u00a7C.3). The retiree contribution runs through PEMHCA, which is medical.
+                        So the default is that the member pays the lot -- stated as an assumption,
+                        with a field to correct it the day HR says otherwise. */}
+                    <div style={{ marginTop: "18px", padding: "14px", background: COLORS.card,
+                      border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.text, marginBottom: "8px" }}>
+                        Dental and vision &mdash; you pay these yourself
+                      </div>
+                      <div style={{ marginBottom: "10px" }}>
+                        <label style={styles.checkRow}>
+                          <input style={styles.checkbox} type="checkbox" checked={retireeKeepsDV}
+                            onChange={() => setRetireeKeepsDV(true)} />
+                          <span style={styles.checkLabel}>Carry dental and vision in retirement</span>
+                        </label>
+                        <label style={styles.checkRow}>
+                          <input style={styles.checkbox} type="checkbox" checked={!retireeKeepsDV}
+                            onChange={() => setRetireeKeepsDV(false)} />
+                          <span style={styles.checkLabel}>Drop them at retirement</span>
+                        </label>
+                      </div>
+                      {retireeKeepsDV && (
+                        <>
+                          <div style={styles.row}>
+                            <div style={styles.fieldGroup}>
+                              <label style={styles.label}>Dental plan</label>
+                              <select className="rff-select" style={styles.select} value={retireeDentalPlan}
+                                onChange={e => setRetireeDentalPlan(e.target.value)}>
+                                {DENTAL_PLANS_2026.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+                              </select>
+                            </div>
+                            <div style={styles.fieldGroup}>
+                              <label style={styles.label}>If the City pays toward it</label>
+                              <input style={styles.input} type="number" min={0} value={retireeDVCityPays}
+                                placeholder="0 / mo" onChange={e => setRetireeDVCityPays(e.target.value)} />
+                            </div>
+                          </div>
+                          <label style={{ ...styles.checkRow, marginBottom: "10px" }}>
+                            <input style={styles.checkbox} type="checkbox" checked={retireeHasVision}
+                              onChange={e => setRetireeHasVision(e.target.checked)} />
+                            <span style={styles.checkLabel}>Keep VSP vision</span>
+                          </label>
+                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeDentalPlan} &middot; {MEDICAL_COVERAGE_LABELS[retireeCoverage]}</span><span style={styles.tableVal}>{fmt(retireeDentalPremium)}/mo</span></div>
+                          {retireeHasVision && (
+                            <div style={styles.tableRow}><span style={styles.tableKey}>VSP vision</span><span style={styles.tableVal}>{fmt(retireeVisionPremium)}/mo</span></div>
+                          )}
+                          {retireeDVCityPaid > 0 && (
+                            <div style={styles.tableRow}><span style={styles.tableKey}>City pays toward it <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the figure you entered</span></span><span style={styles.tableValGreen}>&minus;{fmt(retireeDVCityPaid)}/mo</span></div>
+                          )}
+                          <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Out of your own pocket</strong></span><span style={styles.tableValAccent}>{fmt(retireeDVOOP)}/mo</span></div>
+                        </>
+                      )}
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                        \u26a0 <strong>Unverified.</strong> The City&rsquo;s $180 dental/vision credit is part of the
+                        <strong> active</strong> flex plan (MOU Ch.4 Art.I &sect;C.3). Retiree money runs through PEMHCA,
+                        which is a medical programme &mdash; CalPERS states dental and vision for a public-agency retiree are
+                        billed separately from the CalPERS health premium. Whether Roseville offers retirees anything at all
+                        is not stated on the City&rsquo;s retiree benefits page or in the 2026 Benefits Guide. Ask
+                        retireemedical@roseville.ca.us, then put the answer in the box above.
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+                        Kaiser does not cover this for you: the CalPERS Kaiser Medicare plan lists dental as
+                        <strong> not covered</strong>, and its vision benefit is a $175 eyewear allowance every 24 months
+                        plus routine exams &mdash; not a dental plan and not a VSP-style vision plan. These rates are the
+                        City&rsquo;s <strong>active-group</strong> 2026 figures; bought outside the group, coverage usually
+                        costs more.
+                      </div>
+                    </div>
                     {/* ── WHAT IT COSTS ONCE MEDICARE STARTS ── */}
                     <div style={{ marginTop: "18px", padding: "14px", background: "rgba(69,110,33,0.06)", border: `1px solid ${COLORS.green}`, borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.green, marginBottom: "6px" }}>
