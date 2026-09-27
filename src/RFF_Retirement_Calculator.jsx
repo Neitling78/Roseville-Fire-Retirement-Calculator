@@ -364,6 +364,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v68)", items: [
+    "<strong>New at the top of Compensation: working vs retired, line by line.</strong> Two columns side by side — every line of your paycheck on the left, every line of your pension on the right, both landing on the same bottom line, with the gap between them stated underneath.",
+    "<strong>The left column is the whole check:</strong> base, specialty pay, longevity, holiday, uniform, FLSA overtime, your overtime, gross — then federal tax, state tax, Medicare, the CalPERS member contribution, your 457, union dues and your share of medical.",
+    "<strong>The right column shows what stops.</strong> Medicare, the member contribution, dues and your 457 appear as blank rows with the reason beside them, because the whole point is that they come off the check now and not later. That is why the gap is always smaller than the drop from gross pay to gross pension.",
+    "<strong>Both sides are in your retirement year’s dollars</strong> — your last year working against your first year retired. Comparing a 2028 pension to a 2026 paycheck is the error that made retiring look better than it is, and it was not worth re-introducing for a tidier table.",
+    "A test now fails if the two totals and the stated gap ever stop reconciling.",
+  ] },
   { date: "September 27, 2026 (v67)", items: [
     "<strong>The page fills the screen properly now.</strong> The shell was capped at 1,100px from back when this was one centred column — once the navigation rail took 196px out of that, the content had about 880px left, stranded in the middle of a monitor with big empty margins either side. The shell is 1,460px now and the side gutters came in from 20px to 26px.",
     "The header, the four-number bar and the content all line up on the same edges, so the logo sits directly above the rail.",
@@ -2419,6 +2426,58 @@ export default function RFFRetirementCalculator() {
   const finalYearPay = workingPayForYear(finalWorkYear);
   const finalYearTakeHome = workingTakeHomeForYear(finalWorkYear);
   const finalYearOTMonthly = finalYearPay.ot;
+  // ── WORKING vs RETIRED, LINE BY LINE ──────────────────────────────
+  // Both sides in the SAME year — the one you retire in. Comparing a retirement-year pension
+  // against a this-year paycheck is the error that made retiring look better than it is, and
+  // it is not worth re-introducing for the sake of a tidier table.
+  // The two ledgers are genuinely different shapes: a paycheck has payroll deductions a
+  // pension does not, and a pension has a City medical contribution a paycheck does not.
+  // They are shown as two honest columns that meet at the bottom line, not forced into rows
+  // that pretend to pair up.
+  const compareLedger = (() => {
+    const P = finalYearPay;
+    const contribRate = memberType === "classic" ? 0.09 : 0.115;
+    const contrib = P.pensionable * contribRate;
+    const wGrossYr = P.gross * 12;
+    const wPreTax = effectiveMember457 + contrib * 12;
+    const wFed = fedTaxAmt(wGrossYr + otherIncomeW, wPreTax, fedBrW, fedStdW, depCreditW) / 12;
+    const wState = calcBracketTax(Math.max(0, wGrossYr + otherIncomeW - wPreTax - caStdW), caBrW) / 12;
+    const wMedicare = P.gross * 0.0145;
+    const working = [
+      { k: "Base salary", sub: `${classification}, Step ${salaryStep}`, v: P.R.base },
+      { k: "Specialty pay and certificates", sub: pct(P.specialtyPct) + " of base", v: P.R.base * P.specialtyPct, hide: P.specialtyPct <= 0 },
+      { k: "Longevity", sub: pct(P.lonPct) + " of base", v: P.R.base * P.lonPct, hide: P.lonPct <= 0 },
+      { k: "Holiday pay", sub: `${HOLIDAY_HOURS} hrs, reported to CalPERS`, v: P.holiday, hide: P.holiday <= 0 },
+      { k: "Uniform allowance", v: P.uniform, hide: P.uniform <= 0 },
+      { k: "FLSA scheduled overtime", sub: "in your schedule, pensionable", v: P.flsa, hide: P.flsa <= 0 },
+      { k: "Pensionable compensation", v: P.pensionable, rule: true },
+      { k: "Overtime you work", sub: "not pensionable — stops at retirement", v: P.ot, hide: P.ot <= 0 },
+      { k: "Gross pay", v: P.gross, total: true },
+      { k: "Federal income tax", v: -wFed },
+      { k: "California income tax", v: -wState },
+      { k: "Medicare", sub: "1.45% of wages", v: -wMedicare },
+      { k: "CalPERS member contribution", sub: pct(contribRate) + " of pensionable pay", v: -contrib },
+      { k: "457 deferral", v: -(effectiveMember457 / 12), hide: effectiveMember457 <= 0 },
+      { k: "Union dues", v: -UNION_DUES_MONTHLY },
+      { k: "Medical, dental and vision", sub: "your share after the City's allowance", v: -medicalTotalOOP, hide: medicalTotalOOP <= 0 },
+    ].filter(r => !r.hide);
+    const taxM = combinedPensionMonthly * retEffRate;
+    const fedShare = retTaxAnnual > 0 ? retFedTax / retTaxAnnual : 1;
+    const retired = [
+      { k: "Final compensation", sub: "highest 12 months", v: finalCompMonthly, muted: true },
+      { k: "Gross CalPERS pension", sub: pct(calpersTotalPct) + " of final comp", v: combinedPensionMonthly, total: true },
+      { k: "Federal income tax", v: -(taxM * fedShare) },
+      { k: `${stateName} income tax`, sub: retirementState === "CA" ? "fully taxable by California" : undefined, v: -(taxM - taxM * fedShare) },
+      { k: "Medicare", sub: "a pension is not wages — nothing comes out", v: 0, zero: true },
+      { k: "CalPERS member contribution", sub: "you stop paying it the day you retire", v: 0, zero: true },
+      { k: "457 deferral", sub: "you stop paying in", v: 0, zero: true, hide: effectiveMember457 <= 0 },
+      { k: "Union dues", sub: "you stop paying them", v: 0, zero: true },
+      { k: "Retiree health premium", sub: `${retireeMedicalPlan}, Tier ${medicalTier}`, v: -retireePremium },
+      { k: "City pays toward it", sub: "PEMHCA minimum + tier allowance", v: cityMedicalContribution },
+    ].filter(r => !r.hide);
+    return { working, retired, workTotal: finalYearTakeHome, retTotal: totalMonthlyTakeHome,
+      year: finalWorkYear, contribRate };
+  })();
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
   const retireTakeHomeToday = totalMonthlyTakeHome / Math.pow(1 + (parseFloat(inflationRate) || 0) / 100, yearsToRetirement);
   const takeHomeDiff = totalMonthlyTakeHome - workingTakeHome;
@@ -3928,6 +3987,79 @@ export default function RFFRetirementCalculator() {
               <div className="rff-card" style={{ ...styles.card, textAlign: "center", padding: "40px 20px" }}>
                 <div style={{ fontSize: "14px", color: COLORS.textMuted, lineHeight: 1.7 }}>
                   Fill in <strong style={{ color: COLORS.text }}>Member details</strong> first.
+                </div>
+              </div>
+            )}
+            {/* ══ THE COMPARISON ═════════════════════════════════════════
+                Pension shows what a pension resolves into. This shows the two side by side, line for
+                line — which is the actual question: what comes out of the check now, what comes out
+                of it then, and what is left either way. */}
+            {tab === "comp" && setupDone && (
+              <div className="rff-card" style={{ ...styles.cardHero }}>
+                <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Working vs retired, line by line</p>
+                <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "18px", lineHeight: 1.7 }}>
+                  Both sides in <strong style={{ color: COLORS.text }}>{compareLedger.year}</strong> dollars — your last
+                  year working against your first year retired. The two columns are different shapes on
+                  purpose: a paycheck carries deductions a pension does not, and a pension carries a City
+                  medical contribution a paycheck does not. They meet at the bottom line.
+                </div>
+                <div style={{ display: "grid", gap: isMobile ? "22px" : "28px",
+                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
+                  {[{ title: "While working \u00b7 " + compareLedger.year, rows: compareLedger.working,
+                      total: compareLedger.workTotal, totalLabel: "Lands in your bank", tone: COLORS.text },
+                    { title: "Retired \u00b7 " + retirementYear, rows: compareLedger.retired,
+                      total: compareLedger.retTotal, totalLabel: "Lands in your bank", tone: COLORS.green }
+                  ].map(col => (
+                    <div key={col.title} style={{ minWidth: 0 }}>
+                      <div style={{ ...styles.metricLabel, color: col.tone, marginBottom: "10px" }}>{col.title}</div>
+                      {col.rows.map((r, i) => (
+                        <div key={r.k + i} style={{ ...styles.tableRow,
+                          ...(r.rule ? { borderTop: `1px solid ${COLORS.borderSoft}`, marginTop: "4px", paddingTop: "12px" } : {}),
+                          ...(r.total ? { borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "12px" } : {}) }}>
+                          <span style={{ ...styles.tableKey, fontWeight: (r.total || r.rule) ? 700 : 400,
+                            color: (r.total || r.rule) ? COLORS.text : COLORS.textMuted }}>
+                            {r.k}
+                            {r.sub && <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}> · {r.sub}</span>}
+                          </span>
+                          <span style={{ ...styles.tableVal,
+                            fontWeight: (r.total || r.rule) ? 800 : 650,
+                            color: r.zero ? COLORS.green : r.muted ? COLORS.textMuted
+                              : r.v < 0 ? COLORS.text : r.total ? COLORS.accent : COLORS.text }}>
+                            {r.zero ? "—"
+                              : (r.v < 0 ? "−" : (r.total || r.rule || r.muted) ? "" : "+") + fmt(Math.abs(r.v))}
+                          </span>
+                        </div>
+                      ))}
+                      <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`,
+                        marginTop: "10px", paddingTop: "14px" }}>
+                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>{col.totalLabel}</span>
+                        <span style={{ fontWeight: 800, color: col.tone === COLORS.green ? COLORS.green : COLORS.text,
+                          fontSize: isMobile ? "20px" : "24px", fontVariantNumeric: "tabular-nums" }}>{fmt(col.total)}/mo</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {(() => {
+                  const gap = compareLedger.retTotal - compareLedger.workTotal;
+                  return (
+                    <div style={{ marginTop: "22px", paddingTop: "16px", borderTop: `1px solid ${COLORS.border}`,
+                      display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: COLORS.text }}>
+                        {gap >= 0 ? "You come out ahead" : "The cut"}
+                      </span>
+                      <span style={{ fontSize: isMobile ? "22px" : "26px", fontWeight: 800,
+                        color: gap >= 0 ? COLORS.green : COLORS.gold, fontVariantNumeric: "tabular-nums" }}>
+                        {gap >= 0 ? "+" : "−"}{fmt(Math.abs(gap))}/mo
+                      </span>
+                    </div>
+                  );
+                })()}
+                <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                  The gap is smaller than the drop from gross pay to gross pension, because five things
+                  stop coming out of the check the day you retire: the {pct(compareLedger.contribRate)} CalPERS
+                  member contribution, Medicare, union dues, your 457 deferral and the active medical premium.
+                  Tax figures are an estimate off the current brackets and the standard deduction — a guide,
+                  not a number to budget against.
                 </div>
               </div>
             )}

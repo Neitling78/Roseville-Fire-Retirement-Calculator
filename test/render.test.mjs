@@ -722,6 +722,51 @@ console.log("\n-- pension: figures, meter, split --");
 // figures do not: stay or go. It is built from stayAnalysis, the same source the on-screen
 // tables read -- a second implementation would drift, and this is the copy that leaves the
 // building.
+// ── Working vs retired, line by line ─────────────────────────────
+// Pension showed what a pension resolves into; Compensation now shows both sides against
+// each other, which is the question a member actually has.
+console.log("\n-- side by side --");
+{
+  const SBS = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, currentOTHours:20,
+    filingStatus:"mfj", filingStatusRet:"mfj", annual457Contrib:12000,
+    calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+    priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+                  { agencyName:"State of California", years:1.038, formula:"3@55" }] });
+  check("the comparison is on Compensation", () => has(SBS.comp, "Working vs retired, line by line"));
+  check("both columns are headed with the same year", () =>
+    has(SBS.comp, "While working \u00b7 2028") && has(SBS.comp, "Retired \u00b7 2028"));
+  // Comparing a retirement-year pension to a this-year paycheck is the error that made
+  // retiring look better than it is. Both sides must be the retirement year.
+  check("it says both sides are in the same dollars", () => has(SBS.comp, "Both sides in 2028 dollars"));
+  check("the working side itemises the paycheck", () =>
+    ["Base salary", "Pensionable compensation", "Gross pay"].every(x => SBS.comp.includes(x))
+    || "a pay line is missing");
+  check("and every deduction that comes out of it", () =>
+    ["CalPERS member contribution", "Union dues", "Medicare"].every(x => SBS.comp.includes(x))
+    || "a deduction is missing");
+  // The point of the comparison: those deductions STOP. Showing them as blank rows on the
+  // retired side is what makes that visible rather than something you have to be told.
+  check("the retired side shows what stops, not just what is left", () =>
+    has(SBS.comp, "you stop paying it the day you retire")
+    && has(SBS.comp, "a pension is not wages"));
+  check("both columns land on the same bottom line", () => {
+    const hits = (SBS.comp.match(/Lands in your bank/g) || []).length;
+    return hits >= 2 || `only ${hits} bottom line(s)`;
+  });
+  check("and the gap between them is stated", () =>
+    has(SBS.comp, "You come out ahead") || has(SBS.comp, "The cut"));
+  // The two totals and the stated gap have to reconcile, or the card is decoration.
+  check("the stated gap is the difference of the two totals", () => {
+    const tot = [...SBS.comp.matchAll(/Lands in your bank \$([\d,]+)\/mo/g)].map(m => +m[1].replace(/,/g, ""));
+    const gap = SBS.comp.match(/(?:You come out ahead|The cut) [+\u2212-]\$([\d,]+)\/mo/);
+    if (tot.length < 2 || !gap) return "could not read the figures";
+    return Math.abs(Math.abs(tot[1] - tot[0]) - +gap[1].replace(/,/g, "")) <= 1
+      || `${tot[0]} vs ${tot[1]} does not give ${gap[1]}`;
+  });
+}
+
 // ── The navigation rail ─────────────────────────────────────────
 console.log("\n-- navigation --");
 {
