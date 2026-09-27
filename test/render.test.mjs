@@ -73,7 +73,7 @@ const B = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-1
   retirementDateOverride:"2028-06-01", sickLeaveDisposition:"credit",
   openSections:{ sickdetail:true } });
 check("every screen renders", () => Object.values(B).every(h => h.length > 200) || "a screen came back empty");
-check("shows the answer on the pension tab", () => has(B.pension, "Your number"));
+check("shows the answer on the pension tab", () => has(B.pension, "Your pension \u00b7 "));
 check("shows what lands in the bank", () => has(B.pension, "Lands in your bank"));
 check("shows gross pension", () => has(B.pension, "Gross CalPERS pension"));
 check("shows medical as a deduction", () => has(B.pension, "your out-of-pocket"));
@@ -620,6 +620,41 @@ console.log("\n-- specialty pay adds up --");
     lacks(NEW.member, "automatic, from your hire date"));
 }
 
+// ── The Pension screen leads with figures, not rows ────────────────────
+// A page made only of label-left/number-right rows reads as a spreadsheet however it is
+// typed. The answer is now a figure, a meter against the cap, and a split of the income.
+console.log("\n-- pension: figures, meter, split --");
+{
+  const F = await scenario({ ...mkCola("2028-12-31", 50), current457: 250000, annual457Contrib: 24000 });
+  check("leads with the pension figure", () => has(F.pension, "Your pension \u00b7 2028"));
+  check("and the annual beside it", () => has(F.pension, "A year"));
+  check("the percentage is a meter against its cap", () => has(F.pension, "Toward the 90.0% cap"));
+  check("the income split is shown", () => has(F.pension, "Where the money comes from"));
+  // Colour is never the only channel: every segment is named and valued in the legend.
+  check("the split names every segment", () =>
+    has(F.pension, "CalPERS pension") && has(F.pension, "457 draw"));
+  // Server render must already carry the real figure -- the count-up animates from it,
+  // it must never be the thing that produces it, or the page paints a wrong number.
+  check("the figure is correct before any animation runs", () =>
+    /Your pension \u00b7 2028 \$[\d,]+\/mo/.test(F.pension) || "no figure in the hero tile");
+
+  // At the cap, the meter says so in words -- a colour change is not a message.
+  const CAPPED = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50,
+    calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+    priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+                  { agencyName:"State of California", years:1.038, formula:"3@55" }] });
+  check("at the cap it says so, not just turns a colour", () => has(CAPPED.pension, "At the cap"));
+  check("and explains why the total reads above it", () =>
+    has(CAPPED.pension, "stacks on top") && has(CAPPED.pension, "92.5%"));
+
+  // The old glowing masthead is gone.
+  check("no oversized glowing title", () =>
+    lacks(F.member, "Roseville Fire Fighters Retirement Calculator"));
+  check("but the tool is still named", () => has(F.member, "Retirement Calculator"));
+}
+
 console.log("\n-- sweet-spot date --");
 {
   // Well short of the cap: 22 yrs in, no priors, sick leave converted.
@@ -950,7 +985,7 @@ check("final comp matches Current compensation for that year", () =>
 // ── The Pension tab shows the whole drop to take-home ──────────────────────
 console.log("\n-- pension tab order and the take-home chain --");
 const PO = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-check("Pension goes straight to the number", () => has(PO.pension, "Your number"));
+check("Pension goes straight to the number", () => has(PO.pension, "Your pension \u00b7 "));
 check("the raises are off the Pension tab", () => lacks(PO.pension, "Future raises"));
 // Raises sit between the compensation table and the hourly rates — the table's year
 // picker is what they drive, so they belong next to it rather than a tab away.

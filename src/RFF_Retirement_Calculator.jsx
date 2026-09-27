@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import logoUrl from "./assets/logo.png";
 // ─── CONSTANTS FROM 2026 RFF MOU & SALARY SCHEDULE ───────────────────────────
 // Official City of Roseville salary schedules, BOTH effective 3/21/2026.
@@ -358,6 +358,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v58)", items: [
+    "<strong>The glowing masthead is gone.</strong> A 46px red-glow title over a 320px logo watermark was the most dated thing on the page. In its place: a small quiet bar with the logo and the name. The screen you came for starts at the top now instead of two inches down.",
+    "<strong>Pension leads with figures instead of rows.</strong> Your allowance at 48px, the annual and your percentage of final pay beside it, and next to that a <strong>meter running to the 90% cap</strong> — which turns gold and says <em>⚠ At the cap</em> in words when you reach it, with the date you got there. A colour change on its own is not a message.",
+    "<strong>New: where the money comes from.</strong> A single bar split between pension, 457 draw and other income, each segment named and priced. The three colours were checked for colour-blind separation against the dark card, and they are deliberately <em>not</em> the tool’s green and gold — those mean “good” and “careful” everywhere else, and a neutral category should not look like a verdict.",
+    "<strong>Numbers move now.</strong> Change a dial and the figure walks to its new value rather than blinking. Meters and bars slide. All of it switches off for anyone whose system asks for reduced motion.",
+    "Dropped the serif on the big numbers — a serif headline on a calculator reads as decoration. They are heavier and tighter instead. Dropdowns got a proper chevron and date fields a visible calendar icon; both were browser defaults that looked broken on a dark page.",
+  ] },
   { date: "September 27, 2026 (v57)", items: [
     "<strong>Roseville is section 1 now, prior service is section 2.</strong> Most members have no prior agency, and the ones who do can add it after. Opening on a question that does not apply to you is a bad first screen.",
     "<strong>Date of birth is asked before your hire date.</strong> It is the one question with no wrong answer, and the line under the hire date reads your age back to you — so the age has to exist before that line can say anything.",
@@ -959,7 +966,41 @@ const COLORS = {
 // nothing else. A member should be able to find the number that matters without
 // reading a word, which was not true when every line was 13px Helvetica.
 const FONT_UI = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif";
-const FONT_DISPLAY = "'Instrument Serif', Georgia, 'Times New Roman', serif";
+// ─── CHART & METER COLORS ──────────────────────────────────────────────────
+// Series colors are NOT the app's status colors. Green and gold mean "good" and
+// "careful" everywhere else in this tool, and a chart that reuses them makes a
+// neutral category look like a verdict. These three were checked against the dark
+// card surface for lightness, chroma, contrast and colour-blind separation in the
+// order they are stacked (worst adjacent pair ΔE 19.1, comfortably clear).
+// A number that jumps is a number you miss. This walks it to its new value over half a
+// second whenever the figure behind it changes — and does nothing at all on the first
+// paint, so the page never renders a wrong figure on its way to the right one, and
+// nothing at all for anyone whose system asks for reduced motion.
+const useCountUp = (target, ms = 520) => {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    const start = from.current;
+    const reduce = typeof window !== "undefined" && window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !Number.isFinite(target) || !Number.isFinite(start) || start === target
+        || typeof requestAnimationFrame !== "function") {
+      from.current = target; setShown(target); return;
+    }
+    let raf, t0 = 0;
+    const step = (t) => {
+      if (!t0) t0 = t;
+      const k = Math.min(1, (t - t0) / ms);
+      setShown(start + (target - start) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) raf = requestAnimationFrame(step); else { from.current = target; setShown(target); }
+    };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); from.current = target; };
+  }, [target, ms]);
+  return shown;
+};
+const SERIES = ["#e8455a", "#2f9bd4", "#c9820f"];   // pension · 457 · other income
+const METER_TRACK = "rgba(232,69,90,0.16)";         // lighter step of the fill's own hue
 // ─── STYLES ────────────────────────────────────────────────────────────────
 const styles = {
   app: { minHeight: "100vh", background: COLORS.bg, color: COLORS.text,
@@ -1011,10 +1052,10 @@ const styles = {
   checkLabel: { fontSize: "13px", color: COLORS.text, cursor: "pointer" },
   certNote: { fontSize: "11px", color: COLORS.textMuted, marginLeft: "28px",
     marginTop: "-6px", marginBottom: "8px", fontStyle: "italic" },
-  bigNumber: { fontFamily: FONT_DISPLAY, fontSize: "46px", fontWeight: "400", color: COLORS.accent,
-    letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "lining-nums" },
-  bigNumberGreen: { fontFamily: FONT_DISPLAY, fontSize: "46px", fontWeight: "400", color: COLORS.green,
-    letterSpacing: "-0.02em", lineHeight: 1, fontVariantNumeric: "lining-nums" },
+  bigNumber: { fontSize: "44px", fontWeight: "800", color: COLORS.accent,
+    letterSpacing: "-0.035em", lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  bigNumberGreen: { fontSize: "44px", fontWeight: "800", color: COLORS.green,
+    letterSpacing: "-0.035em", lineHeight: 1, fontVariantNumeric: "tabular-nums" },
   metricLabel: { fontSize: "10px", color: COLORS.textDim, fontWeight: "700",
     textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "7px" },
   divider: { borderColor: COLORS.border, margin: "16px 0" },
@@ -1057,8 +1098,8 @@ const styles = {
     boxShadow: "0 1px 0 rgba(255,255,255,0.03) inset" },
   summaryLabel: { fontSize: "10px", color: COLORS.textDim, textTransform: "uppercase",
     letterSpacing: "0.14em", fontWeight: "700", marginBottom: "7px" },
-  summaryValue: { fontFamily: FONT_DISPLAY, fontSize: "34px", fontWeight: "400",
-    letterSpacing: "-0.02em", lineHeight: 1.05, fontVariantNumeric: "lining-nums" },
+  summaryValue: { fontSize: "30px", fontWeight: "800",
+    letterSpacing: "-0.035em", lineHeight: 1.05, fontVariantNumeric: "tabular-nums" },
   sectionToggle: { width: "100%", display: "flex", justifyContent: "space-between",
     alignItems: "center", background: "#121214", border: `1px solid ${COLORS.border}`,
     borderRadius: "10px", padding: "12px 14px", color: COLORS.text, fontSize: "14px",
@@ -1177,6 +1218,66 @@ export default function RFFRetirementCalculator() {
   );
   // Same collapsible header, but the current value stays visible when it's closed — so
   // collapsing a section hides the controls, never the number.
+  // ── FIGURES ────────────────────────────────────────────────────
+  // A page made only of label-left / number-right rows reads as a spreadsheet however
+  // it is typed. These are the other shapes: a tile, a meter, a stacked bar.
+
+  // One number with its label. Optional note underneath.
+  const StatTile = ({ label, value, note, tone, big }) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={styles.metricLabel}>{label}</div>
+      <div style={{ fontSize: big ? (isMobile ? "34px" : "48px") : (isMobile ? "20px" : "24px"),
+        fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.02,
+        color: tone || COLORS.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      {note && <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.6 }}>{note}</div>}
+    </div>
+  );
+
+  // One ratio against a limit. The track is a lighter step of the fill's own hue so the
+  // state reads across the whole bar; at the limit the fill takes the warning colour AND
+  // says so in words, because colour alone is not a message.
+  const Meter = ({ pctOfMax, fill, atLimit }) => (
+    <div style={{ height: "10px", borderRadius: "6px", background: METER_TRACK, overflow: "hidden", marginTop: "10px" }}>
+      <div className="rff-fill" style={{
+        width: `${Math.max(0, Math.min(100, pctOfMax)).toFixed(1)}%`, height: "100%",
+        borderRadius: "6px", background: atLimit ? COLORS.gold : (fill || SERIES[0]) }} />
+    </div>
+  );
+
+  // Part-to-whole. Segments are separated by a gap in the surface colour, never a stroke.
+  // Only segments with room get an inline label; the legend underneath carries the rest.
+  const StackBar = ({ parts }) => {
+    const total = parts.reduce((t, p) => t + Math.max(0, p.value), 0);
+    if (total <= 0) return null;
+    const shown = parts.filter(p => p.value > 0);
+    return (
+      <>
+        <div className="rff-stack" style={{ height: "36px", marginBottom: "12px" }}>
+          {shown.map((p, i) => {
+            const share = (p.value / total) * 100;
+            return (
+              <span key={p.label} className="rff-fill" title={`${p.label}: ${fmt(p.value)}/mo`}
+                style={{ width: `${share.toFixed(2)}%`, background: SERIES[i % SERIES.length],
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "11px", fontWeight: 700, color: "#fff", overflow: "visible" }}>
+                {share >= 14 ? `${share.toFixed(0)}%` : ""}
+              </span>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "14px" }}>
+          {shown.map((p, i) => (
+            <div key={p.label} style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "3px", flexShrink: 0,
+                background: SERIES[i % SERIES.length] }} />
+              <span style={{ color: COLORS.textMuted }}>{p.label}</span>
+              <span style={{ color: COLORS.text, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt(p.value)}</span>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  };
   const sectionHeaderValue = (key, title, value) => (
     <p
       style={{ ...styles.cardTitle, cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", ...(openSections[key] !== false ? {} : { marginBottom: 0, borderBottom: "none", paddingBottom: 0 }) }}
@@ -2030,6 +2131,10 @@ export default function RFFRetirementCalculator() {
   // Total retirement income. The City's retiree-medical contribution is NOT income: it only exists if you
   // enroll in CalPERS medical and it is paid straight to the premium. It appears as an out-of-pocket cost below.
   const totalMonthly = monthlyPension + monthly457 + priorPensionMonthly;
+  // Animated mirrors of the two figures the Pension screen leads with. Declared after
+  // the figures themselves exist -- a hook is still unconditional here, just later.
+  const shownPension = useCountUp(combinedPensionMonthly);
+  const shownPensionPct = useCountUp(pensionPct);
   const totalAnnual = totalMonthly * 12;
   // vs current — use today's base salary (not projected) for the take-home comparison
   const currentMonthlySalary = baseSalary * (1 + currentIncentives.totalIncentivePct);
@@ -2351,7 +2456,7 @@ export default function RFFRetirementCalculator() {
                             </div>
                             <div>
                               <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Formula</label>
-                              <select style={{ ...styles.select, margin: 0 }} value={r.formula}
+                              <select className="rff-select" style={{ ...styles.select, margin: 0 }} value={r.formula}
                                 onChange={e => updatePriorRow(r.id, { formula: e.target.value, ...(e.target.value === "manual" ? { useRosevilleComp: false } : {}) })}>
                                 {PRIOR_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                               </select>
@@ -2436,18 +2541,23 @@ export default function RFFRetirementCalculator() {
         )}
       </div>
       <div className="no-print" style={{
-        ...styles.header,
-        position: "sticky", top: 0, zIndex: 30, overflow: "hidden",
-        flexDirection: "column", textAlign: "center", justifyContent: "center",
-        padding: isMobile ? "22px 14px" : "36px 20px",
-        gap: isMobile ? "6px" : "8px",
+        background: COLORS.bg, borderBottom: `1px solid ${COLORS.borderSoft}`,
+        padding: isMobile ? "12px 14px" : "14px 20px",
       }}>
-        <img src={logoUrl} alt="" aria-hidden="true"
-          style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", height: isMobile ? "210px" : "320px", opacity: 0.1, pointerEvents: "none", zIndex: 0 }} />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <p style={{ ...styles.headerSub, fontSize: isMobile ? "10px" : "12px", marginBottom: "4px" }}>Roseville Firefighters · IAFF Local 1592</p>
-          <h1 style={{ ...styles.headerTitle, fontSize: isMobile ? "30px" : "46px", margin: "0 0 6px", textShadow: "0 0 14px rgba(210,31,51,0.8), 0 0 34px rgba(210,31,51,0.5)" }}>Roseville Fire Fighters Retirement Calculator</h1>
-          <p style={{ margin: 0, fontSize: isMobile ? "12px" : "14px", color: COLORS.textMuted }}>Your CalPERS pension, mapped to the day you hang up the helmet.</p>
+        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex",
+          alignItems: "center", gap: "12px" }}>
+          <img src={logoUrl} alt="" aria-hidden="true"
+            style={{ height: isMobile ? "30px" : "34px", width: "auto", flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? "14px" : "15px", fontWeight: 700,
+              letterSpacing: "-0.02em", color: COLORS.text, lineHeight: 1.2 }}>
+              Retirement Calculator
+            </div>
+            <div style={{ fontSize: "11px", color: COLORS.textDim, letterSpacing: "0.02em",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              Roseville Firefighters · IAFF Local 1592
+            </div>
+          </div>
         </div>
       </div>
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
@@ -2635,10 +2745,10 @@ export default function RFFRetirementCalculator() {
 
                   <label style={styles.label}>Rank and pay step</label>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "8px", marginBottom: "14px" }}>
-                    <select style={styles.select} value={classification} onChange={e => { setClassification(e.target.value); setSetupDone(true); }}>
+                    <select className="rff-select" style={styles.select} value={classification} onChange={e => { setClassification(e.target.value); setSetupDone(true); }}>
                       {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
                     </select>
-                    <select style={styles.select} value={salaryStep} onChange={e => { setSalaryStep(e.target.value); setSetupDone(true); }}>
+                    <select className="rff-select" style={styles.select} value={salaryStep} onChange={e => { setSalaryStep(e.target.value); setSetupDone(true); }}>
                       {Object.keys(activeSchedule[classification]?.steps || {}).map(st =>
                         <option key={st} value={st}>Step {st}</option>)}
                     </select>
@@ -2903,7 +3013,7 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.checkLabel}>Hazmat</span>
                     </label>
                     {hasHazmat && (
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
                         value={hazmatLevel} onChange={e => setHazmatLevel(e.target.value)}>
                         <option value="team">Team (2.5%)</option>
                         <option value="taskforce">Task Force (5%)</option>
@@ -2915,7 +3025,7 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.checkLabel}>Rescue</span>
                     </label>
                     {hasRescue && (
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
                         value={rescueLevel} onChange={e => setRescueLevel(e.target.value)}>
                         <option value="team">Team (2.5%)</option>
                         <option value="taskforce">Task Force (5%)</option>
@@ -2927,7 +3037,7 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.checkLabel}>Fire investigation</span>
                     </label>
                     {hasInvestigation && (
-                      <select style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
                         value={investigationLevel} onChange={e => setInvestigationLevel(e.target.value)}>
                         <option value="team">Team (2.5%)</option>
                         <option value="lead">Team Lead (5%)</option>
@@ -3000,8 +3110,60 @@ export default function RFFRetirementCalculator() {
                 )}
                 {setupDone && !datesInvalid && (
                   <>
+                    {/* The answer, as three shapes instead of three more rows: the figure, a meter
+                        against the cap it is racing, and the split of where the money comes from.
+                        Laid out asymmetrically — a stack of equal full-width cards reads as a
+                        document, and this screen is the one that should not. */}
+                    <div style={{ display: "grid", gap: "16px", marginBottom: "22px",
+                      gridTemplateColumns: isMobile ? "1fr" : "1.45fr 1fr" }}>
+                      <div className="rff-card" style={{ ...styles.cardHero, marginBottom: 0,
+                        border: `1px solid ${COLORS.accent}`, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                        <StatTile big label={`Your pension \u00b7 ${retirementYear}`}
+                          value={`${fmt(shownPension)}/mo`} tone={COLORS.text}
+                          note={<>Gross CalPERS allowance, before tax and medical — the figure myCalPERS
+                            quotes. Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)}.</>} />
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "22px" }}>
+                          <StatTile label="A year" value={fmt(shownPension * 12)} />
+                          <StatTile label="Of your final pay" value={pct(calpersTotalPct)} tone={COLORS.gold} />
+                        </div>
+                      </div>
+                      <div className="rff-card" style={{ ...styles.card, marginBottom: 0 }}>
+                        <div style={styles.metricLabel}>{benefitIsCapped ? "Toward the " + pct(benefitMaxPct) + " cap" : "Your pension percentage"}</div>
+                        <div style={{ fontSize: isMobile ? "28px" : "34px", fontWeight: 800, letterSpacing: "-0.035em",
+                          lineHeight: 1.02, color: COLORS.text, fontVariantNumeric: "tabular-nums" }}>{pct(shownPensionPct)}</div>
+                        <Meter pctOfMax={benefitIsCapped ? (shownPensionPct / benefitMaxPct) * 100 : Math.min(100, shownPensionPct * 100)}
+                          atLimit={benefitIsCapped && pensionPct >= benefitMaxPct - 1e-9} />
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+                          {benefitIsCapped
+                            ? (pensionPct >= benefitMaxPct - 1e-9
+                                ? <><strong style={{ color: COLORS.gold }}>⚠ At the cap.</strong> More service adds nothing
+                                  to this percentage{capDateStr ? <> — you got here {capDateStr}</> : null}. Only your pay
+                                  still moves the check.</>
+                                : <>Roseville service, sick-leave credit and same-formula prior time, against the
+                                  {" "}{pct(benefitMaxPct)} Classic safety cap{capDateStr ? <>, which you reach {capDateStr}</> : null}.</>)
+                            : <>2.7% @ 57 has no cap, so this keeps climbing for every year you work.</>}
+                          {otherCalpersFormulaPct > 0 && <> Prior time on another CalPERS formula stacks on top,
+                            which is why your total reads {pct(calpersTotalPct)}.</>}
+                        </div>
+                      </div>
+                    </div>
+                    {(monthly457 > 0 || extraNetMonthly > 0) && (
+                      <div className="rff-card" style={{ ...styles.card }}>
+                        <p style={styles.cardTitle}>Where the money comes from</p>
+                        <StackBar parts={[
+                          { label: "CalPERS pension", value: combinedPensionMonthly },
+                          { label: "457 draw", value: monthly457 },
+                          { label: "Other income", value: extraNetMonthly },
+                        ]} />
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", lineHeight: 1.7 }}>
+                          A month, before tax. The pension is the only piece that is guaranteed and index-linked;
+                          the 457 is yours to spend down and runs out, and other income is whatever you told the
+                          tool about. Tax and your retiree medical premium come off all of it afterward.
+                        </div>
+                      </div>
+                    )}
                     <div className="rff-card" style={{ ...styles.cardHero, border: `1px solid ${COLORS.accent}` }}>
-                      <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>Your number</p>
+                      <p style={{ ...styles.cardTitle, marginBottom: "2px" }}>How it is figured</p>
                       <div style={{ fontSize: "12px", color: COLORS.textMuted, marginBottom: "16px" }}>
                         Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
                       </div>
@@ -3355,7 +3517,7 @@ export default function RFFRetirementCalculator() {
                     <p style={{ ...styles.cardTitle, margin: 0 }}>
                       Compensation in {shownRateYear}{shownRateYear === retirementYear ? " · your last year" : shownRateYear === NOW.getFullYear() ? " · today" : ""}
                     </p>
-                    <select value={shownRateYear} onChange={e => pickRateYear(+e.target.value)}
+                    <select className="rff-select" value={shownRateYear} onChange={e => pickRateYear(+e.target.value)}
                       style={{ ...styles.select, margin: 0, width: "auto", minWidth: "96px", fontWeight: 700 }}>
                       {rateYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -3509,7 +3671,7 @@ export default function RFFRetirementCalculator() {
                   {sectionHeaderValue("starthourly", "Your hourly rates", `${fmtHr(shownRates.regular)}/hr`)}
                   {openSections.starthourly !== false && (<>
                     <label style={styles.label}>Show rates for</label>
-                    <select style={{ ...styles.select, marginBottom: "12px" }} value={shownRateYear}
+                    <select className="rff-select" style={{ ...styles.select, marginBottom: "12px" }} value={shownRateYear}
                       onChange={e => pickRateYear(+e.target.value)}>
                       {rateYearOptions.map(y => (
                         <option key={y} value={y}>
@@ -4022,7 +4184,7 @@ export default function RFFRetirementCalculator() {
                     stay married to until your death.
                   </div>
                   <label style={styles.label}>Do you have an eligible survivor?</label>
-                  <select style={{ ...styles.select, marginBottom: "10px" }} value={hasEligibleSurvivor ? "yes" : "no"}
+                  <select className="rff-select" style={{ ...styles.select, marginBottom: "10px" }} value={hasEligibleSurvivor ? "yes" : "no"}
                     onChange={e => setHasEligibleSurvivor(e.target.value === "yes")}>
                     <option value="yes">Yes &mdash; spouse, or eligible child</option>
                     <option value="no">No</option>
@@ -4228,7 +4390,7 @@ export default function RFFRetirementCalculator() {
                 {/* ── RATE YEAR PICKER ── */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
                   <label style={{ ...styles.label, marginBottom: 0, flex: "none" }}>Rate year</label>
-                  <select style={{ ...styles.select, margin: 0, width: "auto", minWidth: "170px" }}
+                  <select className="rff-select" style={{ ...styles.select, margin: 0, width: "auto", minWidth: "170px" }}
                     value={healthRateYear} onChange={e => setHealthRateYear(Number(e.target.value))}>
                     {HEALTH_RATE_YEARS.map(y => (
                       <option key={y} value={y}>
@@ -4259,13 +4421,13 @@ export default function RFFRetirementCalculator() {
                 <div style={styles.row}>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Medical Plan</label>
-                    <select style={styles.select} value={selectedMedicalPlan} onChange={e => setSelectedMedicalPlan(e.target.value)}>
+                    <select className="rff-select" style={styles.select} value={selectedMedicalPlan} onChange={e => setSelectedMedicalPlan(e.target.value)}>
                       {MEDICAL_PLANS.map(p => <option key={p.name} value={p.name}>{p.name}{p.isNew ? " \u00b7 new" : ""}</option>)}
                     </select>
                   </div>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Coverage</label>
-                    <select style={styles.select} value={medicalCoverage} onChange={e => setMedicalCoverage(e.target.value)}>
+                    <select className="rff-select" style={styles.select} value={medicalCoverage} onChange={e => setMedicalCoverage(e.target.value)}>
                       <option value="ee">Employee only</option>
                       <option value="ee1">Employee + 1 dependent</option>
                       <option value="fam">Employee + family</option>
@@ -4275,13 +4437,13 @@ export default function RFFRetirementCalculator() {
                 <div style={styles.row}>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Dental Plan</label>
-                    <select style={styles.select} value={dentalPlan} onChange={e => setDentalPlan(e.target.value)}>
+                    <select className="rff-select" style={styles.select} value={dentalPlan} onChange={e => setDentalPlan(e.target.value)}>
                       {DENTAL_PLANS_2026.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                     </select>
                   </div>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Vision (VSP)</label>
-                    <select style={styles.select} value={hasVision ? "yes" : "no"} onChange={e => setHasVision(e.target.value === "yes")}>
+                    <select className="rff-select" style={styles.select} value={hasVision ? "yes" : "no"} onChange={e => setHasVision(e.target.value === "yes")}>
                       <option value="yes">Enrolled</option>
                       <option value="no">None</option>
                     </select>
@@ -4334,13 +4496,13 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.row}>
                       <div style={styles.fieldGroup}>
                         <label style={styles.label}>Retiree plan</label>
-                        <select style={styles.select} value={retireeMedicalPlan} onChange={e => setRetireeMedicalPlan(e.target.value)}>
+                        <select className="rff-select" style={styles.select} value={retireeMedicalPlan} onChange={e => setRetireeMedicalPlan(e.target.value)}>
                           {MEDICAL_PLANS.map(p => <option key={p.name} value={p.name}>{p.name}{p.isNew ? " \u00b7 new" : ""}</option>)}
                         </select>
                       </div>
                       <div style={styles.fieldGroup}>
                         <label style={styles.label}>Coverage</label>
-                        <select style={styles.select} value={retireeCoverage} onChange={e => setRetireeCoverage(e.target.value)}>
+                        <select className="rff-select" style={styles.select} value={retireeCoverage} onChange={e => setRetireeCoverage(e.target.value)}>
                           <option value="ee">Employee only</option>
                           <option value="ee1">Employee + 1</option>
                           <option value="fam">Employee + family</option>
@@ -4594,7 +4756,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>Filing status</label>
-                      <select style={styles.select} value={filingStatus} onChange={e => setFilingStatus(e.target.value)}>
+                      <select className="rff-select" style={styles.select} value={filingStatus} onChange={e => setFilingStatus(e.target.value)}>
                         <option value="single">Single</option>
                         <option value="mfj">Married filing jointly</option>
                         <option value="hoh">Head of household</option>
@@ -4609,7 +4771,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.row}>
                     <div style={styles.fieldGroup}>
                       <label style={styles.label}>Filing status</label>
-                      <select style={styles.select} value={filingStatusRet} onChange={e => setFilingStatusRet(e.target.value)}>
+                      <select className="rff-select" style={styles.select} value={filingStatusRet} onChange={e => setFilingStatusRet(e.target.value)}>
                         <option value="single">Single</option>
                         <option value="mfj">Married filing jointly</option>
                         <option value="hoh">Head of household</option>
@@ -4625,7 +4787,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                   <div style={styles.fieldGroup}>
                     <label style={styles.label}>Retirement state <span style={{ color: COLORS.textMuted, fontSize: "10px" }}>· compare any state</span></label>
-                    <select style={styles.select} value={retirementState} onChange={e => { const code = e.target.value; setRetirementState(code); const st = STATES_LIST.find(s => s.code === code); if (code !== "CA") setOtherStateRate(st && st.rate != null ? st.rate : 0); }}>
+                    <select className="rff-select" style={styles.select} value={retirementState} onChange={e => { const code = e.target.value; setRetirementState(code); const st = STATES_LIST.find(s => s.code === code); if (code !== "CA") setOtherStateRate(st && st.rate != null ? st.rate : 0); }}>
                       {STATES_LIST.map(s => <option key={s.code} value={s.code}>{s.name}{s.rate === 0 ? " — no retirement tax" : ""}</option>)}
                     </select>
                   </div>

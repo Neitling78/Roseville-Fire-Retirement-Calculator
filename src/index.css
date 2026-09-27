@@ -45,13 +45,6 @@ body {
    nothing else reaches, section titles recede into small caps, and cards differ
    by rank. Nothing here changes a number — only which number your eye finds. */
 
-/* Money and any figure meant to be read as a quantity. */
-.rff-display {
-  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  font-variant-numeric: lining-nums;
-}
 /* Figures stacked in a column have to line up, or the column reads as noise. */
 .rff-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
@@ -78,4 +71,30 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Charts, meters and motion ─────────────────────────────────────────────
+   Bars and meters animate their width on mount and whenever the number behind
+   them changes, so a figure moving is something you see rather than something
+   you have to notice. Honoured by the reduced-motion rule above. */
+.rff-fill { transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* A stacked bar separates its segments with a gap in the SURFACE colour, never a
+   stroke — a border adds ink that is not data. */
+.rff-stack { display: flex; gap: 2px; width: 100%; }
+.rff-stack > span { display: block; height: 100%; }
+.rff-stack > span:first-child { border-radius: 6px 0 0 6px; }
+.rff-stack > span:last-child  { border-radius: 0 6px 6px 0; }
+.rff-stack > span:only-child  { border-radius: 6px; }
+
+/* Native selects look unfinished in dark mode. Draw our own chevron. */
+.rff-select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%239aa1ad' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px !important;
+}
+/* Date inputs ship a light calendar glyph that vanishes on a dark field. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.68); cursor: pointer;
 }
