@@ -740,9 +740,34 @@ console.log("\n-- side by side --");
   // Comparing a retirement-year pension to a this-year paycheck is the error that made
   // retiring look better than it is. Both sides must be the retirement year.
   check("it says both sides are in the same dollars", () => has(SBS.comp, "Both sides in 2028 dollars"));
-  check("the working side itemises the paycheck", () =>
-    ["Base salary", "Pensionable compensation", "Gross pay"].every(x => SBS.comp.includes(x))
-    || "a pay line is missing");
+  // The card is the summary, not the itemisation -- the detailed pay table further down the
+  // same tab breaks the paycheck apart. Listing every incentive twice on one page is noise.
+  const CARD = SBS.comp.slice(SBS.comp.indexOf("Working vs retired, line by line"),
+                              SBS.comp.indexOf("The gap is smaller than the drop"));
+  check("the comparison card was sliced out", () => CARD.length > 200 || "could not find the card");
+  check("the working side starts at pensionable pay, not the incentive list", () =>
+    ["Base salary", "Specialty pay and certificates", "Longevity", "Holiday pay",
+     "Uniform allowance", "FLSA scheduled overtime"].every(x => !CARD.includes(x))
+    || "an itemised pay line is still on the card");
+  check("but it still carries the pay totals", () =>
+    ["Pensionable compensation", "Overtime you work", "Gross pay"].every(x => CARD.includes(x))
+    || "a pay total is missing");
+  // With no overtime the pensionable subtotal equals gross -- one figure, printed twice.
+  const ZERO_OT = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, currentOTHours:0 });
+  const ZCARD = ZERO_OT.comp.slice(ZERO_OT.comp.indexOf("Working vs retired, line by line"),
+                                   ZERO_OT.comp.indexOf("The gap is smaller than the drop"));
+  check("with no overtime the subtotal drops and gross pay is the top line", () =>
+    (!ZCARD.includes("Pensionable compensation") && ZCARD.includes("Gross pay"))
+    || "the subtotal is still doubling up with gross pay");
+  // ...while the detailed table below it still lists every line.
+  check("the detailed table below still itemises", () => {
+    const BELOW = SBS.comp.slice(SBS.comp.indexOf("The gap is smaller than the drop"));
+    const missing = ["Base salary", "Uniform allowance", "FLSA scheduled overtime"]
+      .filter(x => !BELOW.includes(x));
+    return missing.length === 0 || "detailed table is missing: " + missing.join(", ");
+  });
   check("and every deduction that comes out of it", () =>
     ["CalPERS member contribution", "Union dues", "Medicare"].every(x => SBS.comp.includes(x))
     || "a deduction is missing");

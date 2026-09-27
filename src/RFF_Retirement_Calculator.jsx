@@ -2444,13 +2444,7 @@ export default function RFFRetirementCalculator() {
     const wState = calcBracketTax(Math.max(0, wGrossYr + otherIncomeW - wPreTax - caStdW), caBrW) / 12;
     const wMedicare = P.gross * 0.0145;
     const working = [
-      { k: "Base salary", sub: `${classification}, Step ${salaryStep}`, v: P.R.base },
-      { k: "Specialty pay and certificates", sub: pct(P.specialtyPct) + " of base", v: P.R.base * P.specialtyPct, hide: P.specialtyPct <= 0 },
-      { k: "Longevity", sub: pct(P.lonPct) + " of base", v: P.R.base * P.lonPct, hide: P.lonPct <= 0 },
-      { k: "Holiday pay", sub: `${HOLIDAY_HOURS} hrs, reported to CalPERS`, v: P.holiday, hide: P.holiday <= 0 },
-      { k: "Uniform allowance", v: P.uniform, hide: P.uniform <= 0 },
-      { k: "FLSA scheduled overtime", sub: "in your schedule, pensionable", v: P.flsa, hide: P.flsa <= 0 },
-      { k: "Pensionable compensation", v: P.pensionable, rule: true },
+      { k: "Pensionable compensation", sub: "base, specialty, longevity, holiday, uniform and FLSA overtime", v: P.pensionable, rule: true, hide: P.ot <= 0 },
       { k: "Overtime you work", sub: "not pensionable — stops at retirement", v: P.ot, hide: P.ot <= 0 },
       { k: "Gross pay", v: P.gross, total: true },
       { k: "Federal income tax", v: -wFed },
