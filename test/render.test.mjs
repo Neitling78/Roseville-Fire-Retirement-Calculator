@@ -886,6 +886,43 @@ console.log("\n-- retiree dental and vision --");
     has(DV.health, "27 Sep 2026") && has(DV.health, "95678"));
   check("the 6-month waiting period is not buried", () =>
     has(DV.health, "6-month waiting period"));
+  // The four figures below are the ACTUAL Delta quotes for 1, 2, 3 and 4 people at ZIP 95678
+  // (27 Sep 2026). If the per-head model ever stops reproducing them, it is wrong -- a flat
+  // "family" rate looks plausible and is off by $22 per child.
+  const dvSeed = (extra) => ({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, ...extra });
+  const QUOTES = [
+    { label: "employee only",        saved: { retireeCoverage:"ee" },                                  want: "$73" },
+    { label: "employee + 1 adult",   saved: { retireeCoverage:"ee1" },                                 want: "$146" },
+    { label: "2 adults + 1 child",   saved: { retireeCoverage:"fam", retireeDVAdults:"2", retireeDVKids:"1" }, want: "$198" },
+    { label: "2 adults + 2 children", saved: { retireeCoverage:"fam" },                                want: "$249" },
+  ];
+  for (const q of QUOTES) {
+    const R = await scenario(dvSeed(q.saved));
+    const box = R.health.slice(R.health.indexOf("Dental and vision \u2014 you buy your own"),
+                               R.health.indexOf("At 65 the premium drops"));
+    check(`Delta PPO Premium, ${q.label}, matches the real quote`, () =>
+      box.includes(q.want + "/mo") || `expected ${q.want}/mo in the dental line`);
+  }
+  // A child is cheaper than an adult. If that ever collapses to one rate, the family figures
+  // silently inflate -- so assert the two rates are actually different on the page.
+  check("a child is priced below an adult", () => {
+    const box = DV.health.slice(DV.health.indexOf("Dental and vision \u2014 you buy your own"),
+                                DV.health.indexOf("At 65 the premium drops"));
+    return (has(box, "$73") === true && has(box, "$51") === true)
+      || "the adult and child rates are not both shown";
+  });
+  // Vision multi-person is NOT a quote. It must say so rather than look like one.
+  {
+    const FAM = await scenario(dvSeed({ retireeCoverage:"fam" }));
+    const box = FAM.health.slice(FAM.health.indexOf("Dental and vision \u2014 you buy your own"),
+                                 FAM.health.indexOf("At 65 the premium drops"));
+    check("vision above one person is labelled an estimate", () =>
+      has(box, "estimate") && has(box, "does not publish"));
+    check("and dental is not tarred with the same brush", () =>
+      has(box, "quoted, not estimated"));
+  }
   check("and that Kaiser does not cover it for you", () =>
     has(DV.health, "not covered") && has(DV.health, "$175"));
   check("dropping it warns that a spouse's plan is rarely free", () =>

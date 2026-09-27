@@ -325,25 +325,35 @@ const VISION_2026 = { ee: 7.49, ee1: 10.86, fam: 19.48 };     // VSP monthly by 
 // Individual-market rates below are a live quote pulled 2026-09-27, ZIP 95678 (Roseville),
 // one person, age 50. Delta Dental of California's own shopping tool; VSP's published
 // individual pricing (VSP notes pricing varies by state).
+// Delta prices PER PERSON, not by tier -- and a child costs less than an adult. Quoted
+// 2026-09-27 at ZIP 95678 for 1, 2, 3 and 4 people; the per-head rates below reproduce all
+// four quotes to the cent, which is why they are stored per head rather than per tier:
+//   PPO Premium  1: $73.11   2: $146.22   3: $197.64   4: $249.06
+//   PPO Basic    1: $32.75   2: $65.50    3: $92.81    4: $120.12
+//   DeltaCare    1: $107/yr  2: $214/yr   3: $280/yr   4: $346/yr
 const RETIREE_DENTAL_PLANS = [
-  { name: "None", ee: 0, ee1: 0, fam: 0, note: "" },
-  { name: "Delta Dental PPO Premium", ee: 73.11, ee1: 146.22, fam: 219.33,
-    note: "closest match to the City's High PPO \u2014 $2,000/yr maximum, any dentist" },
-  { name: "Delta Dental PPO Basic", ee: 32.75, ee1: 65.50, fam: 98.25,
+  { name: "None", adult: 0, child: 0, note: "" },
+  { name: "Delta Dental PPO Premium", adult: 73.11, child: 51.42,
+    note: "closest match to the City's High PPO — $2,000/yr maximum, any dentist" },
+  { name: "Delta Dental PPO Basic", adult: 32.75, child: 27.31,
     note: "$1,000/yr maximum; no crowns, root canals or dentures" },
-  { name: "DeltaCare USA (HMO)", ee: 8.92, ee1: 17.84, fam: 26.76,
-    note: "$107/yr, paid annually \u2014 fixed fees, one network dentist only" },
+  { name: "DeltaCare USA (HMO)", adult: 107 / 12, child: 66 / 12,
+    note: "billed annually — fixed fees, one network dentist only" },
 ];
-// Delta quotes ONE person. Multi-person pricing is not published, so the tiers above are the
-// single rate doubled / tripled -- an estimate, and said to be one on the page.
-const RETIREE_DENTAL_TIER_ESTIMATED = true;
+// VSP publishes ONE rate, for an individual. Two-person and family plans exist -- VSP confirms
+// that in its own FAQ -- but it does not publish what they cost, and the price is behind an
+// enrolment flow. So each person is priced at the individual rate, which is an ESTIMATE the
+// moment more than one person is covered, and the page says so rather than implying a quote.
 const RETIREE_VISION_PLANS = [
-  { name: "None", ee: 0, ee1: 0, fam: 0 },
-  { name: "VSP Standard", ee: 17, ee1: 34, fam: 51 },
-  { name: "VSP EyewearOnly", ee: 12, ee1: 24, fam: 36 },
-  { name: "VSP EasyOptions", ee: 30, ee1: 60, fam: 90 },
-  { name: "VSP Enhanced", ee: 35, ee1: 70, fam: 105 },
+  { name: "None", adult: 0, child: 0 },
+  { name: "VSP Standard", adult: 17, child: 17 },
+  { name: "VSP EyewearOnly", adult: 12, child: 12 },
+  { name: "VSP EasyOptions", adult: 30, child: 30 },
+  { name: "VSP Enhanced", adult: 35, child: 35 },
 ];
+// How many heads each familiar coverage tier starts at. The member can override both, because
+// "employee + 1" is a spouse for some people and a child for others, and those differ by $22.
+const DV_HEADS_BY_TIER = { ee: { a: 1, k: 0 }, ee1: { a: 2, k: 0 }, fam: { a: 2, k: 2 } };
 // COBRA: 102% of the FULL group cost (member share + City share) for the first 18 months.
 const COBRA_LOAD = 1.02;
 const COBRA_MONTHS = 18;
@@ -401,6 +411,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v71)", items: [
+    "<strong>Retiree dental and vision now have the normal coverage options</strong> \u2014 employee only, employee + 1, employee + family \u2014 with the number of adults and children you can set yourself.",
+    "<strong>Delta does not sell a family rate.</strong> It bills per person, and a child costs less than an adult: $73.11 vs $51.42 on PPO Premium. So the tool prices per head rather than per tier. The rates were quoted at 1, 2, 3 and 4 people and the per-head model reproduces all four to the cent \u2014 $73.11, $146.22, $197.64, $249.06 \u2014 and a test fails if it ever stops.",
+    "<strong>Employee + 1 is not always a spouse.</strong> If your +1 is a child it is $51.42, not $73.11, so the adult and child counts are yours to set and the tier just seeds them.",
+    "<strong>Vision above one person is an estimate, and says so.</strong> VSP offers two-person and family plans but does not publish what they cost, so each head is priced at the individual rate. The dental line is a real quote; the vision line is a ceiling until you get one.",
+    "<strong>Corrected:</strong> the previous version priced two people at double and a family at triple the single rate. Double was right for two adults by luck; triple was wrong for every family with children.",
+  ] },
   { date: "September 27, 2026 (v70)", items: [
     "<strong>Retiree dental and vision are priced off real quotes now, not the City\u2019s group table.</strong> You cannot buy at the group rate once you separate \u2014 the $180 dental/vision credit is part of the <em>active</em> flex plan and the City pays nothing toward either one in retirement.",
     "<strong>The new default is $90/mo</strong>: Delta Dental PPO Premium at <strong>$73.11</strong> plus VSP Standard at <strong>$17</strong>. Quoted 27 Sep 2026 from Delta Dental of California\u2019s own shopping tool and VSP\u2019s published individual pricing \u2014 ZIP 95678, one person, age 50. Cheaper options are in the dropdowns: PPO Basic $32.75, DeltaCare USA HMO $8.92.",
@@ -1473,6 +1490,10 @@ export default function RFFRetirementCalculator() {
   const [retireeKeepsDV, setRetireeKeepsDV] = useState(SAVED.retireeKeepsDV ?? true);
   const [retireeDentalPlan, setRetireeDentalPlan] = useState(SAVED.retireeDentalPlan ?? "Delta Dental PPO Premium");
   const [retireeVisionPlan, setRetireeVisionPlan] = useState(SAVED.retireeVisionPlan ?? "VSP Standard");
+  // Blank means "follow the coverage tier". A typed value overrides it and stays put when the
+  // tier changes, because someone who has said "one child" means it.
+  const [retireeDVAdults, setRetireeDVAdults] = useState(SAVED.retireeDVAdults ?? "");
+  const [retireeDVKids, setRetireeDVKids] = useState(SAVED.retireeDVKids ?? "");
   const [filingStatus, setFilingStatus] = useState(SAVED.filingStatus ?? "single");
   const [retirementState, setRetirementState] = useState(SAVED.retirementState ?? "CA");
   const [otherStateRate, setOtherStateRate] = useState(SAVED.otherStateRate ?? 5);
@@ -1727,7 +1748,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       setupDone, classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, retireeDVAdults, retireeDVKids, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1742,7 +1763,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, retireeDVAdults, retireeDVKids, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -2443,8 +2464,16 @@ export default function RFFRetirementCalculator() {
   // the group, the real number is likely higher, not lower. Said plainly on the page.
   const retireeDentalObj = RETIREE_DENTAL_PLANS.find(p => p.name === retireeDentalPlan) || RETIREE_DENTAL_PLANS[1];
   const retireeVisionObj = RETIREE_VISION_PLANS.find(p => p.name === retireeVisionPlan) || RETIREE_VISION_PLANS[1];
-  const retireeDentalPremium = retireeKeepsDV ? (retireeDentalObj[retireeCoverage] || 0) : 0;
-  const retireeVisionPremium = retireeKeepsDV ? (retireeVisionObj[retireeCoverage] || 0) : 0;
+  // Priced per head, because that is how the individual market actually bills. The tier
+  // dropdown just seeds the counts.
+  const dvHeadsDefault = DV_HEADS_BY_TIER[retireeCoverage] || DV_HEADS_BY_TIER.ee;
+  const dvAdults = retireeDVAdults === "" ? dvHeadsDefault.a : Math.max(0, Math.min(9, parseInt(retireeDVAdults, 10) || 0));
+  const dvKids = retireeDVKids === "" ? dvHeadsDefault.k : Math.max(0, Math.min(9, parseInt(retireeDVKids, 10) || 0));
+  const dvHeads = dvAdults + dvKids;
+  const retireeDentalPremium = retireeKeepsDV
+    ? retireeDentalObj.adult * dvAdults + retireeDentalObj.child * dvKids : 0;
+  const retireeVisionPremium = retireeKeepsDV
+    ? retireeVisionObj.adult * dvAdults + retireeVisionObj.child * dvKids : 0;
   const retireeDVPremium = retireeDentalPremium + retireeVisionPremium;
   const retireeDVOOP = retireeDVPremium;   // the City pays nothing toward either one
   // The first 18 months are different: federal COBRA keeps you on the CITY's plans at 102% of
@@ -3070,7 +3099,7 @@ export default function RFFRetirementCalculator() {
     </>
   ) },
 { key: "dvret", title: "Dental and vision in retirement",
-  blurb: "The City pays nothing toward dental or vision once you separate \u2014 its $180 credit is part of the ACTIVE flex plan. You buy your own on the open market. These are live quotes, not the group rates you pay now.",
+  blurb: "The City pays nothing toward dental or vision once you separate \u2014 its $180 credit is part of the ACTIVE flex plan. You buy your own on the open market, and it is priced per person, not by tier: a child costs less than an adult.",
   valid: true,
   body: (
     <>
@@ -3089,11 +3118,28 @@ export default function RFFRetirementCalculator() {
       </div>
       {retireeKeepsDV && (
         <>
+          <label style={styles.label}>Who is covered</label>
+          <select className="rff-select" style={{ ...styles.select, marginBottom: "10px" }} value={retireeCoverage}
+            onChange={e => { setRetireeCoverage(e.target.value); setRetireeDVAdults(""); setRetireeDVKids(""); }}>
+            {Object.entries(MEDICAL_COVERAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
+            <div>
+              <label style={styles.label}>Adults (including you)</label>
+              <input style={styles.input} type="number" min={0} max={9} value={dvAdults}
+                onChange={e => setRetireeDVAdults(e.target.value)} />
+            </div>
+            <div>
+              <label style={styles.label}>Children</label>
+              <input style={styles.input} type="number" min={0} max={9} value={dvKids}
+                onChange={e => setRetireeDVKids(e.target.value)} />
+            </div>
+          </div>
           <label style={styles.label}>Dental plan you buy</label>
           <select className="rff-select" style={{ ...styles.select, marginBottom: "4px" }} value={retireeDentalPlan}
             onChange={e => setRetireeDentalPlan(e.target.value)}>
             {RETIREE_DENTAL_PLANS.map(pl => <option key={pl.name} value={pl.name}>
-              {pl.name}{pl[retireeCoverage] > 0 ? ` — ${fmt(pl[retireeCoverage])}/mo` : ""}</option>)}
+              {pl.name}{pl.adult > 0 ? ` — ${fmt(pl.adult * dvAdults + pl.child * dvKids)}/mo` : ""}</option>)}
           </select>
           {retireeDentalObj.note && (
             <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px" }}>{retireeDentalObj.note}</div>
@@ -3102,7 +3148,7 @@ export default function RFFRetirementCalculator() {
           <select className="rff-select" style={styles.select} value={retireeVisionPlan}
             onChange={e => setRetireeVisionPlan(e.target.value)}>
             {RETIREE_VISION_PLANS.map(pl => <option key={pl.name} value={pl.name}>
-              {pl.name}{pl[retireeCoverage] > 0 ? ` — ${fmt(pl[retireeCoverage])}/mo` : ""}</option>)}
+              {pl.name}{pl.adult > 0 ? ` — ${fmt(pl.adult * dvAdults + pl.child * dvKids)}/mo` : ""}</option>)}
           </select>
           <div style={{ fontSize: "13px", color: COLORS.text, marginTop: "14px", fontWeight: 700 }}>
             {fmt(retireeDVPremium)}/mo out of your own pocket
@@ -5341,8 +5387,22 @@ export default function RFFRetirementCalculator() {
                               {retireeDentalPlan} &middot; {retireeDentalObj.note}
                             </div>
                           )}
-                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeDentalPlan} <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; {MEDICAL_COVERAGE_LABELS[retireeCoverage]}</span></span><span style={styles.tableVal}>{fmt(retireeDentalPremium)}/mo</span></div>
-                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeVisionPlan}</span><span style={styles.tableVal}>{fmt(retireeVisionPremium)}/mo</span></div>
+                          {/* Per head, because that is how the individual market bills -- and a child
+                              costs less than an adult, so a flat "family" rate would be fiction. */}
+                          <div style={styles.row}>
+                            <div style={styles.fieldGroup}>
+                              <label style={styles.label}>Adults covered (including you)</label>
+                              <input style={styles.input} type="number" min={0} max={9} value={dvAdults}
+                                onChange={e => setRetireeDVAdults(e.target.value)} />
+                            </div>
+                            <div style={styles.fieldGroup}>
+                              <label style={styles.label}>Children covered</label>
+                              <input style={styles.input} type="number" min={0} max={9} value={dvKids}
+                                onChange={e => setRetireeDVKids(e.target.value)} />
+                            </div>
+                          </div>
+                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeDentalPlan} <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; {dvAdults} adult{dvAdults === 1 ? "" : "s"} at {fmt(retireeDentalObj.adult)}{dvKids > 0 ? `, ${dvKids} child${dvKids === 1 ? "" : "ren"} at ${fmt(retireeDentalObj.child)}` : ""}</span></span><span style={styles.tableVal}>{fmt(retireeDentalPremium)}/mo</span></div>
+                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeVisionPlan} <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; {dvHeads} {dvHeads === 1 ? "person" : "people"} at {fmt(retireeVisionObj.adult)}{dvHeads > 1 ? " \u2014 estimated" : ""}</span></span><span style={styles.tableVal}>{fmt(retireeVisionPremium)}/mo</span></div>
                           <div style={styles.tableRow}><span style={styles.tableKey}>City pays toward it <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; nothing, once you separate</span></span><span style={styles.tableVal}>$0</span></div>
                           <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Out of your own pocket</strong></span><span style={styles.tableValAccent}>{fmt(retireeDVOOP)}/mo</span></div>
                           <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", lineHeight: 1.7 }}>
@@ -5370,13 +5430,18 @@ export default function RFFRetirementCalculator() {
                         for the other {Math.max(0, 65 - retirementAge)} years, not the 18 months that expire.
                       </div>
                       <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                        Rates quoted <strong>27 Sep 2026</strong> &mdash; Delta Dental of California&rsquo;s own shopping
-                        tool and VSP&rsquo;s published individual pricing, ZIP 95678, one person, age 50. Individual PPO
-                        plans carry a <strong>6-month waiting period</strong> on fillings and everything past cleanings
-                        and X-rays; a group plan does not. Rates for two or more people are the single rate scaled, not
-                        quoted &mdash; treat those as an estimate. Kaiser is no substitute: its CalPERS Medicare plan
-                        lists dental as <strong>not covered</strong>, and its vision is a $175 eyewear allowance every
-                        24 months plus routine exams.
+                        <strong>Dental rates are quoted, not estimated.</strong> Delta Dental of California&rsquo;s own
+                        shopping tool, 27 Sep 2026, ZIP 95678, priced at 1, 2, 3 and 4 people. Delta bills
+                        <strong> per person</strong> &mdash; there is no flat family rate &mdash; and a child costs less than
+                        an adult ({fmt(retireeDentalObj.adult)} vs {fmt(retireeDentalObj.child)} on this plan), which is
+                        why the counts above drive the price rather than the tier.
+                        {dvHeads > 1 && <> <strong>Vision above one person is an estimate:</strong> VSP offers two-person
+                        and family plans but does not publish what they cost, so each head is priced at its individual
+                        rate. Treat the vision line as a ceiling until you get a quote.</>}
+                        {" "}Individual PPO plans carry a <strong>6-month waiting period</strong> on fillings and everything
+                        past cleanings and X-rays; a group plan does not. Kaiser is no substitute: its CalPERS Medicare
+                        plan lists dental as <strong>not covered</strong>, and its vision is a $175 eyewear allowance
+                        every 24 months plus routine exams.
                       </div>
                     </div>
                     {/* ── WHAT IT COSTS ONCE MEDICARE STARTS ── */}
