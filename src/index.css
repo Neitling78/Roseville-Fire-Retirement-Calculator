@@ -18,14 +18,14 @@ body {
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0f0b0a;
-  color: #f8f3ef;
+  background: #ece5db;
+  color: #16120f;
   line-height: 1.5;
 }
 
 #root {
   min-height: 100vh;
-  background: #0f0b0a;
+  background: transparent;
   overflow-x: hidden;
 }
 
@@ -50,24 +50,24 @@ body {
 
 /* Cards lift slightly on hover so the page feels like a surface, not a printout. */
 .rff-card { transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
-.rff-card:hover { border-color: #453733; }
+.rff-card:hover { border-color: #b3a693; }
 
 /* Focus that is visible without being a browser default. */
 .rff-card input:focus, .rff-card select:focus,
 input:focus-visible, select:focus-visible, button:focus-visible {
   outline: none;
-  border-color: #d21f33 !important;
-  box-shadow: 0 0 0 3px rgba(210, 31, 51, 0.18);
+  border-color: #b3172a !important;
+  box-shadow: 0 0 0 3px rgba(179, 23, 42, 0.16);
 }
 
-::selection { background: rgba(210, 31, 51, 0.34); color: #fff; }
+::selection { background: rgba(179, 23, 42, 0.22); color: #fff; }
 
 /* Scrollbars, so the dark page does not get a bright gutter. */
-* { scrollbar-width: thin; scrollbar-color: #352a27 transparent; }
+* { scrollbar-width: thin; scrollbar-color: #c9bfae transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: #352a27; border-radius: 6px; border: 2px solid #0f0b0a; }
-*::-webkit-scrollbar-thumb:hover { background: #453733; }
+*::-webkit-scrollbar-thumb { background: #c9bfae; border-radius: 6px; border: 2px solid #ece5db; }
+*::-webkit-scrollbar-thumb:hover { background: #b3a693; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -89,7 +89,7 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 
 /* Native selects look unfinished in dark mode. Draw our own chevron. */
 .rff-select {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23ada29c' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23574e46' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px !important;
@@ -97,4 +97,48 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 /* Date inputs ship a light calendar glyph that vanishes on a dark field. */
 input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.68); cursor: pointer;
+}
+
+/* ── The page has depth ─────────────────────────────────────────
+   A flat beige fill reads as paper. Three things together make it read as a LIT SURFACE:
+   a broad highlight up top where the light falls, a warmer shadow pooling in the corners
+   and along the bottom, and a fine grain so the gradient never bands. It is fixed to the
+   viewport, so the content scrolls over it rather than dragging it along — that parallax
+   is what sells the depth. Cards then sit on top with a white top edge and a soft drop
+   shadow, lit from the same direction. */
+body {
+  background-color: #ece5db;
+  background-image:
+    /* grain, last so it sits over the gradients */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E"),
+    /* the light, high and slightly left */
+    radial-gradient(1200px 620px at 22% -8%, rgba(255, 253, 248, 0.95), rgba(255, 253, 248, 0) 62%),
+    /* a second, cooler bounce from the right */
+    radial-gradient(900px 520px at 88% 6%, rgba(255, 250, 240, 0.6), rgba(255, 250, 240, 0) 60%),
+    /* shadow pooling bottom-left and bottom-right */
+    radial-gradient(1100px 700px at 8% 108%, rgba(120, 96, 66, 0.20), rgba(120, 96, 66, 0) 58%),
+    radial-gradient(1000px 640px at 96% 96%, rgba(120, 96, 66, 0.15), rgba(120, 96, 66, 0) 58%),
+    /* the body of the surface, darkening away from the light */
+    linear-gradient(168deg, #f3ece2 0%, #ece5db 46%, #e2d9cb 100%);
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+  background-size: 160px 160px, auto, auto, auto, auto, auto;
+}
+
+/* Cards are lit from the same direction as the page: a white top edge where the light
+   catches, a warm shadow underneath. Both are needed — a drop shadow alone reads as a
+   sticker, and a highlight alone reads as a border. */
+.rff-card {
+  position: relative;
+  background-clip: padding-box;
+}
+.rff-card:hover {
+  border-color: #c4b7a7;
+  box-shadow: 0 2px 4px rgba(74, 56, 38, 0.07), 0 14px 30px -16px rgba(74, 56, 38, 0.30);
+  transform: translateY(-1px);
+}
+
+/* Inputs are pressed INTO the surface while cards sit on top of it — opposite shadows,
+   same light. That contrast is most of what makes a form feel physical. */
+input, select {
+  box-shadow: inset 0 1px 2px rgba(74, 56, 38, 0.10), 0 1px 0 #fff;
 }

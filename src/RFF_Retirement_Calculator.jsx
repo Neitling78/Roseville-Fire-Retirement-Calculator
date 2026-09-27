@@ -364,6 +364,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v64)", items: [
+    "<strong>Light beige, black and white.</strong> The whole tool flipped out of dark mode: a warm beige page, near-white cards, warm near-black ink. Reds, golds and greens all went considerably darker — a colour tuned to glow on near-black disappears on beige, and the warning colours are the ones that matter most.",
+    "<strong>The background has depth now.</strong> Light falling from the top left, shadow pooling in the bottom corners, and a fine grain so the gradient never bands. It is pinned to the window rather than the page, so the content slides over it as you scroll — that parallax is what makes it read as a surface instead of a colour.",
+    "<strong>Cards sit on that surface and inputs press into it.</strong> Cards get a white top edge where the light catches and a soft warm shadow beneath; fields get the opposite — an inner shadow, as though pressed in. Same light source for both, which is what stops it looking like stickers on a photo.",
+    "<strong>Everything was re-measured, not eyeballed.</strong> On the card: body text 17.6:1, muted 7.7:1, the small notes 5.4:1, accent 6.5:1, gold 6.1:1, green 5.7:1. Gold failed its first pass against the page at 4.26:1 and was darkened until it cleared. The tests now check every tone against <em>both</em> the card and the page.",
+    "The chart colours were re-picked too — the old ones dropped under 3:1 on beige, which is invisible, so the whole series was re-chosen and re-validated for colour-blind separation on a light surface.",
+  ] },
   { date: "September 27, 2026 (v63)", items: [
     "<strong>The title is readable again.</strong> Stripping the old glowing masthead took it down to 15px, which was too far the other way — it read like a browser tab label rather than the name of the tool. Now 34px on a desktop, 24px on a phone, with the logo scaled up to match and the Local’s name underneath in red.",
     "Still no glow, no drop shadow and no giant watermark behind it. Just bigger.",
@@ -991,17 +998,18 @@ function future457Value(currentBalance, annualContrib, cityMatchAnnual, years, r
     monthlyContrib * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
 }
 // ─── COLOR PALETTE ─────────────────────────────────────────────────────────
-// Warm throughout. The neutrals used to be very slightly BLUE — bg #0b0b0d, text #f4f6f8 —
-// which fought the Local's red on every screen. Every surface, border and text tone now sits
-// on a warm hue around 25° instead, so the red reads as part of the palette rather than the
-// one warm thing on a cold page. Contrast was re-checked against the new card surface: body
-// text 16.5:1, muted 7.3:1, dim 4.6:1, gold 8.5:1, green 7.3:1.
+// Light, warm, and measured. Beige page, near-white cards, warm near-black ink. Every
+// tone below was checked against the CARD (#fbf8f3), the lightest surface text sits on
+// and therefore the worst case: ink 17.6:1, muted 7.7:1, the small dim notes 5.4:1,
+// accent 6.5:1, gold 5.0:1, green 5.7:1 — all clearing AA for body text, not just large.
+// The status hues had to go considerably darker than their dark-theme versions: an amber
+// that reads well on near-black is invisible on beige.
 const COLORS = {
-  bg: "#0f0b0a", surface: "#171110", card: "#1b1413", border: "#352a27",
-  accent: "#d21f33", accentLight: "#ea3b4e", gold: "#f0a028", blue: "#c97b3c",
-  green: "#7cb342", text: "#f8f3ef", textMuted: "#ada29c", textDim: "#8a7d76",
-  danger: "#ef4444",
-  cardRaised: "#231a18", borderSoft: "#281f1d",
+  bg: "#ece5db", surface: "#f4efe6", card: "#fbf8f3", border: "#d8cfc2",
+  accent: "#b3172a", accentLight: "#8f1222", gold: "#85540d", blue: "#8a5220",
+  green: "#456e21", text: "#16120f", textMuted: "#574e46", textDim: "#6f645b",
+  danger: "#b3261e",
+  cardRaised: "#ffffff", borderSoft: "#e6ddd0",
 };
 // ─── TYPE ────────────────────────────────────────────────────────
 // Two faces, on purpose. Inter carries the interface; the serif carries money and
@@ -1041,18 +1049,17 @@ const useCountUp = (target, ms = 520) => {
   }, [target, ms]);
   return shown;
 };
-const SERIES = ["#e8455a", "#2f9bd4", "#c9820f"];   // pension · 457 · other income
-const METER_TRACK = "rgba(232,69,90,0.16)";         // lighter step of the fill's own hue
+const SERIES = ["#c8324a", "#1f7fae", "#a86a12"];   // pension · 457 · other income
+const METER_TRACK = "rgba(200,50,74,0.14)";          // lighter step of the fill's own hue
 // ─── STYLES ────────────────────────────────────────────────────────────────
 const styles = {
   app: { minHeight: "100vh", background: COLORS.bg, color: COLORS.text,
     fontFamily: FONT_UI, padding: "0", position: "relative",
     WebkitFontSmoothing: "antialiased", letterSpacing: "-0.011em" },
-  header: { background: `linear-gradient(135deg, #171110 0%, #0f0b0a 55%, #171110 100%)`,
+  header: { background: `linear-gradient(135deg, #f4efe6 0%, #ece5db 55%, #f4efe6 100%)`,
     borderBottom: `2px solid ${COLORS.accent}`, padding: "24px 32px",
     display: "flex", alignItems: "center", gap: "20px" },
-  logo: { height: "64px", width: "auto",
-    filter: "drop-shadow(0 0 14px rgba(210, 31, 51, 0.35))" },
+  logo: { height: "64px", width: "auto" },
   headerTitle: { margin: 0, fontSize: "26px", fontWeight: "800",
     letterSpacing: "-0.03em", color: COLORS.text, lineHeight: 1.1 },
   headerSub: { margin: 0, fontSize: "10px", color: COLORS.accent,
@@ -1063,11 +1070,11 @@ const styles = {
   // Ordinary card. Sits at rest — most of the page is this.
   card: { background: COLORS.card, border: `1px solid ${COLORS.borderSoft}`,
     borderRadius: "14px", padding: "24px", marginBottom: "20px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.35)" },
+    boxShadow: "0 1px 2px rgba(74, 56, 38, 0.06), 0 6px 16px -10px rgba(74, 56, 38, 0.18)" },
   // The card carrying the answer on a screen. One per screen, at most.
   cardHero: { background: `linear-gradient(168deg, ${COLORS.cardRaised} 0%, ${COLORS.card} 62%)`,
     border: `1px solid ${COLORS.border}`, borderRadius: "16px", padding: "28px",
-    marginBottom: "24px", boxShadow: "0 12px 34px -18px rgba(0,0,0,0.9), 0 1px 0 rgba(255, 234, 222, 0.03) inset" },
+    marginBottom: "24px", boxShadow: "0 18px 38px -22px rgba(74, 56, 38, 0.45), 0 2px 6px rgba(74, 56, 38, 0.07), 0 1px 0 #fff inset" },
   // Supporting detail. Deliberately recessive — no lift, dimmer edge.
   cardQuiet: { background: "transparent", border: `1px solid ${COLORS.borderSoft}`,
     borderRadius: "14px", padding: "20px", marginBottom: "16px" },
@@ -1079,10 +1086,10 @@ const styles = {
   label: { display: "block", fontSize: "12px", fontWeight: "600",
     color: COLORS.text, marginBottom: "7px",
     letterSpacing: "-0.005em", textTransform: "none" },
-  input: { width: "100%", background: "#141010", border: `1px solid ${COLORS.border}`,
+  input: { width: "100%", background: "#ffffff", border: `1px solid ${COLORS.border}`,
     borderRadius: "8px", padding: "10px 14px", color: COLORS.text,
     fontSize: "14px", outline: "none", boxSizing: "border-box" },
-  select: { width: "100%", background: "#141010", border: `1px solid ${COLORS.border}`,
+  select: { width: "100%", background: "#ffffff", border: `1px solid ${COLORS.border}`,
     borderRadius: "8px", padding: "10px 14px", color: COLORS.text,
     fontSize: "14px", outline: "none", boxSizing: "border-box",
     appearance: "none", cursor: "pointer" },
@@ -1121,36 +1128,36 @@ const styles = {
     fontVariantNumeric: "tabular-nums" },
   badge: { display: "inline-block", padding: "2px 8px", borderRadius: "4px",
     fontSize: "10px", fontWeight: "700", letterSpacing: "1px", textTransform: "uppercase" },
-  badgeGreen: { background: "rgba(255, 234, 222, 0.15)", color: COLORS.green,
-    border: `1px solid rgba(255, 234, 222, 0.3)` },
+  badgeGreen: { background: "rgba(69, 110, 33, 0.10)", color: COLORS.green,
+    border: `1px solid rgba(69, 110, 33, 0.28)` },
   tabRow: { display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" },
   tab: (active) => ({
     padding: "11px 12px", borderRadius: "10px",
     border: `1px solid ${active ? COLORS.accent : "transparent"}`,
-    background: active ? "rgba(210,31,51,0.14)" : "rgba(255, 234, 222, 0.035)",
+    background: active ? COLORS.accent : "rgba(60, 46, 34, 0.05)",
     color: active ? "#ffffff" : COLORS.textMuted,
     fontSize: "13px", fontWeight: active ? "650" : "500", letterSpacing: "-0.005em",
     textTransform: "none", cursor: "pointer",
-    boxShadow: active ? "0 6px 18px -10px rgba(210,31,51,0.8)" : "none",
+    boxShadow: active ? "0 6px 16px -8px rgba(179,23,42,0.55)" : "0 1px 0 #fff inset",
     transition: "background 0.15s, box-shadow 0.15s, border-color 0.15s, color 0.15s",
   }),
   summaryBar: { display: "grid", gap: "12px", marginBottom: "20px" },
-  summaryCard: { background: "linear-gradient(165deg, #201817 0%, #141010 70%)",
+  summaryCard: { background: "linear-gradient(168deg, #ffffff 0%, #fbf7f1 100%)",
     border: `1px solid ${COLORS.borderSoft}`, borderRadius: "12px", padding: "16px 18px",
-    boxShadow: "0 1px 0 rgba(255, 234, 222, 0.03) inset" },
+    boxShadow: "0 1px 0 #fff inset, 0 1px 3px rgba(74, 56, 38, 0.08)" },
   summaryLabel: { fontSize: "10px", color: COLORS.textDim, textTransform: "uppercase",
     letterSpacing: "0.14em", fontWeight: "700", marginBottom: "7px" },
   summaryValue: { fontSize: "30px", fontWeight: "800",
     letterSpacing: "-0.035em", lineHeight: 1.05, fontVariantNumeric: "tabular-nums" },
   sectionToggle: { width: "100%", display: "flex", justifyContent: "space-between",
-    alignItems: "center", background: "#141010", border: `1px solid ${COLORS.border}`,
+    alignItems: "center", background: "#ffffff", border: `1px solid ${COLORS.border}`,
     borderRadius: "10px", padding: "12px 14px", color: COLORS.text, fontSize: "14px",
     fontWeight: "600", cursor: "pointer", marginBottom: "12px" },
-  compareBox: { background: "rgba(255, 234, 222, 0.05)",
-    border: `1px solid rgba(255, 234, 222, 0.2)`, borderRadius: "8px",
+  compareBox: { background: "rgba(60, 46, 34, 0.055)",
+    border: `1px solid rgba(60, 46, 34, 0.090)`, borderRadius: "8px",
     padding: "16px", marginTop: "12px" },
-  warningBox: { background: "rgba(210, 31, 51, 0.05)",
-    border: `1px solid rgba(210, 31, 51, 0.2)`, borderRadius: "8px",
+  warningBox: { background: "rgba(179, 23, 42, 0.05)",
+    border: `1px solid rgba(179, 23, 42, 0.2)`, borderRadius: "8px",
     padding: "12px 16px", marginBottom: "12px", fontSize: "12px",
     color: COLORS.gold, lineHeight: "1.6" },
   colaTable: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
@@ -2208,8 +2215,8 @@ export default function RFFRetirementCalculator() {
   // in a chip on the row itself, beats a warning box at the bottom that has to be connected
   // back to which rows it meant.
   const endedChip = (
-    <span style={{ ...styles.badge, background: "rgba(240,160,40,0.16)", color: COLORS.gold,
-      border: "1px solid rgba(240,160,40,0.4)", marginLeft: "8px", verticalAlign: "middle" }}>
+    <span style={{ ...styles.badge, background: "rgba(133,84,13,0.16)", color: COLORS.gold,
+      border: "1px solid rgba(133,84,13,0.4)", marginLeft: "8px", verticalAlign: "middle" }}>
       ends 1/9/2027 · not counted
     </span>
   );
@@ -2613,7 +2620,7 @@ export default function RFFRetirementCalculator() {
                     {priorService.map((r, i) => {
                       const calc = priorServiceCalc[i] || {};
                       return (
-                        <div key={r.id} style={{ background: "#141010", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "10px", marginBottom: "8px" }}>
+                        <div key={r.id} style={{ background: "#ffffff", border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "10px", marginBottom: "8px" }}>
                           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1.4fr 1.4fr 0.7fr auto", gap: "8px", alignItems: "end" }}>
                             <div>
                               <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Agency</label>
@@ -2662,7 +2669,7 @@ export default function RFFRetirementCalculator() {
                       );
                     })}
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px", alignItems: "end" }}>
-                      <button onClick={addPriorRow} style={{ background: "rgba(255, 234, 222, 0.12)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add agency</button>
+                      <button onClick={addPriorRow} style={{ background: "rgba(60, 46, 34, 0.090)", border: `1px solid ${COLORS.accent}`, color: COLORS.accent, borderRadius: "8px", padding: "10px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>+ Add agency</button>
                       <div>
                         <label style={{ ...styles.label, fontSize: "10px", marginBottom: "3px" }}>Air Time purchased <span style={{ color: COLORS.textDim }}>· years, max 5</span></label>
                         <input style={{ ...styles.input, margin: 0 }} type="number" step="0.5" min={0} max={5} value={airtime || ""} placeholder="0"
@@ -2670,7 +2677,7 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
                     {(priorTotalYears > 0 || airtimeYears > 0) && (
-                      <div style={{ marginTop: "10px", padding: "8px 10px", background: "rgba(255, 234, 222, 0.08)", borderRadius: "8px", fontSize: "11px", color: COLORS.text, lineHeight: 1.6 }}>
+                      <div style={{ marginTop: "10px", padding: "8px 10px", background: "rgba(60, 46, 34, 0.088)", borderRadius: "8px", fontSize: "11px", color: COLORS.text, lineHeight: 1.6 }}>
                         {yearsOfService.toFixed(1)} yrs Roseville + {priorTotalYears} prior{airtimeYears > 0 ? ` + ${airtimeYears} Air Time` : ""} = <strong>{(yearsOfService + priorTotalYears + airtimeYears).toFixed(1)} years</strong>
                         {priorPensionMonthly > 0 && <> · other systems pay <strong style={{ color: COLORS.green }}>{fmt(priorPensionMonthly)}/mo</strong> separately</>}
                       </div>
@@ -2913,7 +2920,7 @@ export default function RFFRetirementCalculator() {
         display: "flex", alignItems: "center", gap: "8px" }}>
         {/* Two clicks, never one. The label changes so the second click is an informed one. */}
         <button onClick={resetAll} title="Clear everything saved on this device and start from defaults"
-          style={{ background: resetArmed ? "rgba(210,31,51,0.9)" : "rgba(0,0,0,0.45)",
+          style={{ background: resetArmed ? "rgba(179,23,42,0.9)" : "rgba(255,255,255,0.72)",
             border: `1px solid ${resetArmed ? COLORS.accentLight : COLORS.border}`,
             color: resetArmed ? "#fff" : COLORS.textMuted, borderRadius: "8px",
             padding: "7px 12px", fontSize: "12px", fontWeight: resetArmed ? 700 : 600,
@@ -2928,9 +2935,9 @@ export default function RFFRetirementCalculator() {
             Cancel
           </button>
         )}
-        <button onClick={() => setMenuOpen(o => !o)} aria-label="Menu" style={{ background: "rgba(0,0,0,0.45)", border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: "8px", padding: "4px 12px", fontSize: "20px", lineHeight: 1.1, cursor: "pointer" }}>⋯</button>
+        <button onClick={() => setMenuOpen(o => !o)} aria-label="Menu" style={{ background: "rgba(255,255,255,0.72)", border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: "8px", padding: "4px 12px", fontSize: "20px", lineHeight: 1.1, cursor: "pointer" }}>⋯</button>
         {menuOpen && (
-          <div style={{ position: "absolute", top: "42px", right: 0, background: "#1b1413", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "6px", minWidth: "190px", boxShadow: "0 10px 30px rgba(0,0,0,0.55)" }}>
+          <div style={{ position: "absolute", top: "42px", right: 0, background: "#fbf8f3", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "6px", minWidth: "190px", boxShadow: "0 16px 38px -14px rgba(74, 56, 38, 0.38)" }}>
             <button onClick={() => { setMenuOpen(false); window.print(); }} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", color: COLORS.text, padding: "10px 12px", fontSize: "13px", cursor: "pointer", borderRadius: "6px" }}>Print / Save PDF</button>
             <a href={`mailto:?subject=${encodeURIComponent("My RFF Retirement Estimate")}&body=${encodeURIComponent(`Estimated total monthly income: ${fmt(totalMonthly)}\nMonthly pension: ${fmt(combinedPensionMonthly)}\n457 at retirement: ${fmt(value457)}\nReplacement: ${(retirementVsWorking * 100).toFixed(0)}% of current pay\n\nFrom the RFF Retirement Calculator — https://neitling78.github.io/Roseville-Fire-Retirement-Calculator/ (estimates only)`)}`} onClick={() => setMenuOpen(false)} style={{ display: "block", width: "100%", textAlign: "left", color: COLORS.text, padding: "10px 12px", fontSize: "13px", textDecoration: "none", borderRadius: "6px" }}>Email me this</a>
           </div>
@@ -2964,7 +2971,7 @@ export default function RFFRetirementCalculator() {
       {!wizardDone && (
         <div className="no-print" style={{ ...styles.container, maxWidth: "620px", padding: isMobile ? "24px 14px 48px" : "48px 20px 64px" }}>
           <div style={{ marginBottom: "20px" }}>
-            <div style={{ height: "4px", borderRadius: "2px", background: "rgba(255, 234, 222, 0.09)", marginBottom: "12px" }}>
+            <div style={{ height: "4px", borderRadius: "2px", background: "rgba(60, 46, 34, 0.090)", marginBottom: "12px" }}>
               <div className="rff-fill" style={{ width: `${(wizardStep / (WIZARD.length - 1) * 100).toFixed(1)}%`,
                 height: "100%", borderRadius: "2px", background: COLORS.accent }} />
             </div>
@@ -3004,7 +3011,7 @@ export default function RFFRetirementCalculator() {
               }}
               style={{ flex: 1, padding: "14px 18px", borderRadius: "10px", fontSize: "15px", fontWeight: 700,
                 border: `1px solid ${wizStep.valid ? COLORS.accent : COLORS.borderSoft}`,
-                background: wizStep.valid ? COLORS.accent : "rgba(255, 234, 222, 0.04)",
+                background: wizStep.valid ? COLORS.accent : "rgba(60, 46, 34, 0.044)",
                 color: wizStep.valid ? "#fff" : COLORS.textDim,
                 cursor: wizStep.valid ? "pointer" : "not-allowed",
                 transition: "background 0.15s, color 0.15s, border-color 0.15s" }}>
@@ -3022,7 +3029,7 @@ export default function RFFRetirementCalculator() {
         </div>
       )}
       {wizardDone && (<>
-      <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
+      <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 4px 18px -6px rgba(74, 56, 38, 0.26)" }}>
         {/* The four numbers a member actually came for: what they make now, gross and net,
             against what they will get retired, gross and net. Everything else is the working. */}
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 20px",
@@ -3058,7 +3065,7 @@ export default function RFFRetirementCalculator() {
           full dashboard is worse than either — the member cannot tell which one to use. */}
             <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
         {datesInvalid && (
-          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
+          <div style={{ background: "rgba(179,38,30,0.1)", border: "1px solid rgba(179,38,30,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#7d1a14" }}>
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Member details — the numbers above aren't valid until then.
           </div>
         )}
@@ -3163,7 +3170,7 @@ export default function RFFRetirementCalculator() {
                                   already in them. If the Total is higher than the rows, it is not.
                                 </div>
                               </div>
-                              <div style={{ padding: "12px", background: "rgba(124,179,66,0.06)", border: `1px solid rgba(124,179,66,0.25)`, borderRadius: "8px" }}>
+                              <div style={{ padding: "12px", background: "rgba(69,110,33,0.06)", border: `1px solid rgba(69,110,33,0.25)`, borderRadius: "8px" }}>
                                 <div style={styles.tableRow}>
                                   <span style={styles.tableKey}>On file today</span>
                                   <span style={styles.tableVal}>{(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs</span>
@@ -3258,7 +3265,7 @@ export default function RFFRetirementCalculator() {
                   <div onClick={() => toggleClosed("sickdetail")}
                     style={{ cursor: "pointer", userSelect: "none", display: "flex", justifyContent: "space-between",
                       alignItems: "center", padding: "10px 12px", borderRadius: "8px",
-                      background: "rgba(255, 234, 222, 0.04)", border: `1px solid ${COLORS.border}`,
+                      background: "rgba(60, 46, 34, 0.044)", border: `1px solid ${COLORS.border}`,
                       fontSize: "12px", color: COLORS.textMuted, marginBottom: openSections.sickdetail ? "14px" : "0" }}>
                     <span><strong style={{ color: COLORS.text }}>Cash or credit?</strong> Want more details?</span>
                     <span style={{ color: COLORS.textDim }}>{openSections.sickdetail ? "▾" : "▸"}</span>
@@ -3270,7 +3277,7 @@ export default function RFFRetirementCalculator() {
                     become service credit at <strong>2,000 hours = 1 year</strong>. The MOU lets you cash it
                     out instead, on a sliding scale. You cannot do both with the same hours.
                   </div>
-                  <div style={{ padding: "12px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px", marginBottom: "14px" }}>
+                  <div style={{ padding: "12px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px", marginBottom: "14px" }}>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>Hours at retirement <span style={{ fontSize: "10px", color: COLORS.textDim }}>· your estimate</span></span>
                       <span style={styles.tableVal}>{sickLeaveHours.toFixed(0)} hrs</span>
@@ -3284,8 +3291,8 @@ export default function RFFRetirementCalculator() {
                   </div>
                   {/* The comparison that decides it — kept, minus the controls. */}
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-                    <div style={{ padding: "12px", borderRadius: "8px", background: altCreditMonthlyIfAllCredit > 0 ? "rgba(124,179,66,0.08)" : "rgba(240,160,40,0.10)",
-                      border: `1px solid ${altCreditMonthlyIfAllCredit > 0 ? "rgba(124,179,66,0.3)" : "rgba(240,160,40,0.35)"}` }}>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: altCreditMonthlyIfAllCredit > 0 ? "rgba(69,110,33,0.08)" : "rgba(133,84,13,0.10)",
+                      border: `1px solid ${altCreditMonthlyIfAllCredit > 0 ? "rgba(69,110,33,0.3)" : "rgba(133,84,13,0.35)"}` }}>
                       <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As service credit</div>
                       <div style={{ fontSize: "20px", fontWeight: 800, color: altCreditMonthlyIfAllCredit > 0 ? COLORS.green : COLORS.gold, lineHeight: 1.2 }}>
                         {altCreditMonthlyIfAllCredit > 0 ? fmt(altCreditMonthlyIfAllCredit) + "/mo" : "Worth $0 to you"}
@@ -3297,7 +3304,7 @@ export default function RFFRetirementCalculator() {
                             Taking it as cash is worth <strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong> instead.</>}
                       </div>
                     </div>
-                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(255, 234, 222, 0.05)", border: `1px solid ${COLORS.border}` }}>
+                    <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(60, 46, 34, 0.055)", border: `1px solid ${COLORS.border}` }}>
                       <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted }}>As cash</div>
                       <div style={{ fontSize: "20px", fontWeight: 800, color: COLORS.gold, lineHeight: 1.2 }}>{fmt(altCashIfAllCash)}</div>
                       <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "4px", lineHeight: 1.6 }}>
@@ -3313,7 +3320,7 @@ export default function RFFRetirementCalculator() {
                       reading of the table and is <strong>not confirmed City practice</strong> — check it with the Treasurer.
                     </div>
                   )}
-                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(210,31,51,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
+                  <div style={{ marginTop: "14px", padding: "12px", background: "rgba(179,23,42,0.08)", borderRadius: "8px", fontSize: "12px", lineHeight: 1.7 }}>
                     <strong style={{ color: COLORS.text }}>Your choice, as it stands:</strong>
                     {sickLeaveCreditYears > 0 && <> +{sickLeaveCreditYears.toFixed(2)} yrs of service ({fmt(sickLeavePensionBoostMonthly)}/mo for life)</>}
                     {sickLeaveCreditYears > 0 && sickLeavePayoff > 0 && " and"}
@@ -3326,7 +3333,7 @@ export default function RFFRetirementCalculator() {
                     {" "}{fmtHr(ratesForYear(NOW.getFullYear()).cashOut)}/hr. You are paid out at your rate on your last day. It lands in one tax
                     year, is taxed as wages, and is not pensionable.
                   </div>
-                  <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(201,123,60,0.08)", border: `1px solid rgba(201,123,60,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                  <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(138,82,32,0.08)", border: `1px solid rgba(138,82,32,0.28)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: 1.7 }}>
                       <strong style={{ color: COLORS.text }}>Holiday hours are not a separate cash-out.</strong> Your
                       {" "}{HOLIDAY_HOURS} hours of holiday pay are already reported to CalPERS as special compensation
                       (MOU Ch.3 Art.II.C, CCR §571) — they are in your pensionable compensation on the pension screen.
@@ -3336,7 +3343,7 @@ export default function RFFRetirementCalculator() {
                   {/* Members reliably expect hours × hourly rate and get roughly half of it. The MOU pays a
                       percentage set by the size of the balance, so show the table and the arithmetic rather
                       than leaving them to wonder where the money went. */}
-                  <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px" }}>
+                  <div style={{ marginTop: "16px", padding: "12px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px" }}>
                     <p style={{ fontSize: "12px", fontWeight: 700, color: COLORS.text, marginBottom: "6px" }}>
                       Why the cash figure is not hours × your hourly rate
                     </p>
@@ -3351,7 +3358,7 @@ export default function RFFRetirementCalculator() {
                       return (
                         <div key={t.min} style={{ display: "flex", justifyContent: "space-between",
                           padding: "4px 8px", borderRadius: "5px", fontSize: "11px", lineHeight: 1.7,
-                          background: mine ? "rgba(240,160,40,0.14)" : "transparent",
+                          background: mine ? "rgba(133,84,13,0.14)" : "transparent",
                           color: mine ? COLORS.text : COLORS.textDim, fontWeight: mine ? 700 : 400 }}>
                           <span>
                             {t.max === Infinity
@@ -3419,7 +3426,7 @@ export default function RFFRetirementCalculator() {
                         box can be ticked and still not counted (pay that ends before you retire). Show the
                         arithmetic rather than leaving a member to add the boxes up and come out short. */}
                     {incentives.totalIncentivePct > 0 && (
-                      <div style={{ marginTop: "14px", padding: "12px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px" }}>
+                      <div style={{ marginTop: "14px", padding: "12px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px" }}>
                         <div style={styles.tableRow}>
                           <span style={styles.tableKey}>Boxes you ticked that count</span>
                           <span style={styles.tableVal}>{pct(tickedIncentivePct)}</span>
@@ -3533,7 +3540,7 @@ export default function RFFRetirementCalculator() {
                         Retiring {effectiveRetDateStr} at age {Math.floor(retireAgeQ)} with {yearsOfService.toFixed(1)} years.
                       </div>
 
-                      <div style={{ padding: "10px 12px", background: "rgba(255, 234, 222, 0.04)", borderRadius: "8px", marginBottom: "10px" }}>
+                      <div style={{ padding: "10px 12px", background: "rgba(60, 46, 34, 0.044)", borderRadius: "8px", marginBottom: "10px" }}>
                         <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "6px" }}>What the pension is figured on</div>
                         <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "8px", lineHeight: 1.6 }}>
                           Your pensionable pay in {retirementYear} — base, specialty pay, longevity, holiday pay,
@@ -3606,7 +3613,7 @@ export default function RFFRetirementCalculator() {
                         </div>
                       </div>
 
-                      <div style={{ marginTop: "16px", padding: "14px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px" }}>
+                      <div style={{ marginTop: "16px", padding: "14px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px" }}>
                         <div style={styles.tableRow}>
                           <span style={styles.tableKey}>Working today, after everything</span>
                           <span style={styles.tableVal}>{fmt(workingTakeHome)}/mo</span>
@@ -3664,7 +3671,7 @@ export default function RFFRetirementCalculator() {
                       </div>
 
                       {calpersBalance > 0 && combinedPensionMonthly > 0 && (
-                        <div style={{ marginTop: "14px", padding: "12px", background: "rgba(201,123,60,0.08)", border: `1px solid rgba(201,123,60,0.28)`, borderRadius: "8px", fontSize: "12px", lineHeight: 1.7, color: COLORS.textMuted }}>
+                        <div style={{ marginTop: "14px", padding: "12px", background: "rgba(138,82,32,0.08)", border: `1px solid rgba(138,82,32,0.28)`, borderRadius: "8px", fontSize: "12px", lineHeight: 1.7, color: COLORS.textMuted }}>
                           <strong style={{ color: COLORS.text }}>Your account balance is not your pension.</strong>
                           <div style={styles.tableRow}>
                             <span style={styles.tableKey}>CalPERS balance (refund value)</span>
@@ -3684,7 +3691,7 @@ export default function RFFRetirementCalculator() {
                       )}
                     </div>
 
-                    <div className="rff-card" style={{ ...styles.card, background: "rgba(210,31,51,0.06)" }}>
+                    <div className="rff-card" style={{ ...styles.card, background: "rgba(179,23,42,0.06)" }}>
                       <p style={{ ...styles.cardTitle, marginBottom: "8px" }}>Two things worth knowing</p>
                       <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
                         {calpersOverCap && (
@@ -3893,8 +3900,8 @@ export default function RFFRetirementCalculator() {
                   </div>
                   {shownRateYear > NOW.getFullYear() && (
                     <div style={{ fontSize: "11px", lineHeight: 1.7, marginBottom: "12px", padding: "10px 12px", borderRadius: "8px",
-                      background: shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(240,160,40,0.08)" : "rgba(201,123,60,0.08)",
-                      border: `1px solid ${shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(240,160,40,0.35)" : "rgba(201,123,60,0.28)"}`,
+                      background: shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(133,84,13,0.08)" : "rgba(138,82,32,0.08)",
+                      border: `1px solid ${shownRateYear === 2028 && (parseFloat(lmaPct) || 0) === 0 ? "rgba(133,84,13,0.35)" : "rgba(138,82,32,0.28)"}`,
                       color: COLORS.textMuted }}>
                       <strong style={{ color: COLORS.text }}>What is in {shownRateYear}:</strong>
                       {shownRateYear >= 2027 && <> Jan 2027 — {isPreventionClass(classification) ? `prevention +${pctExact(mouGwiFor(2027, classification))}` : "no general wage increase for suppression"}{R.rankSepApplied ? `; rank separation (${shownRateYear >= 2028 ? "Engineer 10% above Paramedic, Captain 10% above Engineer" : "Engineer 7.5% above Paramedic, Captain 10% above Engineer"})` : ""}.</>}
@@ -4079,7 +4086,7 @@ export default function RFFRetirementCalculator() {
                       <span style={styles.tableValGreen}>{fmtHr(shownRates.cashOut)}/hr</span>
                     </div>
                     {shownRateYear !== NOW.getFullYear() && (
-                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(201,123,60,0.08)", border: `1px solid rgba(201,123,60,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", padding: "10px 12px", background: "rgba(138,82,32,0.08)", border: `1px solid rgba(138,82,32,0.28)`, borderRadius: "8px", lineHeight: 1.7 }}>
                         <strong style={{ color: COLORS.text }}>What moved between {NOW.getFullYear()} and {shownRateYear}:</strong>
                         <div style={{ marginTop: "4px" }}>
                           {shownRateYear >= 2027 && (
@@ -4138,7 +4145,7 @@ export default function RFFRetirementCalculator() {
                   pension percentage.</strong> The only thing that still moves the check is your pay going up,
                   and any service you hold under a different CalPERS formula.
                 </div>
-                <div style={{ padding: "12px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px", marginBottom: "12px" }}>
+                <div style={{ padding: "12px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px", marginBottom: "12px" }}>
                   <div style={styles.tableRow}>
                     <span style={styles.tableKey}>{capAlreadyPassed ? "Reached the cap" : "You reach the cap"}</span>
                     <span style={capAlreadyPassed ? styles.tableValGold : styles.tableValGreen}>{capDateStr}</span>
@@ -4157,7 +4164,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                 </div>
                 {!capAfterPlannedExit && (
-                  <div style={{ padding: "10px 12px", background: "rgba(240,160,40,0.10)", border: "1px solid rgba(240,160,40,0.35)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "12px" }}>
+                  <div style={{ padding: "10px 12px", background: "rgba(133,84,13,0.10)", border: "1px solid rgba(133,84,13,0.35)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7, marginBottom: "12px" }}>
                     <strong style={{ color: COLORS.text }}>Read the tables below with that in mind.</strong> Working past
                     {" "}{capDateStr} does not raise your percentage — the gains those rows show come from your
                     final compensation climbing, not from service. That is a real gain, but it is a much smaller
@@ -4264,7 +4271,7 @@ export default function RFFRetirementCalculator() {
                 )}
                 {setupDone && retireYearOptions.length > 0 && (
                   <>
-                    <div style={{ marginBottom: "14px", padding: "14px", background: "rgba(255, 234, 222, 0.06)", border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
+                    <div style={{ marginBottom: "14px", padding: "14px", background: "rgba(60, 46, 34, 0.066)", border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
                       <div style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px", color: COLORS.textMuted, marginBottom: "10px" }}>
                         Three assumptions, yours to set
                       </div>
@@ -4312,8 +4319,8 @@ export default function RFFRetirementCalculator() {
                         </div>
                       </div>
                       <div style={{ fontSize: "11px", marginTop: "12px", padding: "10px 12px", borderRadius: "8px", lineHeight: 1.7,
-                        background: noAssumptions ? "rgba(124,179,66,0.08)" : "rgba(201,123,60,0.08)",
-                        border: `1px solid ${noAssumptions ? "rgba(124,179,66,0.3)" : "rgba(201,123,60,0.28)"}`,
+                        background: noAssumptions ? "rgba(69,110,33,0.08)" : "rgba(138,82,32,0.08)",
+                        border: `1px solid ${noAssumptions ? "rgba(69,110,33,0.3)" : "rgba(138,82,32,0.28)"}`,
                         color: COLORS.textMuted }}>
                         {noAssumptions ? (
                           <><strong style={{ color: COLORS.green }}>All three at zero.</strong> Nothing is assumed. The only
@@ -4363,7 +4370,7 @@ export default function RFFRetirementCalculator() {
                               <tr key={r.year}
                                 onClick={() => { setRetirementDateOverride(`${r.year}-${String(retMonthNum).padStart(2, "0")}-${String(retDayNum).padStart(2, "0")}`); setSetupDone(true); }}
                                 style={{ cursor: "pointer", textAlign: "right",
-                                  background: isSel ? "rgba(210,31,51,0.16)" : "transparent",
+                                  background: isSel ? "rgba(179,23,42,0.16)" : "transparent",
                                   borderTop: `1px solid ${COLORS.border}` }}>
                                 <td style={{ textAlign: "left", padding: "9px 4px", fontWeight: isSel ? 800 : 600, color: isSel ? COLORS.accent : COLORS.text }}>
                                   {r.year}{r.atCap ? " ▪" : ""}
@@ -4481,7 +4488,7 @@ export default function RFFRetirementCalculator() {
                               <tbody>
                                 {rows.map(r => (
                                   <tr key={r.year} style={{ textAlign: "right", borderTop: `1px solid ${COLORS.border}`,
-                                    background: r.year === retirementYear ? "rgba(210,31,51,0.16)" : "transparent" }}>
+                                    background: r.year === retirementYear ? "rgba(179,23,42,0.16)" : "transparent" }}>
                                     <td style={{ textAlign: "left", padding: "9px 4px", fontWeight: r.year === retirementYear ? 800 : 600,
                                       color: r.year === retirementYear ? COLORS.accent : COLORS.text }}>{r.year}</td>
                                     <td style={{ padding: "9px 4px", color: COLORS.textMuted }}>{r.extraYears}</td>
@@ -4547,7 +4554,7 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 {/* ── 1 · SURVIVOR CONTINUANCE — the part you do not pay for ── */}
-                <div style={{ padding: "14px", background: "rgba(124,179,66,0.07)", border: `1px solid ${COLORS.green}`, borderRadius: "10px", marginBottom: "16px" }}>
+                <div style={{ padding: "14px", background: "rgba(69,110,33,0.07)", border: `1px solid ${COLORS.green}`, borderRadius: "10px", marginBottom: "16px" }}>
                   <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.green, marginBottom: "8px" }}>
                     1 &middot; Survivor continuance &mdash; free, and not an election
                   </div>
@@ -4609,7 +4616,7 @@ export default function RFFRetirementCalculator() {
                         return (
                           <tr key={o.key} onClick={() => setSurvivorOption(o.key)}
                             style={{ cursor: "pointer", borderBottom: `1px solid ${COLORS.border}`,
-                              background: on ? "rgba(210,31,51,0.10)" : "transparent" }}>
+                              background: on ? "rgba(179,23,42,0.10)" : "transparent" }}>
                             <td style={{ padding: "9px 4px", color: on ? COLORS.text : COLORS.textMuted, fontWeight: on ? 700 : 400 }}>
                               {on ? "● " : "○ "}{o.short}
                             </td>
@@ -4633,7 +4640,7 @@ export default function RFFRetirementCalculator() {
                 </div>
 
                 {/* ── 3 · WHAT YOU JUST PICKED ── */}
-                <div style={{ padding: "14px", background: "rgba(255, 234, 222, 0.03)", border: `1px solid ${COLORS.border}`, borderRadius: "10px", marginBottom: "14px" }}>
+                <div style={{ padding: "14px", background: "rgba(60, 46, 34, 0.033)", border: `1px solid ${COLORS.border}`, borderRadius: "10px", marginBottom: "14px" }}>
                   <div style={{ fontSize: "13px", fontWeight: 700, color: COLORS.text, marginBottom: "8px" }}>{survivorChosen.label}</div>
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.75, marginBottom: "12px" }}>{survivorChosen.note}</div>
 
@@ -4722,7 +4729,7 @@ export default function RFFRetirementCalculator() {
 
                 {/* ── 4 · HONESTY ABOUT THE FACTORS ── */}
                 {survivorOption !== "unmod" && (
-                  <div style={{ padding: "12px", background: "rgba(240,160,40,0.08)", border: "1px solid rgba(240,160,40,0.35)", borderRadius: "8px" }}>
+                  <div style={{ padding: "12px", background: "rgba(133,84,13,0.08)", border: "1px solid rgba(133,84,13,0.35)", borderRadius: "8px" }}>
                     <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.gold, marginBottom: "6px" }}>
                       &#9888; The reduction is calibrated, not yours
                     </div>
@@ -4776,7 +4783,7 @@ export default function RFFRetirementCalculator() {
                   <span style={{ fontSize: "11px", color: COLORS.textDim }}>CalPERS Region 1 &middot; Placer County</span>
                 </div>
                 {healthRates.pending && (
-                  <div style={{ padding: "10px 12px", background: "rgba(240,160,40,0.08)", border: "1px solid rgba(240,160,40,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                  <div style={{ padding: "10px 12px", background: "rgba(133,84,13,0.08)", border: "1px solid rgba(133,84,13,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
                     <strong style={{ color: COLORS.gold }}>{healthRates.askedFor} rates are not published yet.</strong> CalPERS
                     sets the following year&rsquo;s premiums around June and they take effect the next January 1. Rather than
                     guess, every figure below is the <strong style={{ color: COLORS.text }}>{healthRates.year}</strong> rate.
@@ -4784,7 +4791,7 @@ export default function RFFRetirementCalculator() {
                   </div>
                 )}
                 {(selectedPlanMissing || retireePlanMissing) && (
-                  <div style={{ padding: "10px 12px", background: "rgba(240,160,40,0.08)", border: "1px solid rgba(240,160,40,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
+                  <div style={{ padding: "10px 12px", background: "rgba(133,84,13,0.08)", border: "1px solid rgba(133,84,13,0.35)", borderRadius: "8px", marginBottom: "12px", fontSize: "11px", color: COLORS.textDim, lineHeight: 1.7 }}>
                     <strong style={{ color: COLORS.gold }}>Your plan did not exist in {healthRates.year}.</strong> Showing
                     {" "}{selectedPlanObj.name} instead so the figures below are real. UnitedHealthcare Alliance and Harmony
                     left CalPERS after 2026; Sutter Health Plan and Blue Shield EPO arrived for 2027.
@@ -4824,7 +4831,7 @@ export default function RFFRetirementCalculator() {
                     </select>
                   </div>
                 </div>
-                <div style={{ textAlign: "center", padding: "20px", background: "rgba(210,31,51,0.10)", borderRadius: "10px", margin: "12px 0 16px" }}>
+                <div style={{ textAlign: "center", padding: "20px", background: "rgba(179,23,42,0.10)", borderRadius: "10px", margin: "12px 0 16px" }}>
                   <div style={styles.metricLabel}>Your cost from your paycheck</div>
                   <div style={styles.bigNumber}>{fmt(medicalTotalOOP)}/mo</div>
                   <div style={{ color: COLORS.textMuted, fontSize: "13px", marginTop: "6px" }}>medical + dental + vision, after the City's share</div>
@@ -4887,7 +4894,7 @@ export default function RFFRetirementCalculator() {
                     <div style={styles.tableRow}><span style={styles.tableKey}>{retireeMedicalPlan} premium</span><span style={styles.tableVal}>{fmt(retireePremium)}/mo</span></div>
                     <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
                     {/* ── WHAT IT COSTS ONCE MEDICARE STARTS ── */}
-                    <div style={{ marginTop: "18px", padding: "14px", background: "rgba(124,179,66,0.06)", border: `1px solid ${COLORS.green}`, borderRadius: "10px" }}>
+                    <div style={{ marginTop: "18px", padding: "14px", background: "rgba(69,110,33,0.06)", border: `1px solid ${COLORS.green}`, borderRadius: "10px" }}>
                       <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.green, marginBottom: "6px" }}>
                         At 65 the premium drops &mdash; a lot
                       </div>
@@ -4955,7 +4962,7 @@ export default function RFFRetirementCalculator() {
                     </thead>
                     <tbody>
                       {MEDICAL_PLANS.map(p => (
-                        <tr key={p.name} style={{ borderBottom: `1px solid ${COLORS.border}`, background: p.name === selectedMedicalPlan ? "rgba(210,31,51,0.08)" : "transparent", cursor: "pointer" }} onClick={() => setSelectedMedicalPlan(p.name)}>
+                        <tr key={p.name} style={{ borderBottom: `1px solid ${COLORS.border}`, background: p.name === selectedMedicalPlan ? "rgba(179,23,42,0.08)" : "transparent", cursor: "pointer" }} onClick={() => setSelectedMedicalPlan(p.name)}>
                           <td style={{ padding: "8px 0", color: COLORS.text, fontSize: "13px" }}>{p.name}</td>
                           <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(p.ee)}</td>
                           <td style={{ textAlign: "right", color: COLORS.textMuted, fontSize: "13px" }}>{fmt(p.ee1)}</td>
@@ -4965,7 +4972,7 @@ export default function RFFRetirementCalculator() {
                     </tbody>
                   </table>
                 )}
-                <div style={{ marginTop: "16px", padding: "10px 12px", background: "rgba(210,31,51,0.06)", borderRadius: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
+                <div style={{ marginTop: "16px", padding: "10px 12px", background: "rgba(179,23,42,0.06)", borderRadius: "6px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
                   ⚠ <strong>Approximation.</strong> Per the MOU (Ch.4 Art.I §C), the City pays up to 100% / 85% / 80% of the Kaiser premium (employee / +1 / family) plus $180 toward dental and vision. You pay only the amount above the City's share — if your plan costs less, the difference is <strong>not</strong> paid out to you. Declining all coverage (with proof of other insurance) pays $150/mo instead. Dental and vision use your medical coverage tier and are <strong>2026</strong> rates in every year above — the rate-year picker moves the CalPERS medical premiums only, because dental and vision are City/Delta Dental figures we do not have for other years. The retiree-medical figure below is separate (set by your hire-date tier). Confirm exact figures with the City.
                 </div>
                 </>)}
@@ -4980,7 +4987,7 @@ export default function RFFRetirementCalculator() {
                     <input style={styles.input} type="number" step="1" min={0} value={currentOTHours || ""} placeholder="0" onChange={e => setCurrentOTHours(parseFloat(e.target.value) || 0)} />
                     <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "6px", lineHeight: 1.5 }}>Adds to your working take-home — not pensionable, and gone in retirement.</div>
                     {otMonthly > 0 && (
-                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "8px", padding: "8px 10px", background: "rgba(255, 234, 222, 0.05)", borderRadius: "6px", lineHeight: 1.6 }}>
+                      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "8px", padding: "8px 10px", background: "rgba(60, 46, 34, 0.055)", borderRadius: "6px", lineHeight: 1.6 }}>
                         <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong> gross OT → <strong style={{ color: COLORS.green }}>{fmt(otMonthly - (taxSalaryOT.tax - workTaxAnnual) / 12)}/mo</strong> after tax, added to your working take-home.
                       </div>
                     )}
@@ -5019,7 +5026,7 @@ export default function RFFRetirementCalculator() {
                       </label>
                     )}
                   </div>
-                  <div style={{ background: "rgba(255, 234, 222, 0.05)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
+                  <div style={{ background: "rgba(60, 46, 34, 0.055)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
                     <div style={styles.tableRow}>
                       <span style={styles.tableKey}>Your contribution</span>
                       <span style={styles.tableVal}>{fmt(effectiveMember457)}/yr</span>
@@ -5068,7 +5075,7 @@ export default function RFFRetirementCalculator() {
                       </div>
                     </div>
                   )}
-                  <div style={{ textAlign: "center", padding: "16px", background: "rgba(124,179,66,0.06)", borderRadius: "10px" }}>
+                  <div style={{ textAlign: "center", padding: "16px", background: "rgba(69,110,33,0.06)", borderRadius: "10px" }}>
                     <div style={styles.metricLabel}>Projected 457 balance at {retirementAge}</div>
                     <div style={styles.bigNumberGreen}>{fmt(value457)}</div>
                     {effectiveDrawStartAge > retirementAge && (
@@ -5220,14 +5227,14 @@ export default function RFFRetirementCalculator() {
                   const filled = (mounted ? ratio * 276.46 : 0).toFixed(1);
                   const needleDeg = mounted ? (-90 + ratio * 180) : -90;
                   return (
-                    <div style={{ background: "#161110", border: `1px solid ${COLORS.border}`, borderRadius: "14px", padding: "16px", textAlign: "center", marginBottom: "16px" }}>
+                    <div style={{ background: "#faf6f0", border: `1px solid ${COLORS.border}`, borderRadius: "14px", padding: "16px", textAlign: "center", marginBottom: "16px" }}>
                       <div style={{ fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", color: COLORS.textMuted, marginBottom: "6px" }}>Replacement ratio</div>
                       <svg viewBox="0 0 220 150" width="100%" height="150" style={{ maxWidth: "320px" }} role="img" aria-label={`${(retirementVsWorking * 100).toFixed(0)} percent of current pay`}>
-                        <path d="M22,112 A88,88 0 0 1 198,112" fill="none" stroke="#222228" strokeWidth="18" strokeLinecap="round" />
-                        <g stroke="#4a3a35" strokeWidth="2"><line x1="22" y1="112" x2="34" y2="112" /><line x1="47.8" y1="49.8" x2="56.6" y2="58.6" /><line x1="110" y1="24" x2="110" y2="36" /><line x1="172.2" y1="49.8" x2="163.4" y2="58.6" /><line x1="198" y1="112" x2="186" y2="112" /></g>
-                        <path className="rff-pulse" d="M22,112 A88,88 0 0 1 198,112" fill="none" stroke={COLORS.accent} strokeWidth="18" strokeLinecap="round" strokeDasharray={`${filled} 277`} style={{ transition: "stroke-dasharray 1.4s cubic-bezier(.2,.8,.2,1)", filter: "drop-shadow(0 0 5px rgba(210,31,51,0.85))" }} />
-                        <g style={{ transformOrigin: "110px 112px", transform: `rotate(${needleDeg}deg)`, transition: "transform 1.4s cubic-bezier(.2,.8,.2,1)" }}><line x1="110" y1="112" x2="190" y2="112" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" /></g>
-                        <circle cx="110" cy="112" r="9" fill="#161110" stroke={COLORS.accent} strokeWidth="3" />
+                        <path d="M22,112 A88,88 0 0 1 198,112" fill="none" stroke="#e6ddd0" strokeWidth="18" strokeLinecap="round" />
+                        <g stroke="#b9ac9c" strokeWidth="2"><line x1="22" y1="112" x2="34" y2="112" /><line x1="47.8" y1="49.8" x2="56.6" y2="58.6" /><line x1="110" y1="24" x2="110" y2="36" /><line x1="172.2" y1="49.8" x2="163.4" y2="58.6" /><line x1="198" y1="112" x2="186" y2="112" /></g>
+                        <path className="rff-pulse" d="M22,112 A88,88 0 0 1 198,112" fill="none" stroke={COLORS.accent} strokeWidth="18" strokeLinecap="round" strokeDasharray={`${filled} 277`} style={{ transition: "stroke-dasharray 1.4s cubic-bezier(.2,.8,.2,1)", filter: "drop-shadow(0 0 5px rgba(179,23,42,0.85))" }} />
+                        <g style={{ transformOrigin: "110px 112px", transform: `rotate(${needleDeg}deg)`, transition: "transform 1.4s cubic-bezier(.2,.8,.2,1)" }}><line x1="110" y1="112" x2="190" y2="112" stroke="#16120f" strokeWidth="3.5" strokeLinecap="round" /></g>
+                        <circle cx="110" cy="112" r="9" fill="#faf6f0" stroke={COLORS.accent} strokeWidth="3" />
                         <text x="110" y="99" textAnchor="middle" fontSize="40" fontWeight="700" fill="#ffffff">{(retirementVsWorking * 100).toFixed(0)}%</text>
                         <text x="22" y="134" textAnchor="middle" fontSize="10" fill={COLORS.textDim}>0</text>
                         <text x="198" y="134" textAnchor="middle" fontSize="10" fill={COLORS.textDim}>100</text>
@@ -5237,19 +5244,19 @@ export default function RFFRetirementCalculator() {
                   );
                 })()}
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "12px", marginBottom: "24px" }}>
-                  <div style={{ background: "rgba(255, 234, 222, 0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(255, 234, 222, 0.2)` }}>
+                  <div style={{ background: "rgba(60, 46, 34, 0.088)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(60, 46, 34, 0.090)` }}>
                     <div style={styles.metricLabel}>Working Today</div>
                     <div style={{ fontSize: "22px", fontWeight: "800", color: COLORS.blue }}>{fmt(currentMonthlySalary)}</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>gross/month · no OT</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>Take-home ~{fmt(currentTakeHome)}/mo</div>
                   </div>
-                  <div style={{ background: "rgba(210,31,51,0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(210,31,51,0.25)` }}>
+                  <div style={{ background: "rgba(179,23,42,0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(179,23,42,0.25)` }}>
                     <div style={styles.metricLabel}>Working + OT</div>
                     <div style={{ fontSize: "22px", fontWeight: "800", color: COLORS.gold }}>{fmt(salaryWithOT)}</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>{otHoursMonthly > 0 ? `+${fmt(otMonthly)} OT · ${otHoursMonthly} hrs/mo` : "add OT hours above"}</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>{fmt(salaryWithOT * 12)}/yr</div>
                   </div>
-                  <div style={{ background: "rgba(210,31,51,0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(210,31,51,0.2)` }}>
+                  <div style={{ background: "rgba(179,23,42,0.08)", borderRadius: "8px", padding: "16px", border: `1px solid rgba(179,23,42,0.2)` }}>
                     <div style={styles.metricLabel}>Retired at {retirementAge}</div>
                     <div style={{ fontSize: "22px", fontWeight: "800", color: COLORS.accent }}>{fmt(totalMonthly)}</div>
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "4px" }}>total/month gross</div>
@@ -5264,7 +5271,7 @@ export default function RFFRetirementCalculator() {
                       { label: "Salary + OT", s: taxSalaryOT, c: COLORS.gold },
                       { label: "Retirement", s: taxRetire, c: COLORS.accent },
                     ].map(col => (
-                      <div key={col.label} style={{ background: "#141010", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "12px" }}>
+                      <div key={col.label} style={{ background: "#ffffff", border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "12px" }}>
                         <div style={styles.metricLabel}>{col.label}</div>
                         <div style={{ fontSize: "11px", color: COLORS.textDim }}>Gross {fmt(col.s.gross / 12)}/mo</div>
                         <div style={{ fontSize: "18px", fontWeight: "800", color: col.c }}>{fmt(col.s.net / 12)}/mo</div>
@@ -5281,7 +5288,7 @@ export default function RFFRetirementCalculator() {
                   <div style={styles.tableRow}><span style={styles.tableKey}>Retiree medical — your out-of-pocket <span style={{ fontSize: "10px", color: COLORS.textDim }}>· detail on Medical tab</span></span><span style={styles.tableVal}>−{fmt(retireeMedicalOOP)}/mo</span></div>
                   <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Take-home after tax &amp; medical</strong></span><span style={styles.tableValGreen}>{fmt(totalMonthly - retTaxAnnual / 12 - retireeMedicalOOP)}/mo</span></div>
                   {helpsExclusion > 0 && (
-                    <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(124,179,66,0.06)", border: `1px solid rgba(124,179,66,0.2)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
+                    <div style={{ marginTop: "10px", padding: "10px 12px", background: "rgba(69,110,33,0.06)", border: `1px solid rgba(69,110,33,0.2)`, borderRadius: "8px", fontSize: "11px", color: COLORS.textMuted, lineHeight: "1.6" }}>
                       💡 <strong style={{ color: COLORS.green }}>HELPS Act — year-end benefit (not in the figures above):</strong> as a retired safety officer you can exclude up to {fmt(helpsExclusion)}/yr of pension used for health premiums on your federal return (write "PSO" on Form 1040). Estimated federal savings ≈ <strong>{fmt(helpsFedSavings)}/yr</strong>, realized as a lower tax bill at filing — CalPERS still withholds monthly on the full pension, so it is not included in the monthly take-home.
                     </div>
                   )}
@@ -5289,7 +5296,7 @@ export default function RFFRetirementCalculator() {
                     ⚠ Rough estimate — 2026 federal &amp; 2025 CA brackets, standard deduction, {(parseInt(dependents, 10) || 0)} dependent credit, plus your other/spouse income. Tax shown is what's withheld monthly (no HELPS reduction); each person's situation differs. "Net" = gross − income tax (working columns also subtract 1.45% Medicare). Pension &amp; 457 are taxable; medical subsidy isn't. Not tax advice — confirm with a professional.
                   </div>
                 </div>
-                <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255, 234, 222, 0.06)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: "1.8" }}>
+                <div style={{ marginTop: "16px", padding: "12px", background: "rgba(60, 46, 34, 0.066)", borderRadius: "8px", fontSize: "12px", color: COLORS.textMuted, lineHeight: "1.8" }}>
                   <strong style={{ color: COLORS.blue }}>What stops at retirement:</strong><br />
                   CalPERS contribution ({fmt(employeeCalPERSContrib)}/mo) · 457 contributions ({fmt(effectiveMember457 / 12)}/mo) · Union dues (~$222/mo) · Active health premium
                 </div>
@@ -5346,16 +5353,16 @@ export default function RFFRetirementCalculator() {
               <div className="rff-card" style={styles.card}>
                 {sectionHeader("eq401k", "Private-sector 401(k) equivalent")}
                 {openSections.eq401k !== false && (<>
-                <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(210,31,51,0.06)", borderRadius: "8px", fontSize: "13px", color: COLORS.textMuted, lineHeight: "1.8" }}>
+                <div style={{ marginBottom: "16px", padding: "16px", background: "rgba(179,23,42,0.06)", borderRadius: "8px", fontSize: "13px", color: COLORS.textMuted, lineHeight: "1.8" }}>
                   How large a 401(k) would a private-sector worker need to generate the same retirement income — with no pension to fall back on?
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(210,31,51,0.08)", borderRadius: "10px" }}>
+                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(179,23,42,0.08)", borderRadius: "10px" }}>
                     <div style={styles.metricLabel}>Replace pension only</div>
                     <div style={{ fontSize: "26px", fontWeight: "800", color: COLORS.accent }}>{fmt(equiv401k_4pct)}</div>
                     <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>{fmt(annualPension)}/yr at 4% withdrawal</div>
                   </div>
-                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(210,31,51,0.08)", borderRadius: "10px" }}>
+                  <div style={{ textAlign: "center", padding: "20px", background: "rgba(179,23,42,0.08)", borderRadius: "10px" }}>
                     <div style={styles.metricLabel}>Replace full package</div>
                     <div style={{ fontSize: "26px", fontWeight: "800", color: COLORS.gold }}>{fmt(equivFull_4pct)}</div>
                     <div style={{ color: COLORS.textMuted, fontSize: "12px", marginTop: "6px" }}>incl. medical + 457 at 4%</div>
@@ -5401,7 +5408,7 @@ export default function RFFRetirementCalculator() {
                 <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: 800, color: COLORS.text, marginBottom: "4px" }}>How to use this calculator</div>
                 <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "18px" }}>A plain-language guide from your Local — what this tool does, how to fill it in, and answers to the questions members ask most.</div>
 
-                <div style={{ background: "rgba(210,31,51,0.10)", border: `1px solid ${COLORS.accent}`, borderRadius: "10px", padding: "14px 16px", marginBottom: "22px" }}>
+                <div style={{ background: "rgba(179,23,42,0.10)", border: `1px solid ${COLORS.accent}`, borderRadius: "10px", padding: "14px 16px", marginBottom: "22px" }}>
                   <div style={{ fontWeight: 700, color: COLORS.accent, fontSize: "13px", marginBottom: "6px" }}>⚠ This is an estimate — not an official benefit statement</div>
                   <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.65" }}>
                     These numbers are projections built from Roseville's current MOU and the CalPERS formulas. The official figures come from <strong>CalPERS</strong> and the <strong>City</strong>. Don't make an irreversible decision — retiring, buying airtime, or dropping coverage — based on this tool alone. Always confirm with CalPERS and HR first.
@@ -5452,7 +5459,7 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.65", marginBottom: "12px" }}>
                       Your retiree medical benefit depends on <strong>when you were hired</strong>. There are four tiers — and they work very differently, especially Tier 4.
                     </div>
-                    <div style={{ background: "rgba(240,160,40,0.10)", border: `1px solid ${COLORS.gold}`, borderRadius: "10px", padding: "12px 14px", marginBottom: "16px", fontSize: "13px", color: COLORS.text }}>
+                    <div style={{ background: "rgba(133,84,13,0.10)", border: `1px solid ${COLORS.gold}`, borderRadius: "10px", padding: "12px 14px", marginBottom: "16px", fontSize: "13px", color: COLORS.text }}>
                       You're <strong style={{ color: COLORS.gold }}>Tier {medicalTier}</strong> (hired {hireYear}). The section below highlights how your tier works.
                     </div>
                     {[
@@ -5466,7 +5473,7 @@ export default function RFFRetirementCalculator() {
                         <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.65" }}>{d}</div>
                       </div>
                     ))}
-                    <div style={{ background: "rgba(210,31,51,0.08)", border: `1px solid ${COLORS.accent}`, borderRadius: "10px", padding: "12px 14px", marginTop: "4px", marginBottom: "8px" }}>
+                    <div style={{ background: "rgba(179,23,42,0.08)", border: `1px solid ${COLORS.accent}`, borderRadius: "10px", padding: "12px 14px", marginTop: "4px", marginBottom: "8px" }}>
                       <div style={{ fontWeight: 700, color: COLORS.accent, fontSize: "13px", marginBottom: "5px" }}>Why the RHS account matters (Tier 4)</div>
                       <div style={{ fontSize: "13px", color: COLORS.text, lineHeight: "1.65" }}>
                         For Tier 4 members the RHS account is the <strong>main</strong> retiree-medical benefit, and it builds into a real number — your own 1%→5% contributions, plus the City's $100/mo, plus investment growth over a full career can reach tens of thousands of dollars. The Medical tab projects your balance and lets you adjust the assumed investment return. Two things to remember: it's a <strong>fixed pot you spend down</strong> (not a lifetime monthly subsidy), and you still must be enrolled in a CalPERS/PEMHCA plan to use the City's money.
@@ -5514,10 +5521,10 @@ export default function RFFRetirementCalculator() {
       </div>
       </>)}
       <div className="print-report" style={{ padding: "24px", color: "#111", background: "#fff", fontFamily: "Helvetica, Arial, sans-serif" }}>
-        <div style={{ textAlign: "center", borderBottom: "3px solid #d21f33", paddingBottom: "16px", marginBottom: "18px" }}>
+        <div style={{ textAlign: "center", borderBottom: "3px solid #b3172a", paddingBottom: "16px", marginBottom: "18px" }}>
           <img src={logoUrl} alt="" style={{ height: "120px", marginBottom: "8px" }} />
           <div style={{ fontSize: "12px", letterSpacing: "1px", textTransform: "uppercase", color: "#888" }}>Roseville Firefighters · IAFF Local 1592</div>
-          <div style={{ fontSize: "26px", fontWeight: 800, color: "#d21f33", margin: "2px 0" }}>Know What You've Earned</div>
+          <div style={{ fontSize: "26px", fontWeight: 800, color: "#b3172a", margin: "2px 0" }}>Know What You've Earned</div>
           <div style={{ fontSize: "12px", color: "#555" }}>Retirement estimate · generated {new Date().toLocaleDateString()}</div>
         </div>
         <div style={{ fontSize: "13px", marginBottom: "16px", lineHeight: "1.6" }}>
@@ -5526,11 +5533,11 @@ export default function RFFRetirementCalculator() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
           <div style={{ border: "1px solid #e5e5e5", borderRadius: "8px", padding: "14px" }}>
             <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: "#888" }}>Estimated total monthly income</div>
-            <div style={{ fontSize: "30px", fontWeight: 800, color: "#d21f33", lineHeight: 1.1 }}>{fmt(totalMonthly)}</div>
+            <div style={{ fontSize: "30px", fontWeight: 800, color: "#b3172a", lineHeight: 1.1 }}>{fmt(totalMonthly)}</div>
             <div style={{ fontSize: "11px", color: "#555", marginBottom: "10px" }}>{fmt(totalAnnual)}/yr · {(retirementVsWorking * 100).toFixed(0)}% of current pay</div>
             {(() => {
               const parts = [
-                { v: monthlyPension, c: "#d21f33", label: "Pension" },
+                { v: monthlyPension, c: "#b3172a", label: "Pension" },
                 { v: monthly457, c: "#2563eb", label: "457 draw" },
                 { v: priorPensionMonthly, c: "#b45309", label: "Prior svc" },
               ].filter(p => p.v > 0);
@@ -5551,7 +5558,7 @@ export default function RFFRetirementCalculator() {
             {(() => { const ratio = Math.max(0, Math.min(1, retirementVsWorking)); const filled = (ratio * 219.9).toFixed(1);
               return (<svg viewBox="0 0 180 96" width="160" height="86">
                 <path d="M16,86 A70,70 0 0 1 164,86" fill="none" stroke="#eee" strokeWidth="14" strokeLinecap="round" />
-                <path d="M16,86 A70,70 0 0 1 164,86" fill="none" stroke="#d21f33" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${filled} 300`} />
+                <path d="M16,86 A70,70 0 0 1 164,86" fill="none" stroke="#b3172a" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${filled} 300`} />
                 <text x="90" y="80" textAnchor="middle" fontSize="30" fontWeight="800" fill="#111">{(retirementVsWorking * 100).toFixed(0)}%</text>
               </svg>); })()}
             <div style={{ fontSize: "11px", color: "#555", textAlign: "left", marginTop: "4px" }}>
@@ -5563,32 +5570,32 @@ export default function RFFRetirementCalculator() {
         </div>
 
         <div style={{ marginBottom: "14px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Pension</div>
+          <div style={{ fontSize: "13px", fontWeight: 700, color: "#b3172a", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Pension</div>
           <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}><tbody>
             <tr><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0" }}>CalPERS — Roseville{priorServiceCalc.some(r => r.sameFormula) ? " + same-formula" : ""} ({pct(pensionPct)}{benefitIsCapped && pensionPct >= benefitMaxPct ? ", at cap" : ""})</td><td style={{ padding: "4px 0", borderBottom: "1px solid #f0f0f0", textAlign: "right", fontWeight: 600 }}>{fmt(pension50Monthly)}/mo</td></tr>
             {priorServiceCalc.map((r, i) => (<tr key={i}><td style={{ padding: "3px 0 3px 14px", color: "#777", fontSize: "11px" }}>· {r.agencyName ? r.agencyName + " · " : ""}{(PRIOR_FORMULAS.find(f => f.key === r.formula) || {}).label || "Prior"} · {r.yrs} yrs × {pct(r.factor)}{r.otherCalpers ? " · stacks on top" : r.calpers ? "" : " · separate check"}</td><td style={{ padding: "3px 0", textAlign: "right", color: "#777", fontSize: "11px" }}>{r.sameFormula ? "in 90% bucket" : (r.otherCalpers ? "+" : "") + fmt(r.monthly) + "/mo"}</td></tr>))}
-            <tr><td style={{ padding: "4px 0", fontWeight: 700 }}>Combined pension</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, color: "#d21f33" }}>{fmt(combinedPensionMonthly)}/mo</td></tr>
+            <tr><td style={{ padding: "4px 0", fontWeight: 700 }}>Combined pension</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, color: "#b3172a" }}>{fmt(combinedPensionMonthly)}/mo</td></tr>
           </tbody></table>
           <div style={{ fontSize: "10px", color: "#888", display: "flex", justifyContent: "space-between", marginTop: "6px" }}><span>{pct(pensionPct)} of final pay</span><span>{benefitIsCapped ? "90% cap" : "no cap (2.7% @ 57)"}</span></div>
-          <div style={{ background: "#eee", borderRadius: "5px", height: "11px", overflow: "hidden" }}><div style={{ width: `${Math.min(100, (pensionPct / (benefitIsCapped ? benefitMaxPct : 1.0)) * 100).toFixed(0)}%`, height: "100%", background: "#d21f33" }} /></div>
+          <div style={{ background: "#eee", borderRadius: "5px", height: "11px", overflow: "hidden" }}><div style={{ width: `${Math.min(100, (pensionPct / (benefitIsCapped ? benefitMaxPct : 1.0)) * 100).toFixed(0)}%`, height: "100%", background: "#b3172a" }} /></div>
           <div style={{ fontSize: "10px", color: "#888", marginTop: "8px" }}>Pension growth — up to {pct(colaRate)} COLA (not guaranteed)</div>
           {(() => { const pts = colaYears.map(yr => monthlyPension * Math.pow(1 + colaRate, colasBy(yr))); const mx = Math.max(...pts), mn = Math.min(...pts), W = 320, H = 40, P = 4; const co = pts.map((v, i) => `${(P + i * (W - 2 * P) / (pts.length - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" "); return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40"><polyline points={co} fill="none" stroke="#16a34a" strokeWidth="2" /></svg>; })()}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Medical (while working)</div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#b3172a", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Medical (while working)</div>
             <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}><tbody>
               <tr><td style={{ padding: "3px 0" }}>Medical ({selectedMedicalPlan})</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(selectedPremium)}</td></tr>
               <tr><td style={{ padding: "3px 0", color: "#555" }}>− City pays ({Math.round((CITY_MED_PCT[medicalCoverage] || 1) * 100)}% of Kaiser)</td><td style={{ padding: "3px 0", textAlign: "right" }}>−{fmt(cityMedicalPaid)}</td></tr>
               <tr><td style={{ padding: "3px 0" }}>Dental + vision</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(dvCost)}</td></tr>
               <tr><td style={{ padding: "3px 0", color: "#555" }}>− City pays (up to $180)</td><td style={{ padding: "3px 0", textAlign: "right" }}>−{fmt(dvCityPaid)}</td></tr>
-              <tr><td style={{ padding: "4px 0", fontWeight: 700, borderTop: "1px solid #eee" }}>Your cost from paycheck</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, borderTop: "1px solid #eee", color: "#d21f33" }}>{fmt(medicalTotalOOP)}/mo</td></tr>
+              <tr><td style={{ padding: "4px 0", fontWeight: 700, borderTop: "1px solid #eee" }}>Your cost from paycheck</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, borderTop: "1px solid #eee", color: "#b3172a" }}>{fmt(medicalTotalOOP)}/mo</td></tr>
             </tbody></table>
             <div style={{ fontSize: "10px", color: "#777", marginTop: "4px" }}>Retiree medical (Tier {medicalTier}): {medicalTier === "4" ? `${fmt(medical.rhsBalance)} RHS account` : `${fmt(medical.monthly)}/mo`}</div>
           </div>
           <div>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>457 savings</div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#b3172a", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>457 savings</div>
             <div style={{ fontSize: "22px", fontWeight: 800, color: "#111" }}>{fmt(value457)}</div>
             <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>{fmt(monthly457)}/mo at 4% · {returnRate}% return assumed</div>
             {(() => { const yrs = Math.max(1, yearsToRetirement), N = 7; const pts = Array.from({ length: N }, (_, i) => future457Value(current457, effectiveMember457, cityMatchAnnual, yrs * i / (N - 1), rate457)); const mx = Math.max(...pts), mn = Math.min(...pts), W = 300, H = 40, P = 4; const co = pts.map((v, i) => `${(P + i * (W - 2 * P) / (N - 1)).toFixed(1)},${(H - P - ((v - mn) / ((mx - mn) || 1)) * (H - 2 * P)).toFixed(1)}`).join(" "); return <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40"><polyline points={co} fill="none" stroke="#2563eb" strokeWidth="2" /></svg>; })()}
@@ -5597,7 +5604,7 @@ export default function RFFRetirementCalculator() {
         </div>
 
         <div style={{ marginBottom: "12px", fontSize: "12px" }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, color: "#d21f33", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Estimated income tax</div>
+          <div style={{ fontSize: "13px", fontWeight: 700, color: "#b3172a", borderBottom: "1px solid #e5e5e5", paddingBottom: "3px", marginBottom: "6px" }}>Estimated income tax</div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Working now ({filingStatus === "single" ? "Single" : filingStatus === "mfj" ? "Married filing jointly" : "Head of household"})</span><span>{fmt(workTaxAnnual / 12)}/mo · {pct(workEffRate)}</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>In retirement ({stateName})</span><span>{fmt(retTaxAnnual / 12)}/mo · {pct(retEffRate)}</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Retiree medical — your out-of-pocket</span><span>−{fmt(retireeMedicalOOP)}/mo</span></div>

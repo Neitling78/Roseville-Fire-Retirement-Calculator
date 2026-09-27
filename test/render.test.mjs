@@ -713,31 +713,43 @@ console.log("\n-- pension: figures, meter, split --");
 // It defaults to an assumed 3% rather than 0. Zero was also an assumption -- a pessimistic
 // one that understated every pension figured on a 2028-or-later final year -- but either
 // way the figure is unpriced until the 2027 study happens, and has to say so.
-// ── The palette is warm, and stays legible ───────────────────────────
-// Colour is easy to change and easy to break: a warm scheme that drops text contrast is
-// worse than a cold one. These pin the tokens and the contrast ratios they were chosen for.
-console.log("\n-- warm palette --");
+// ── The light palette stays legible ───────────────────────────────
+// Colour is easy to change and easy to break. Going light is the dangerous direction:
+// a status hue tuned to sit on near-black washes out completely on beige, and nobody
+// notices until a member cannot read the warning that matters.
+console.log("\n-- light palette --");
 {
   const hexToRgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
   const lin = (c) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   const lum = (h) => { const [r, g, b] = hexToRgb(h).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-  const CARD = "#1b1413";
-  // Warm means the red channel leads in every neutral. The old palette had blue leading.
-  const warmer = (h) => { const [r, , b] = hexToRgb(h); return r > b; };
-  check("every neutral is warm, not cool", () =>
-    ["#0f0b0a", "#171110", CARD, "#231a18", "#352a27", "#281f1d", "#f8f3ef", "#ada29c", "#8a7d76"]
-      .every(warmer) || "a neutral still leads with blue");
-  check("body text clears AA on the card", () => contrast("#f8f3ef", CARD) >= 4.5
-    || `text is ${contrast("#f8f3ef", CARD).toFixed(2)}:1`);
-  check("muted text clears AA", () => contrast("#ada29c", CARD) >= 4.5
-    || `muted is ${contrast("#ada29c", CARD).toFixed(2)}:1`);
-  // The dim tone carries 10-11px notes, so it has to clear body contrast too, not large-text.
-  check("the dimmest text still clears AA body", () => contrast("#8a7d76", CARD) >= 4.5
-    || `dim is ${contrast("#8a7d76", CARD).toFixed(2)}:1`);
-  check("gold and green stay legible after warming", () =>
-    (contrast("#f0a028", CARD) >= 4.5 && contrast("#7cb342", CARD) >= 4.5)
-    || "a status colour dropped below AA");
+  // The CARD is the worst case: the lightest surface any text sits on.
+  const CARD = "#fbf8f3", PAGE = "#ece5db";
+  const INK = { text: "#16120f", muted: "#574e46", dim: "#6f645b" };
+  const STATUS = { accent: "#b3172a", gold: "#85540d", green: "#456e21", danger: "#b3261e", info: "#8a5220" };
+
+  check("the page is light, not dark", () => lum(PAGE) > 0.5 || `page luminance ${lum(PAGE).toFixed(3)}`);
+  check("and warm, not grey", () => {
+    const [r, , b] = hexToRgb(PAGE);
+    return r > b || "the beige lost its warmth";
+  });
+  for (const [name, hex] of Object.entries(INK)) {
+    check(`${name} clears AA on the card`, () => contrast(hex, CARD) >= 4.5
+      || `${name} is ${contrast(hex, CARD).toFixed(2)}:1`);
+  }
+  // Status colours carry warnings, so they are held to body contrast too -- these are
+  // 11px notes, not headlines, and large-text contrast would not be honest here.
+  for (const [name, hex] of Object.entries(STATUS)) {
+    check(`${name} clears AA on the card`, () => contrast(hex, CARD) >= 4.5
+      || `${name} is ${contrast(hex, CARD).toFixed(2)}:1 -- too pale for beige`);
+    check(`${name} clears AA on the page too`, () => contrast(hex, PAGE) >= 4.5
+      || `${name} is ${contrast(hex, PAGE).toFixed(2)}:1 on the page`);
+  }
+  // The chart series had to be re-picked: the dark-theme set fell under 3:1 on beige.
+  for (const hex of ["#c8324a", "#1f7fae", "#a86a12"]) {
+    check(`chart series ${hex} is visible on the card`, () => contrast(hex, CARD) >= 3
+      || `${hex} is ${contrast(hex, CARD).toFixed(2)}:1`);
+  }
 }
 
 console.log("\n-- 2028 labor market adjustment --");
