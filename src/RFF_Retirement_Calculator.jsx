@@ -358,6 +358,15 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v60)", items: [
+    "<strong>Guided setup now walks the whole calculator, not just the front of it.</strong> Thirteen questions in three parts — <strong>The basics</strong>, <strong>Your pay</strong>, <strong>Money in retirement</strong> — so nothing important is left to be discovered three tabs deep a week later.",
+    "<strong>The basics (1–5):</strong> date of birth, Roseville hire date, Classic or PEPRA, rank and step, when you plan to go. These are gated — Next stays dead until the answer is one the calculator can use.",
+    "<strong>Your pay (6–9):</strong> prior CalPERS service and any Air Time you purchased, your full specialty-pay checklist, overtime, and sick leave with the cash-or-credit choice.",
+    "<strong>Money in retirement (10–13):</strong> your health plan while working and the one you will carry in retirement, how you file your taxes now and after, and your 457 balance and contribution.",
+    "<strong>The last eight do not block you.</strong> They all have a sensible default, so answer what you know and move past what you do not — the gate is on the five that actually decide your pension.",
+    "<strong>It remembers where you stopped.</strong> Close the tab on question seven and you come back to question seven.",
+    "The specialty-pay checklist in setup is the <em>same control</em> as the one on Member details, not a copy — two copies of a list that long drift, and then the two screens disagree about what you ticked.",
+  ] },
   { date: "September 27, 2026 (v59)", items: [
     "<strong>New members get guided setup instead of the whole tool at once.</strong> Five questions, one per screen, with a Next button that stays greyed out until the answer is one the calculator can actually use. Then the full dashboard opens on your pension number.",
     "The five, in the order they depend on each other: <strong>date of birth → Roseville hire date → Classic or PEPRA → rank and step → when you plan to go.</strong> The hire date step reads back what it just decided for you — your years, your formula and your medical tier — so you can catch a typo before it propagates.",
@@ -1199,7 +1208,8 @@ export default function RFFRetirementCalculator() {
   // Anyone with a saved profile has already been through it and never sees it again:
   // wizardDone falls back to setupDone so nobody is sent back to step one.
   const [wizardDone, setWizardDone] = useState(SAVED.wizardDone ?? !!SAVED.setupDone);
-  const [wizardStep, setWizardStep] = useState(0);
+  // Remembered, so closing the tab three questions in does not mean starting over.
+  const [wizardStep, setWizardStep] = useState(Math.max(0, SAVED.wizardStep ?? 0));
   // dob and hireDate carry defaults so every downstream figure stays finite. That would
   // also let a member click Next past a prefilled 1990-01-01 and silently adopt it, so
   // track whether they actually answered and show the field empty until they have.
@@ -1591,7 +1601,7 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, rateYear, rateYearPicked, airtime, wizardDone,
+      currentSickLeaveHours, rateYear, rateYearPicked, airtime, wizardDone, wizardStep,
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
       sickLeaveDisposition,
       beneficiaryAge,
@@ -1606,7 +1616,7 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, rateYear, rateYearPicked, wizardDone, calpersCreditRoseville,
+    currentSickLeaveHours, rateYear, rateYearPicked, wizardDone, wizardStep, calpersCreditRoseville,
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition,
     beneficiaryAge,
     plannedRetirementYear,
@@ -2462,6 +2472,111 @@ export default function RFFRetirementCalculator() {
   // and rendered on both Working now and the advanced inputs tab, so the two never drift.
   // Condensed prior-service editor. One tight row per agency; the rare controls
   // (non-CalPERS benefit factor, other-system final comp) only appear when they apply.
+  // The incentive checklist, hoisted so guided setup and section 3 render the SAME
+  // control. Two copies of a list this long drift, and then the wizard and the page
+  // disagree about what a member ticked.
+  const incentivesEditor = (<>
+                  {/* Longevity is in the total but was in no box, so the ticked boxes never added up to the
+                      figure in the header. It is not a choice — the hire date and your years decide it — so it
+                      shows as a ticked box you cannot untick, with the reason next to it. */}
+                  {autoSeniorityRow && (
+                    <label style={{ ...styles.checkRow, cursor: "default", opacity: 1 }}>
+                      <input style={{ ...styles.checkbox, cursor: "default" }} type="checkbox"
+                        checked readOnly disabled />
+                      <span style={{ ...styles.checkLabel, cursor: "default" }}>
+                        {autoSeniorityRow.label.replace(" — non-pensionable", "")} ({pct(autoSeniorityRow.pct)})
+                        <span style={{ fontSize: "11px", color: COLORS.textDim }}>
+                          {" — automatic, from your hire date"}
+                          {!autoSeniorityRow.pensionable && " · not pensionable"}
+                        </span>
+                      </span>
+                    </label>
+                  )}
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasBachelor}
+                      onChange={e => { setHasBachelor(e.target.checked); if (e.target.checked) setHasAssociate(false); setSetupDone(true); }} />
+                    <span style={styles.checkLabel}>Bachelor's degree (10%)</span>
+                  </label>
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasAssociate}
+                      onChange={e => { setHasAssociate(e.target.checked); if (e.target.checked) setHasBachelor(false); setSetupDone(true); }} />
+                    <span style={styles.checkLabel}>Associate's degree (5%)</span>
+                  </label>
+                  {classification === "Fire Engineer" && (
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasEngineerCert}
+                        onChange={e => { setHasEngineerCert(e.target.checked); setSetupDone(true); }} />
+                      <span style={{ ...styles.checkLabel, ...(engineerCertActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engineer cert / FA Driver-Op (5%)</span>{!engineerCertActive && endedChip}
+                    </label>
+                  )}
+                  {classification === "Fire Captain" && (<>
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasChiefFireOfficer}
+                        onChange={e => { setHasChiefFireOfficer(e.target.checked); if (e.target.checked) setHasCompanyOfficer(false); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Chief Fire Officer cert (10%)</span>
+                    </label>
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasCompanyOfficer}
+                        onChange={e => { setHasCompanyOfficer(e.target.checked); if (e.target.checked) setHasChiefFireOfficer(false); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Company Officer cert (5%)</span>
+                    </label>
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasEngineBoss}
+                        onChange={e => { setHasEngineBoss(e.target.checked); setSetupDone(true); }} />
+                      <span style={{ ...styles.checkLabel, ...(captainIncentivesActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engine Boss NWCG (5%)</span>{!captainIncentivesActive && endedChip}
+                    </label>
+                  </>)}
+                  {(classification === "Firefighter Paramedic I" || classification === "Firefighter Paramedic II") && (
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasFFII}
+                        onChange={e => { setHasFFII(e.target.checked); setSetupDone(true); }} />
+                      <span style={styles.checkLabel}>Firefighter II cert (5%)</span>
+                    </label>
+                  )}
+                  {(classification === "Fire Engineer" || classification === "Fire Captain") && (
+                    <label style={styles.checkRow}>
+                      <input style={styles.checkbox} type="checkbox" checked={hasParamedic}
+                        onChange={e => { setHasParamedic(e.target.checked); setSetupDone(true); }} />
+                      <span style={{ ...styles.checkLabel, ...((classification === "Fire Captain" && !captainIncentivesActive) ? { color: COLORS.textDim, textDecoration: "line-through" } : {}) }}>Paramedic incentive (5%)</span>{classification === "Fire Captain" && !captainIncentivesActive && endedChip}
+                    </label>
+                  )}
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasHazmat}
+                      onChange={e => { setHasHazmat(e.target.checked); setSetupDone(true); }} />
+                    <span style={styles.checkLabel}>Hazmat</span>
+                  </label>
+                  {hasHazmat && (
+                    <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      value={hazmatLevel} onChange={e => setHazmatLevel(e.target.value)}>
+                      <option value="team">Team (2.5%)</option>
+                      <option value="taskforce">Task Force (5%)</option>
+                    </select>
+                  )}
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasRescue}
+                      onChange={e => { setHasRescue(e.target.checked); setSetupDone(true); }} />
+                    <span style={styles.checkLabel}>Rescue</span>
+                  </label>
+                  {hasRescue && (
+                    <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      value={rescueLevel} onChange={e => setRescueLevel(e.target.value)}>
+                      <option value="team">Team (2.5%)</option>
+                      <option value="taskforce">Task Force (5%)</option>
+                    </select>
+                  )}
+                  <label style={styles.checkRow}>
+                    <input style={styles.checkbox} type="checkbox" checked={hasInvestigation}
+                      onChange={e => { setHasInvestigation(e.target.checked); setSetupDone(true); }} />
+                    <span style={styles.checkLabel}>Fire investigation</span>
+                  </label>
+                  {hasInvestigation && (
+                    <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
+                      value={investigationLevel} onChange={e => setInvestigationLevel(e.target.value)}>
+                      <option value="team">Team (2.5%)</option>
+                      <option value="lead">Team Lead (5%)</option>
+                    </select>
+                  )}
+  </>);
   const priorServiceEditor = (<>
                     {priorService.map((r, i) => {
                       const calc = priorServiceCalc[i] || {};
@@ -2620,7 +2735,144 @@ export default function RFFRetirementCalculator() {
           </div>
         </>
       ) },
-  ];
+// Everything from here has a defensible default, so these steps do not block — they
+// are walked through so a member SEES each question once rather than discovering it
+// three tabs deep a week later. Next stays live; the answer is theirs to skip.
+{ key: "prior", title: "Any service before Roseville?",
+  blurb: "Time at another CalPERS agency, and any service credit you bought. Both change your pension; neither can be guessed from anything you have told us. Skip it if Roseville is all you have.",
+  valid: true,
+  body: priorServiceEditor },
+{ key: "incent", title: "What specialty pay do you hold?",
+  blurb: "Tick everything. All of it is pensionable and it is a quarter of some members\u2019 pay \u2014 leaving it blank understates your pension, not just your paycheck.",
+  valid: true,
+  body: incentivesEditor },
+{ key: "ot", title: "How much overtime do you work?",
+  blurb: "Hours a month, on average. None of it counts toward your pension, which is exactly why it matters here \u2014 leave it at zero and retiring looks better than it is.",
+  valid: true,
+  body: (
+    <>
+      <label style={styles.label}>Overtime hours a month</label>
+      <input type="number" min={0} style={styles.input} value={currentOTHours || ""} placeholder="0"
+        onChange={e => setCurrentOTHours(Math.max(0, +e.target.value || 0))} />
+      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "12px", lineHeight: 1.7 }}>
+        {otHoursMonthly > 0
+          ? <>About <strong style={{ color: COLORS.gold }}>{fmt(otMonthly)}/mo</strong> \u2014 none of which follows you into retirement.</>
+          : <>At zero, the drop from paycheck to pension will read smaller than you will actually feel it.</>}
+      </div>
+    </>
+  ) },
+{ key: "sick", title: "Sick leave at retirement",
+  blurb: "Your own estimate for your last day \u2014 not today\u2019s balance, because most members use some along the way. Then pick what you will do with it.",
+  valid: true,
+  body: (
+    <>
+      <label style={styles.label}>Hours on the books at retirement</label>
+      <input type="number" min={0} style={styles.input} value={currentSickLeaveHours === 0 ? "" : currentSickLeaveHours}
+        placeholder="0" onChange={e => setCurrentSickLeaveHours(Math.max(0, +e.target.value || 0))} />
+      <div style={{ marginTop: "16px" }}>
+        <label style={styles.checkRow}>
+          <input style={styles.checkbox} type="checkbox" checked={sickLeaveDisposition === "credit"}
+            onChange={() => setSickLeaveDisposition("credit")} />
+          <span style={styles.checkLabel}>Add to service time
+            {sickLeaveHours > 0 && <> \u2014 <strong style={{ color: COLORS.green }}>+{sickLeaveMaxCreditYears.toFixed(2)} yrs</strong></>}</span>
+        </label>
+        <label style={styles.checkRow}>
+          <input style={styles.checkbox} type="checkbox" checked={sickLeaveDisposition === "cash"}
+            onChange={() => setSickLeaveDisposition("cash")} />
+          <span style={styles.checkLabel}>Cash out
+            {sickLeaveHours > 0 && <> \u2014 <strong style={{ color: COLORS.gold }}>{fmt(altCashIfAllCash)}</strong></>}</span>
+        </label>
+      </div>
+      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+        One or the other, never both with the same hour. 2,000 hours = 1 year of service credit.
+      </div>
+    </>
+  ) },
+{ key: "medwork", title: "Your health plan while working",
+  blurb: "What you are on now, and who is on it. This is a real deduction off your paycheck, so it changes the take-home you are comparing your pension against.",
+  valid: true,
+  body: (
+    <>
+      <label style={styles.label}>Medical plan \u00b7 {healthRates.year} rates</label>
+      <select className="rff-select" style={{ ...styles.select, marginBottom: "14px" }} value={selectedMedicalPlan}
+        onChange={e => setSelectedMedicalPlan(e.target.value)}>
+        {MEDICAL_PLANS.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+      </select>
+      <label style={styles.label}>Who is covered</label>
+      <select className="rff-select" style={styles.select} value={medicalCoverage}
+        onChange={e => setMedicalCoverage(e.target.value)}>
+        {Object.entries(MEDICAL_COVERAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+      </select>
+    </>
+  ) },
+{ key: "medret", title: "Your health plan in retirement",
+  blurb: "You can switch plans at retirement, and plenty do. The City pays a capped amount toward it; whatever the premium is above that comes out of your own check.",
+  valid: true,
+  body: (
+    <>
+      <label style={styles.label}>Retiree medical plan</label>
+      <select className="rff-select" style={{ ...styles.select, marginBottom: "14px" }} value={retireeMedicalPlan}
+        onChange={e => setRetireeMedicalPlan(e.target.value)}>
+        {MEDICAL_PLANS.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+      </select>
+      <label style={styles.label}>Who is covered</label>
+      <select className="rff-select" style={styles.select} value={retireeCoverage}
+        onChange={e => setRetireeCoverage(e.target.value)}>
+        {Object.entries(MEDICAL_COVERAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+      </select>
+      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "14px", lineHeight: 1.7 }}>
+        You are <strong style={{ color: COLORS.green }}>Medical Tier {medicalTier}</strong>, set by your hire date.
+        The full detail is on the Health care tab once setup is done.
+      </div>
+    </>
+  ) },
+{ key: "tax", title: "How do you file?",
+  blurb: "Tax is the difference between the gross figure CalPERS quotes and what actually lands in your account. Estimated off the current brackets and the standard deduction \u2014 a guide, not your return.",
+  valid: true,
+  body: (
+    <>
+      <div style={styles.metricLabel}>While working</div>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "10px", marginBottom: "18px" }}>
+        <select className="rff-select" style={styles.select} value={filingStatus} onChange={e => setFilingStatus(e.target.value)}>
+          <option value="single">Single</option>
+          <option value="mfj">Married filing jointly</option>
+          <option value="hoh">Head of household</option>
+        </select>
+        <input style={styles.input} type="number" min={0} max={10} value={dependents || ""} placeholder="0 deps"
+          onChange={e => setDependents(+e.target.value || 0)} />
+      </div>
+      <div style={styles.metricLabel}>In retirement</div>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "10px" }}>
+        <select className="rff-select" style={styles.select} value={filingStatusRet} onChange={e => setFilingStatusRet(e.target.value)}>
+          <option value="single">Single</option>
+          <option value="mfj">Married filing jointly</option>
+          <option value="hoh">Head of household</option>
+        </select>
+        <input style={styles.input} type="number" min={0} max={10} value={dependentsRet || ""} placeholder="0 deps"
+          onChange={e => setDependentsRet(+e.target.value || 0)} />
+      </div>
+    </>
+  ) },
+{ key: "457", title: "Your deferred comp (457)",
+  blurb: "The pension is the floor, not the ceiling. What you have put aside is the part you control \u2014 and the tool will tell you how long it lasts.",
+  valid: true,
+  body: (
+    <>
+      <label style={styles.label}>Balance today</label>
+      <input type="number" min={0} style={{ ...styles.input, marginBottom: "14px" }} value={current457 || ""} placeholder="0"
+        onChange={e => setCurrent457(Math.max(0, +e.target.value || 0))} />
+      <label style={styles.label}>What you put in a year</label>
+      <input type="number" min={0} style={styles.input} value={annual457Contrib || ""} placeholder="0"
+        onChange={e => setAnnual457Contrib(Math.max(0, +e.target.value || 0))} />
+      <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "14px", lineHeight: 1.7 }}>
+        Leave both at zero if you do not have one. The growth rate, your draw rate and the
+        catch-up limits are all on <strong style={{ color: COLORS.textMuted }}>Other income &amp; tax</strong> afterward.
+      </div>
+    </>
+  ) },  ];
+  // Thirteen questions is a lot to face as one undifferentiated count. Naming the part of
+  // the form you are in says what is left in kind, not just in number.
+  const WIZARD_GROUP = (i) => i <= 4 ? "The basics" : i <= 8 ? "Your pay" : "Money in retirement";
   const wizStep = WIZARD[Math.min(wizardStep, WIZARD.length - 1)];
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
@@ -2675,14 +2927,15 @@ export default function RFFRetirementCalculator() {
       {!wizardDone && (
         <div className="no-print" style={{ ...styles.container, maxWidth: "620px", padding: isMobile ? "24px 14px 48px" : "48px 20px 64px" }}>
           <div style={{ marginBottom: "20px" }}>
-            <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
-              {WIZARD.map((w, i) => (
-                <div key={w.key} className="rff-fill" style={{ flex: 1, height: "4px", borderRadius: "2px",
-                  background: i < wizardStep ? COLORS.green : i === wizardStep ? COLORS.accent : "rgba(255,255,255,0.09)" }} />
-              ))}
+            <div style={{ height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.09)", marginBottom: "12px" }}>
+              <div className="rff-fill" style={{ width: `${(wizardStep / (WIZARD.length - 1) * 100).toFixed(1)}%`,
+                height: "100%", borderRadius: "2px", background: COLORS.accent }} />
             </div>
-            <div style={{ ...styles.metricLabel, marginBottom: "0" }}>
-              Step {wizardStep + 1} of {WIZARD.length}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px" }}>
+              <div style={{ ...styles.metricLabel, marginBottom: "0" }}>{WIZARD_GROUP(wizardStep)}</div>
+              <div style={{ fontSize: "11px", color: COLORS.textDim, fontVariantNumeric: "tabular-nums" }}>
+                Step {wizardStep + 1} of {WIZARD.length}
+              </div>
             </div>
           </div>
           <div className="rff-card" style={{ ...styles.cardHero, marginBottom: "18px" }}>
@@ -2722,9 +2975,12 @@ export default function RFFRetirementCalculator() {
             </button>
           </div>
           <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "18px", lineHeight: 1.7, textAlign: "center" }}>
-            Five questions, then the whole calculator opens up — specialty pay, overtime, sick leave,
-            medical and the rest all have sensible defaults you can correct afterward.
-            Nothing you type leaves your browser.
+            {wizardStep <= 4
+              ? <>The first five decide your pension. The rest fill in your pay, your medical and your
+                tax — every one of those has a sensible default if you would rather move on.</>
+              : <>Everything from here already has a default. Answer what you know, move past what you
+                do not, and correct any of it afterward.</>}
+            {" "}Nothing you type leaves your browser.
           </div>
         </div>
       )}
@@ -3114,106 +3370,7 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
                       Tick everything you hold. Education and CSFM certificates are capped at 15% combined (MOU Ch.2 Art.VI.B).
                     </div>
-                    {/* Longevity is in the total but was in no box, so the ticked boxes never added up to the
-                        figure in the header. It is not a choice — the hire date and your years decide it — so it
-                        shows as a ticked box you cannot untick, with the reason next to it. */}
-                    {autoSeniorityRow && (
-                      <label style={{ ...styles.checkRow, cursor: "default", opacity: 1 }}>
-                        <input style={{ ...styles.checkbox, cursor: "default" }} type="checkbox"
-                          checked readOnly disabled />
-                        <span style={{ ...styles.checkLabel, cursor: "default" }}>
-                          {autoSeniorityRow.label.replace(" — non-pensionable", "")} ({pct(autoSeniorityRow.pct)})
-                          <span style={{ fontSize: "11px", color: COLORS.textDim }}>
-                            {" — automatic, from your hire date"}
-                            {!autoSeniorityRow.pensionable && " · not pensionable"}
-                          </span>
-                        </span>
-                      </label>
-                    )}
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={hasBachelor}
-                        onChange={e => { setHasBachelor(e.target.checked); if (e.target.checked) setHasAssociate(false); setSetupDone(true); }} />
-                      <span style={styles.checkLabel}>Bachelor's degree (10%)</span>
-                    </label>
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={hasAssociate}
-                        onChange={e => { setHasAssociate(e.target.checked); if (e.target.checked) setHasBachelor(false); setSetupDone(true); }} />
-                      <span style={styles.checkLabel}>Associate's degree (5%)</span>
-                    </label>
-                    {classification === "Fire Engineer" && (
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasEngineerCert}
-                          onChange={e => { setHasEngineerCert(e.target.checked); setSetupDone(true); }} />
-                        <span style={{ ...styles.checkLabel, ...(engineerCertActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engineer cert / FA Driver-Op (5%)</span>{!engineerCertActive && endedChip}
-                      </label>
-                    )}
-                    {classification === "Fire Captain" && (<>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasChiefFireOfficer}
-                          onChange={e => { setHasChiefFireOfficer(e.target.checked); if (e.target.checked) setHasCompanyOfficer(false); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Chief Fire Officer cert (10%)</span>
-                      </label>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasCompanyOfficer}
-                          onChange={e => { setHasCompanyOfficer(e.target.checked); if (e.target.checked) setHasChiefFireOfficer(false); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Company Officer cert (5%)</span>
-                      </label>
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasEngineBoss}
-                          onChange={e => { setHasEngineBoss(e.target.checked); setSetupDone(true); }} />
-                        <span style={{ ...styles.checkLabel, ...(captainIncentivesActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engine Boss NWCG (5%)</span>{!captainIncentivesActive && endedChip}
-                      </label>
-                    </>)}
-                    {(classification === "Firefighter Paramedic I" || classification === "Firefighter Paramedic II") && (
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasFFII}
-                          onChange={e => { setHasFFII(e.target.checked); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Firefighter II cert (5%)</span>
-                      </label>
-                    )}
-                    {(classification === "Fire Engineer" || classification === "Fire Captain") && (
-                      <label style={styles.checkRow}>
-                        <input style={styles.checkbox} type="checkbox" checked={hasParamedic}
-                          onChange={e => { setHasParamedic(e.target.checked); setSetupDone(true); }} />
-                        <span style={{ ...styles.checkLabel, ...((classification === "Fire Captain" && !captainIncentivesActive) ? { color: COLORS.textDim, textDecoration: "line-through" } : {}) }}>Paramedic incentive (5%)</span>{classification === "Fire Captain" && !captainIncentivesActive && endedChip}
-                      </label>
-                    )}
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={hasHazmat}
-                        onChange={e => { setHasHazmat(e.target.checked); setSetupDone(true); }} />
-                      <span style={styles.checkLabel}>Hazmat</span>
-                    </label>
-                    {hasHazmat && (
-                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
-                        value={hazmatLevel} onChange={e => setHazmatLevel(e.target.value)}>
-                        <option value="team">Team (2.5%)</option>
-                        <option value="taskforce">Task Force (5%)</option>
-                      </select>
-                    )}
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={hasRescue}
-                        onChange={e => { setHasRescue(e.target.checked); setSetupDone(true); }} />
-                      <span style={styles.checkLabel}>Rescue</span>
-                    </label>
-                    {hasRescue && (
-                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
-                        value={rescueLevel} onChange={e => setRescueLevel(e.target.value)}>
-                        <option value="team">Team (2.5%)</option>
-                        <option value="taskforce">Task Force (5%)</option>
-                      </select>
-                    )}
-                    <label style={styles.checkRow}>
-                      <input style={styles.checkbox} type="checkbox" checked={hasInvestigation}
-                        onChange={e => { setHasInvestigation(e.target.checked); setSetupDone(true); }} />
-                      <span style={styles.checkLabel}>Fire investigation</span>
-                    </label>
-                    {hasInvestigation && (
-                      <select className="rff-select" style={{ ...styles.select, padding: "6px 10px", fontSize: "12px", marginBottom: "8px" }}
-                        value={investigationLevel} onChange={e => setInvestigationLevel(e.target.value)}>
-                        <option value="team">Team (2.5%)</option>
-                        <option value="lead">Team Lead (5%)</option>
-                      </select>
-                    )}
+                    {incentivesEditor}
                     {!captainIncentivesActive && classification === "Fire Captain" && (hasParamedic || hasEngineBoss) && (
                       <div style={styles.warningBox}>
                         ⚠ Captain Paramedic and Engine Boss pay both cease 1/9/2027 in exchange for rank

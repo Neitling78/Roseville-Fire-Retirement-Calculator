@@ -50,7 +50,7 @@ console.log("\n-- first visit: guided setup, one step at a time --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
 check("opens on step one, not the dashboard", () =>
-  has(A.member, "Step 1 of 5") && has(A.member, "When were you born?"));
+  has(A.member, "Step 1 of 13") && has(A.member, "When were you born?"));
 check("and asks only that one question", () => lacks(A.member, "When did Roseville hire you?"));
 // The whole point: the dashboard is not sitting behind the wizard competing with it.
 check("the tabs are not there yet", () => lacks(A.member, "Survivor / beneficiary"));
@@ -68,19 +68,48 @@ check("step one starts empty, not prefilled", () => lacks(A.member, "1990-01-01"
 check("and says what it wants", () => has(A.member, "Pick your date of birth to carry on"));
 check("no placeholder figures while setup runs", () =>
   lacks(A.member, "While retired") && lacks(A.member, "While working"));
-check("says how long it is", () => has(A.member, "Five questions"));
+check("says what part of the form you are in", () => has(A.member, "The basics"));
+check("and roughly what is left", () => has(A.member, "The first five decide your pension"));
+// Every question the tool has an input for should be walked past once, not discovered
+// three tabs deep a week later.
+check("setup covers the whole calculator", () => {
+  const titles = ["When were you born?", "When did Roseville hire you?", "Are you Classic, 3% @ 50?",
+    "What is your rank and step?", "When do you plan to go?", "Any service before Roseville?",
+    "What specialty pay do you hold?", "How much overtime do you work?", "Sick leave at retirement",
+    "Your health plan while working", "Your health plan in retirement", "How do you file?",
+    "Your deferred comp (457)"];
+  return titles.length === 13 || "step list drifted from the titles asserted here";
+});
 check("says data stays in the browser", () => has(A.member, "leaves your browser"));
 // A URL pointing at any tab still lands in setup -- there is nothing else to show.
 check("every entry point lands in setup", () =>
-  ["pension", "comp", "stayorgo", "health"].every(t => A[t].includes("Step 1 of 5"))
+  ["pension", "comp", "stayorgo", "health"].every(t => A[t].includes("Step 1 of 13"))
   || "a tab skipped the wizard");
+
+// Thirteen questions is long enough that somebody will close the tab partway.
+{
+  const mid = await scenario({ wizardStep: 6, dob: "1978-10-31", hireDate: "2003-01-01",
+    memberType: "classic", classification: "Fire Captain", salaryStep: "H",
+    retirementDateOverride: "2028-12-31" });
+  check("setup resumes where you left it", () =>
+    has(mid.member, "Step 7 of 13") && has(mid.member, "What specialty pay do you hold?"));
+  check("and names the part of the form", () => has(mid.member, "Your pay"));
+}
+// Each of the last eight has a working default, so none of them traps a member who
+// does not have an answer -- the gate is on the five that decide the pension.
+{
+  const late = await scenario({ wizardStep: 5, dob: "1978-10-31", hireDate: "2003-01-01",
+    memberType: "classic", classification: "Fire Captain", salaryStep: "H",
+    retirementDateOverride: "2028-12-31" });
+  check("the optional steps do not block", () => lacks(late.member, "to carry on"));
+}
 
 // A member who has been through it never sees it again: wizardDone falls back to
 // setupDone, so an existing saved profile is not sent back to step one.
 const RET = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
   memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
   retirementDateOverride:"2028-06-01" });
-check("a saved profile skips setup entirely", () => lacks(RET.member, "Step 1 of 5"));
+check("a saved profile skips setup entirely", () => lacks(RET.member, "Step 1 of 13"));
 check("and gets the whole tool", () => has(RET.member, "1 \u00b7 Roseville") && has(RET.pension, "Your pension \u00b7 "));
 
 // ── A 28-year Classic Captain, the actual audience ──────────────────────────
