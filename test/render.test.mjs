@@ -857,18 +857,39 @@ console.log("\n-- retiree dental and vision --");
   const DV = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
     memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
     retirementDateOverride:"2028-12-24", retirementAge:50 });
+  const DVoff = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-24", retirementAge:50, retireeKeepsDV:false });
   check("the Health care tab has a retiree dental and vision section", () =>
-    has(DV.health, "Dental and vision") && has(DV.health, "you pay these yourself"));
-  check("it prices the default election", () =>
-    has(DV.health, "Delta Dental High PPO") && has(DV.health, "Out of your own pocket"));
-  // The whole point of the section is that the assumption is visible. A confident-looking
-  // number with no flag on it is worse than no number at all.
-  check("it is labelled unverified, not stated as fact", () =>
-    has(DV.health, "Unverified") && has(DV.health, "retireemedical@roseville.ca.us"));
+    has(DV.health, "Dental and vision") && has(DV.health, "you buy your own"));
+  // The rates must be the OPEN-MARKET ones, not the City's group table. Quoting a group rate
+  // to someone who can no longer buy at it is the error this whole section exists to fix.
+  // Scoped to the retiree box: "Delta Dental High PPO" legitimately appears higher up the tab,
+  // in the WHILE WORKING section, and must not be confused for what a retiree can buy.
+  const DVBOX = DV.health.slice(DV.health.indexOf("Dental and vision \u2014 you buy your own"),
+                                DV.health.indexOf("At 65 the premium drops"));
+  check("the retiree box was found", () => DVBOX.length > 200 || "could not slice the retiree box");
+  check("it prices the individual market, not the group table", () =>
+    has(DVBOX, "Delta Dental PPO Premium") && has(DVBOX, "$73")
+    && lacks(DVBOX, "Delta Dental High PPO"));
+  check("and it reaches a member's-own-pocket total", () =>
+    has(DVBOX, "Out of your own pocket") && has(DVBOX, "$90"));
+  check("it states the City pays nothing", () =>
+    has(DV.health, "City pays toward it") && has(DV.health, "nothing, once you separate"));
   check("it says where the $180 credit actually lives", () =>
-    has(DV.health, "active") && has(DV.health, "C.3"));
+    has(DV.health, "active") && has(DV.health, "flex plan"));
+  // Members assume COBRA runs 36 months for everything. For dental and vision it does not.
+  check("it names the 18-month COBRA bridge and its limit", () =>
+    has(DV.health, "first 18 months") && has(DV.health, "102%")
+    && has(DV.health, "not") && has(DV.health, "Cal-COBRA"));
+  check("the quote is dated and its basis given", () =>
+    has(DV.health, "27 Sep 2026") && has(DV.health, "95678"));
+  check("the 6-month waiting period is not buried", () =>
+    has(DV.health, "6-month waiting period"));
   check("and that Kaiser does not cover it for you", () =>
     has(DV.health, "not covered") && has(DV.health, "$175"));
+  check("dropping it warns that a spouse's plan is rarely free", () =>
+    has(DVoff.health, "rarely free"));
   check("the comparison card carries its own paired row", () => {
     const card = DV.comp.slice(DV.comp.indexOf("Working vs retired, line by line"),
                                DV.comp.indexOf("The gap is smaller than the drop"));
@@ -879,31 +900,15 @@ console.log("\n-- retiree dental and vision --");
     const card = DV.comp.slice(DV.comp.indexOf("Working vs retired, line by line"),
                                DV.comp.indexOf("The gap is smaller than the drop"));
     return (has(card, "covered by the City's $180 credit") === true
-            && has(card, "you pay these yourself") === true)
+            && has(card, "you buy your own") === true)
       || "the two sides are not described differently";
   });
-  // Dropping the election has to remove it from BOTH columns, or the card goes out of line.
-  const DVoff = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
-    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
-    retirementDateOverride:"2028-12-24", retirementAge:50, retireeKeepsDV:false });
   check("dropping it removes the row from both sides at once", () => {
     const card = DVoff.comp.slice(DVoff.comp.indexOf("Working vs retired, line by line"),
                                   DVoff.comp.indexOf("The gap is smaller than the drop"));
     const n = (card.match(/Dental and vision/g) || []).length;
     return n === 0 || `${n} half-row(s) left behind`;
   });
-  // If HR ever says the City does contribute, the override has to actually reduce the cost.
-  const DVcity = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
-    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
-    retirementDateOverride:"2028-12-24", retirementAge:50, retireeDVCityPays:"40" });
-  check("a City contribution entered by hand reduces the member's share", () =>
-    has(DVcity.health, "City pays toward it") && has(DVcity.health, "$31"));
-  // And it can never turn into a payout -- the City's share stops at the premium.
-  const DVover = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
-    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
-    retirementDateOverride:"2028-12-24", retirementAge:50, retireeDVCityPays:"9999" });
-  check("an oversized City figure cannot become income", () =>
-    has(DVover.health, "Out of your own pocket") && has(DVover.health, "$0"));
 }
 
 // ── The navigation rail ─────────────────────────────────────────
@@ -1176,8 +1181,8 @@ check("Unmodified pays the unmodified allowance", () => has(S1.pension, "$14,430
 check("50% Beneficiary reduces the allowance", () => has(S3.pension, "$14,086"));
 check("100% Beneficiary reduces it further", () => has(S2.pension, "$13,774"));
 // These two carry the retiree dental/vision cost now (default: the member pays it).
-check("the reduction reaches take-home", () => has(S2.pension, "$10,395"));
-check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,832"));
+check("the reduction reaches take-home", () => has(S2.pension, "$10,376"));
+check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,814"));
 // Proving it is the dental/vision line that moved them, not a drifting golden figure:
 // turn the election off and the old numbers come back exactly.
 {
@@ -1185,8 +1190,15 @@ check("Unmodified take-home is the higher figure", () => has(S1.pension, "$10,83
   const noDV2 = await scenario({ ...mkSurv("ben100"), retireeKeepsDV: false });
   check("dropping dental and vision restores the old take-home", () =>
     has(noDV1.pension, "$10,904") && has(noDV2.pension, "$10,466"));
+  // $73.11 Delta PPO Premium + $17 VSP Standard = $90.11. If either rate is edited, this
+  // fails and forces the goldens above to be re-derived rather than nudged.
+  check("the gap between the two elections IS the quoted premium", () => {
+    const g = (t) => +t.match(/\$1[01],(\d\d\d)/)[0].replace(/[$,]/g, "");
+    const d = g(noDV1.pension) - g(S1.pension);
+    return d === 90 || `the two elections differ by $${d}, not the $90 quoted`;
+  });
   check("and carrying them costs the premium, not a penny more", () =>
-    (!noDV1.pension.includes("$10,832") && !noDV2.pension.includes("$10,395"))
+    (!noDV1.pension.includes("$10,814") && !noDV2.pension.includes("$10,376"))
     || "the two elections render the same figure -- the toggle is not wired to the money");
 }
 check("a myCalPERS figure overrides the calibrated one", () => has(S2A.pension, "$12,699"));
@@ -1423,7 +1435,7 @@ const HD = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40, ...
 check("working gross includes overtime", () => has(HD.member, "$17,677"));
 check("working take-home is there", () => has(HD.member, "$11,392"));
 check("retired gross is the allowance", () => has(HD.member, "$14,430"));
-check("retired take-home is there", () => has(HD.member, "$10,832"));
+check("retired take-home is there", () => has(HD.member, "$10,814"));
 check("the retired side is dated", () => has(HD.member, "While retired · 2028"));
 check("all four appear on every tab", () =>
   ["member","comp","pension","survivor","health","stayorgo"].every(t =>

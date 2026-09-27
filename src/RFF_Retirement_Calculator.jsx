@@ -310,6 +310,43 @@ const DENTAL_PLANS_2026 = [
   { name: "DeltaCare HMO", ee: 17.40, spouse: 34.20, children: 32.10, family: 57.00 },
 ];
 const VISION_2026 = { ee: 7.49, ee1: 10.86, fam: 19.48 };     // VSP monthly by tier
+// ── WHAT DENTAL AND VISION COST ONCE YOU SEPARATE ────────────────────────
+// The tables above are the City's GROUP rates. A retiree cannot buy those: the City's
+// dental/vision credit is part of the active flex plan and stops at separation (confirmed by
+// Abram Neitling, Local 1592 Secretary, Sept 2026 -- the City pays nothing toward retiree
+// dental or vision).
+//
+// Federal COBRA keeps you on the City's dental and vision for 18 MONTHS at up to 102% of the
+// full plan cost (29 U.S.C. 1162; DOL "An Employee's Guide to Health Benefits Under COBRA").
+// It does NOT stretch to 36: California's DMHC states that when federal COBRA ends and you
+// move to Cal-COBRA, specialized plans -- dental and vision -- "do not have to be offered to
+// you." So 18 months on the City's plans, then the open market for the rest.
+//
+// Individual-market rates below are a live quote pulled 2026-09-27, ZIP 95678 (Roseville),
+// one person, age 50. Delta Dental of California's own shopping tool; VSP's published
+// individual pricing (VSP notes pricing varies by state).
+const RETIREE_DENTAL_PLANS = [
+  { name: "None", ee: 0, ee1: 0, fam: 0, note: "" },
+  { name: "Delta Dental PPO Premium", ee: 73.11, ee1: 146.22, fam: 219.33,
+    note: "closest match to the City's High PPO \u2014 $2,000/yr maximum, any dentist" },
+  { name: "Delta Dental PPO Basic", ee: 32.75, ee1: 65.50, fam: 98.25,
+    note: "$1,000/yr maximum; no crowns, root canals or dentures" },
+  { name: "DeltaCare USA (HMO)", ee: 8.92, ee1: 17.84, fam: 26.76,
+    note: "$107/yr, paid annually \u2014 fixed fees, one network dentist only" },
+];
+// Delta quotes ONE person. Multi-person pricing is not published, so the tiers above are the
+// single rate doubled / tripled -- an estimate, and said to be one on the page.
+const RETIREE_DENTAL_TIER_ESTIMATED = true;
+const RETIREE_VISION_PLANS = [
+  { name: "None", ee: 0, ee1: 0, fam: 0 },
+  { name: "VSP Standard", ee: 17, ee1: 34, fam: 51 },
+  { name: "VSP EyewearOnly", ee: 12, ee1: 24, fam: 36 },
+  { name: "VSP EasyOptions", ee: 30, ee1: 60, fam: 90 },
+  { name: "VSP Enhanced", ee: 35, ee1: 70, fam: 105 },
+];
+// COBRA: 102% of the FULL group cost (member share + City share) for the first 18 months.
+const COBRA_LOAD = 1.02;
+const COBRA_MONTHS = 18;
 const DENTAL_TIER_FROM_MED = { ee: "ee", ee1: "spouse", fam: "family" }; // map medical tier → dental tier
 // ── TAX BRACKETS ───────────────────────────────────────────────────────────
 // 2026 federal brackets (IRS Rev. Proc. 2025-32) + standard deduction.
@@ -364,6 +401,14 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v70)", items: [
+    "<strong>Retiree dental and vision are priced off real quotes now, not the City\u2019s group table.</strong> You cannot buy at the group rate once you separate \u2014 the $180 dental/vision credit is part of the <em>active</em> flex plan and the City pays nothing toward either one in retirement.",
+    "<strong>The new default is $90/mo</strong>: Delta Dental PPO Premium at <strong>$73.11</strong> plus VSP Standard at <strong>$17</strong>. Quoted 27 Sep 2026 from Delta Dental of California\u2019s own shopping tool and VSP\u2019s published individual pricing \u2014 ZIP 95678, one person, age 50. Cheaper options are in the dropdowns: PPO Basic $32.75, DeltaCare USA HMO $8.92.",
+    "<strong>Your first 18 months are cheaper, and only 18.</strong> Federal COBRA keeps you on the City\u2019s own dental and vision at up to 102% of the full cost. It does <em>not</em> stretch to 36: California\u2019s DMHC states that when federal COBRA ends and you move to Cal-COBRA, dental and vision do not have to be offered to you. The tool carries the open-market figure because that is the one that holds for the rest of your retirement.",
+    "<strong>Watch the waiting periods.</strong> Individual PPO plans impose a 6-month wait on fillings and everything past cleanings and X-rays. A group plan does not. That is a real difference the price alone does not show.",
+    "<strong>Drop them and it is $0</strong> \u2014 but if you are joining a spouse\u2019s plan, the page reminds you that adding a spouse is rarely free. Check what their employer charges before treating it as nothing.",
+    "Rates for two or more people are the single-person quote scaled, not separately quoted, and are labelled as an estimate.",
+  ] },
   { date: "September 27, 2026 (v69)", items: [
     "<strong>Dental and vision in retirement are now asked about, and costed.</strong> There is a step in guided setup for it, and a section on Health care under your retiree medical. The tool assumes <strong>you pay the whole premium yourself</strong> \u2014 about $71/mo for Delta Dental High PPO plus VSP, employee only \u2014 and it comes off your retirement take-home.",
     "<strong>Why that assumption:</strong> the City\u2019s $180 dental/vision credit is part of the <em>active</em> flex plan (MOU Ch.4 Art.I \u00a7C.3). The retiree contribution runs through PEMHCA, which is a medical programme \u2014 CalPERS states dental and vision for a public-agency retiree are billed separately from the CalPERS health premium.",
@@ -1426,9 +1471,8 @@ export default function RFFRetirementCalculator() {
   // it is labelled as unverified everywhere it is shown, and retireeDVCityPays exists so it can
   // be corrected the day Roseville HR answers.
   const [retireeKeepsDV, setRetireeKeepsDV] = useState(SAVED.retireeKeepsDV ?? true);
-  const [retireeDentalPlan, setRetireeDentalPlan] = useState(SAVED.retireeDentalPlan ?? SAVED.dentalPlan ?? "Delta Dental High PPO");
-  const [retireeHasVision, setRetireeHasVision] = useState(SAVED.retireeHasVision ?? true);
-  const [retireeDVCityPays, setRetireeDVCityPays] = useState(SAVED.retireeDVCityPays ?? "");
+  const [retireeDentalPlan, setRetireeDentalPlan] = useState(SAVED.retireeDentalPlan ?? "Delta Dental PPO Premium");
+  const [retireeVisionPlan, setRetireeVisionPlan] = useState(SAVED.retireeVisionPlan ?? "VSP Standard");
   const [filingStatus, setFilingStatus] = useState(SAVED.filingStatus ?? "single");
   const [retirementState, setRetirementState] = useState(SAVED.retirementState ?? "CA");
   const [otherStateRate, setOtherStateRate] = useState(SAVED.otherStateRate ?? 5);
@@ -1683,7 +1727,7 @@ export default function RFFRetirementCalculator() {
   useEffect(() => {
     saveState({
       setupDone, classification, salaryStep, dob, retirementAge, retirementDateOverride, hireDate,
-      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeHasVision, retireeDVCityPays, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+      memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
       hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -1698,7 +1742,7 @@ export default function RFFRetirementCalculator() {
     });
   }, [
     setupDone, classification, salaryStep, currentAge, retirementAge, retirementDateOverride, hireDate,
-    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeHasVision, retireeDVCityPays, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
+    memberType, overridePensionType, medicalTier, selectedMedicalPlan, medicalCoverage, retireeMedicalPlan, retireeCoverage, healthRateYear, dentalPlan, hasVision, retireeKeepsDV, retireeDentalPlan, retireeVisionPlan, filingStatus, retirementState, otherStateRate, dependents, otherIncome, filingStatusRet, dependentsRet, otherIncomeRet, retIra, retRental, retBusiness, foldExtraIncome, include457InTakeHome, priorService,
     hasParamedic, hasRescue, rescueLevel, hasHazmat, hazmatLevel,
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
@@ -2397,14 +2441,18 @@ export default function RFFRetirementCalculator() {
   // Priced off the same Delta Dental / VSP tables as the working side, at the RETIREE coverage
   // tier. Those are the City's active-group 2026 rates: if a retiree has to buy coverage outside
   // the group, the real number is likely higher, not lower. Said plainly on the page.
-  const retireeDentalObj = DENTAL_PLANS_2026.find(p => p.name === retireeDentalPlan) || DENTAL_PLANS_2026[0];
-  const retireeDentalPremium = retireeKeepsDV ? (retireeDentalObj[DENTAL_TIER_FROM_MED[retireeCoverage]] || 0) : 0;
-  const retireeVisionPremium = retireeKeepsDV && retireeHasVision ? (VISION_2026[retireeCoverage] || 0) : 0;
+  const retireeDentalObj = RETIREE_DENTAL_PLANS.find(p => p.name === retireeDentalPlan) || RETIREE_DENTAL_PLANS[1];
+  const retireeVisionObj = RETIREE_VISION_PLANS.find(p => p.name === retireeVisionPlan) || RETIREE_VISION_PLANS[1];
+  const retireeDentalPremium = retireeKeepsDV ? (retireeDentalObj[retireeCoverage] || 0) : 0;
+  const retireeVisionPremium = retireeKeepsDV ? (retireeVisionObj[retireeCoverage] || 0) : 0;
   const retireeDVPremium = retireeDentalPremium + retireeVisionPremium;
-  // If HR ever confirms the City puts money toward retiree dental/vision, it goes in here and
-  // the member's share drops. Blank means the honest default: nothing.
-  const retireeDVCityPaid = Math.min(retireeDVPremium, Math.max(0, parseFloat(retireeDVCityPays) || 0));
-  const retireeDVOOP = Math.max(0, retireeDVPremium - retireeDVCityPaid);
+  const retireeDVOOP = retireeDVPremium;   // the City pays nothing toward either one
+  // The first 18 months are different: federal COBRA keeps you on the CITY's plans at 102% of
+  // the full cost. Shown as context, not folded into the headline -- the headline has to be
+  // the figure that holds for the other ~13 years, not the one that expires.
+  const cobraDentalPremium = (dentalObj[DENTAL_TIER_FROM_MED[retireeCoverage]] || 0) * COBRA_LOAD;
+  const cobraVisionPremium = (VISION_2026[retireeCoverage] || 0) * COBRA_LOAD;
+  const cobraDVPremium = cobraDentalPremium + cobraVisionPremium;
   // Total cash actually deposited each month = PERS direct deposit + the separate City medical reimbursement
   // check + (only when folded in) the net of any extra household income.
   // The headline retirement figure is the PENSION, full stop. A 457 draw is money you choose to
@@ -2515,7 +2563,7 @@ export default function RFFRetirementCalculator() {
       // to make a member's first retired month smaller than they planned for.
       { drop: !retireeKeepsDV && retireeDVOOP <= 0,
         w: { k: "Dental and vision", sub: "covered by the City's $180 credit", v: 0, zero: true },
-        r: { k: "Dental and vision", sub: "you pay these yourself \u2014 unverified", v: -retireeDVOOP } },
+        r: { k: "Dental and vision", sub: "you buy your own \u2014 the credit stops", v: -retireeDVOOP } },
     ].filter(x => !x.drop)
      // Stamp the pair's flags onto both halves so the grid path and the stacked mobile path
      // style the row identically -- the grid reads pr.w/pr.r straight, with no wrapper to
@@ -3022,7 +3070,7 @@ export default function RFFRetirementCalculator() {
     </>
   ) },
 { key: "dvret", title: "Dental and vision in retirement",
-  blurb: "The City's $180 dental/vision credit is part of the ACTIVE flex plan. The retiree contribution runs through PEMHCA, which is a medical programme \u2014 CalPERS bills dental and vision separately from your health premium. So plan on paying your own unless HR tells you otherwise.",
+  blurb: "The City pays nothing toward dental or vision once you separate \u2014 its $180 credit is part of the ACTIVE flex plan. You buy your own on the open market. These are live quotes, not the group rates you pay now.",
   valid: true,
   body: (
     <>
@@ -3041,27 +3089,38 @@ export default function RFFRetirementCalculator() {
       </div>
       {retireeKeepsDV && (
         <>
-          <label style={styles.label}>Dental plan</label>
-          <select className="rff-select" style={{ ...styles.select, marginBottom: "14px" }} value={retireeDentalPlan}
+          <label style={styles.label}>Dental plan you buy</label>
+          <select className="rff-select" style={{ ...styles.select, marginBottom: "4px" }} value={retireeDentalPlan}
             onChange={e => setRetireeDentalPlan(e.target.value)}>
-            {DENTAL_PLANS_2026.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+            {RETIREE_DENTAL_PLANS.map(pl => <option key={pl.name} value={pl.name}>
+              {pl.name}{pl[retireeCoverage] > 0 ? ` — ${fmt(pl[retireeCoverage])}/mo` : ""}</option>)}
           </select>
-          <label style={{ ...styles.label, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-            <input type="checkbox" checked={retireeHasVision} onChange={e => setRetireeHasVision(e.target.checked)} />
-            Keep VSP vision too
-          </label>
+          {retireeDentalObj.note && (
+            <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "14px" }}>{retireeDentalObj.note}</div>
+          )}
+          <label style={styles.label}>Vision plan you buy</label>
+          <select className="rff-select" style={styles.select} value={retireeVisionPlan}
+            onChange={e => setRetireeVisionPlan(e.target.value)}>
+            {RETIREE_VISION_PLANS.map(pl => <option key={pl.name} value={pl.name}>
+              {pl.name}{pl[retireeCoverage] > 0 ? ` — ${fmt(pl[retireeCoverage])}/mo` : ""}</option>)}
+          </select>
           <div style={{ fontSize: "13px", color: COLORS.text, marginTop: "14px", fontWeight: 700 }}>
             {fmt(retireeDVPremium)}/mo out of your own pocket
           </div>
         </>
       )}
       <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "14px", lineHeight: 1.7 }}>
-        \u26a0 Two things here are not confirmed. Whether Roseville offers retirees any dental or vision
-        at all is not stated on the City's retiree benefits page or in the 2026 Benefits Guide \u2014 ask HR
-        at retireemedical@roseville.ca.us. And these are the City's <strong>active-group</strong> 2026 rates;
-        coverage bought outside the group usually costs more, not less. Kaiser is not a substitute:
-        its CalPERS Medicare plan lists dental as <strong>not covered</strong>, and its vision is a $175
-        eyewear allowance every 24 months, not a VSP-style plan.
+        <strong>Your first 18 months are cheaper.</strong> Federal COBRA keeps you on the City&rsquo;s own
+        dental and vision at 102% of the full cost &mdash; about <strong>{fmt(cobraDVPremium)}/mo</strong>. It does
+        not stretch to 36: when federal COBRA ends and you move to Cal-COBRA, California says dental and
+        vision <strong>do not have to be offered to you</strong>. The figure above is the one that holds for
+        the rest of your retirement, so that is the one the tool carries.
+      </div>
+      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
+        Rates quoted 27 Sep 2026 &mdash; ZIP 95678, one person, age 50. Individual PPO plans carry a
+        <strong> 6-month waiting period</strong> on fillings and everything past cleanings and X-rays; a
+        group plan does not. Kaiser is no substitute: its CalPERS Medicare plan lists dental as
+        <strong> not covered</strong>, and its vision is a $175 eyewear allowance every 24 months.
       </div>
     </>
   ) },
@@ -5232,73 +5291,92 @@ export default function RFFRetirementCalculator() {
                     </div>
                     <div style={styles.tableRow}><span style={styles.tableKey}>{retireeMedicalPlan} premium</span><span style={styles.tableVal}>{fmt(retireePremium)}/mo</span></div>
                     <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Your net retiree premium</strong> <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the out-of-pocket line on the Overview tab</span></span><span style={styles.tableValAccent}>{fmt(retireeMedicalOOP)}/mo</span></div>
-                    {/* ── DENTAL AND VISION IN RETIREMENT ──
-                        The City's $180 dental/vision credit sits in the ACTIVE flex plan (MOU Ch.4
-                        Art.I \u00a7C.3). The retiree contribution runs through PEMHCA, which is medical.
-                        So the default is that the member pays the lot -- stated as an assumption,
-                        with a field to correct it the day HR says otherwise. */}
+                    {/* ── DENTAL AND VISION ONCE YOU SEPARATE ──
+                        The City pays NOTHING toward either one in retirement -- confirmed by Abram
+                        Neitling, Local 1592 Secretary, Sept 2026. Its $180 dental/vision credit is
+                        part of the ACTIVE flex plan (MOU Ch.4 Art.I §C.3) and stops at separation.
+                        So these are open-market rates, not the group rates on the working side. */}
                     <div style={{ marginTop: "18px", padding: "14px", background: COLORS.card,
                       border: `1px solid ${COLORS.border}`, borderRadius: "10px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.text, marginBottom: "8px" }}>
-                        Dental and vision &mdash; you pay these yourself
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: COLORS.text, marginBottom: "4px" }}>
+                        Dental and vision &mdash; you buy your own
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.7 }}>
+                        The City&rsquo;s $180 dental/vision credit is part of the <strong>active</strong> flex plan.
+                        It stops the day you separate, and nothing replaces it &mdash; so you are shopping the
+                        open market at the rates below, not the group rates you pay now.
                       </div>
                       <div style={{ marginBottom: "10px" }}>
                         <label style={styles.checkRow}>
                           <input style={styles.checkbox} type="checkbox" checked={retireeKeepsDV}
                             onChange={() => setRetireeKeepsDV(true)} />
-                          <span style={styles.checkLabel}>Carry dental and vision in retirement</span>
+                          <span style={styles.checkLabel}>Buy my own dental and vision</span>
                         </label>
                         <label style={styles.checkRow}>
                           <input style={styles.checkbox} type="checkbox" checked={!retireeKeepsDV}
                             onChange={() => setRetireeKeepsDV(false)} />
-                          <span style={styles.checkLabel}>Drop them at retirement</span>
+                          <span style={styles.checkLabel}>Drop them &mdash; go without, or join a spouse&rsquo;s plan</span>
                         </label>
                       </div>
-                      {retireeKeepsDV && (
+                      {retireeKeepsDV ? (
                         <>
                           <div style={styles.row}>
                             <div style={styles.fieldGroup}>
                               <label style={styles.label}>Dental plan</label>
                               <select className="rff-select" style={styles.select} value={retireeDentalPlan}
                                 onChange={e => setRetireeDentalPlan(e.target.value)}>
-                                {DENTAL_PLANS_2026.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+                                {RETIREE_DENTAL_PLANS.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
                               </select>
                             </div>
                             <div style={styles.fieldGroup}>
-                              <label style={styles.label}>If the City pays toward it</label>
-                              <input style={styles.input} type="number" min={0} value={retireeDVCityPays}
-                                placeholder="0 / mo" onChange={e => setRetireeDVCityPays(e.target.value)} />
+                              <label style={styles.label}>Vision plan</label>
+                              <select className="rff-select" style={styles.select} value={retireeVisionPlan}
+                                onChange={e => setRetireeVisionPlan(e.target.value)}>
+                                {RETIREE_VISION_PLANS.map(pl => <option key={pl.name} value={pl.name}>{pl.name}</option>)}
+                              </select>
                             </div>
                           </div>
-                          <label style={{ ...styles.checkRow, marginBottom: "10px" }}>
-                            <input style={styles.checkbox} type="checkbox" checked={retireeHasVision}
-                              onChange={e => setRetireeHasVision(e.target.checked)} />
-                            <span style={styles.checkLabel}>Keep VSP vision</span>
-                          </label>
-                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeDentalPlan} &middot; {MEDICAL_COVERAGE_LABELS[retireeCoverage]}</span><span style={styles.tableVal}>{fmt(retireeDentalPremium)}/mo</span></div>
-                          {retireeHasVision && (
-                            <div style={styles.tableRow}><span style={styles.tableKey}>VSP vision</span><span style={styles.tableVal}>{fmt(retireeVisionPremium)}/mo</span></div>
+                          {retireeDentalObj.note && (
+                            <div style={{ fontSize: "11px", color: COLORS.textDim, marginBottom: "8px", lineHeight: 1.6 }}>
+                              {retireeDentalPlan} &middot; {retireeDentalObj.note}
+                            </div>
                           )}
-                          {retireeDVCityPaid > 0 && (
-                            <div style={styles.tableRow}><span style={styles.tableKey}>City pays toward it <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; the figure you entered</span></span><span style={styles.tableValGreen}>&minus;{fmt(retireeDVCityPaid)}/mo</span></div>
-                          )}
+                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeDentalPlan} <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; {MEDICAL_COVERAGE_LABELS[retireeCoverage]}</span></span><span style={styles.tableVal}>{fmt(retireeDentalPremium)}/mo</span></div>
+                          <div style={styles.tableRow}><span style={styles.tableKey}>{retireeVisionPlan}</span><span style={styles.tableVal}>{fmt(retireeVisionPremium)}/mo</span></div>
+                          <div style={styles.tableRow}><span style={styles.tableKey}>City pays toward it <span style={{ fontSize: "10px", color: COLORS.textDim }}>&middot; nothing, once you separate</span></span><span style={styles.tableVal}>$0</span></div>
                           <div style={styles.tableRowLast}><span style={styles.tableKey}><strong>Out of your own pocket</strong></span><span style={styles.tableValAccent}>{fmt(retireeDVOOP)}/mo</span></div>
+                          <div style={{ fontSize: "11px", color: COLORS.textMuted, marginTop: "10px", lineHeight: 1.7 }}>
+                            Today the same two coverages cost <strong style={{ color: COLORS.text }}>{fmt(dvCost)}</strong>/mo
+                            of premium, of which the City covers <strong style={{ color: COLORS.green }}>{fmt(dvCityPaid)}</strong> and
+                            you pay <strong style={{ color: COLORS.text }}>{fmt(dvOOP)}</strong>. In retirement all of it is yours.
+                          </div>
                         </>
+                      ) : (
+                        <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.7 }}>
+                          Nothing comes out for dental or vision. If you are joining a spouse&rsquo;s plan, remember
+                          that adding you is rarely free &mdash; check what their employer charges for a spouse before
+                          you treat this as $0.
+                        </div>
                       )}
-                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
-                        \u26a0 <strong>Unverified.</strong> The City&rsquo;s $180 dental/vision credit is part of the
-                        <strong> active</strong> flex plan (MOU Ch.4 Art.I &sect;C.3). Retiree money runs through PEMHCA,
-                        which is a medical programme &mdash; CalPERS states dental and vision for a public-agency retiree are
-                        billed separately from the CalPERS health premium. Whether Roseville offers retirees anything at all
-                        is not stated on the City&rsquo;s retiree benefits page or in the 2026 Benefits Guide. Ask
-                        retireemedical@roseville.ca.us, then put the answer in the box above.
+                      {/* The 18-month COBRA bridge. Worth stating because members assume it runs 36. */}
+                      <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "12px", paddingTop: "10px",
+                        borderTop: `1px solid ${COLORS.borderSoft}`, lineHeight: 1.7 }}>
+                        <strong>Your first 18 months are different.</strong> Federal COBRA keeps you on the City&rsquo;s
+                        own dental and vision at up to 102% of the full cost &mdash; about
+                        {" "}<strong style={{ color: COLORS.text }}>{fmt(cobraDVPremium)}/mo</strong> at your tier. It does
+                        <strong> not</strong> stretch to 36 months: California&rsquo;s DMHC states that when federal COBRA
+                        ends and you move to Cal-COBRA, specialized plans &mdash; dental and vision &mdash; do not have to
+                        be offered to you. The tool carries the open-market figure because that is the one that holds
+                        for the other {Math.max(0, 65 - retirementAge)} years, not the 18 months that expire.
                       </div>
                       <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.7 }}>
-                        Kaiser does not cover this for you: the CalPERS Kaiser Medicare plan lists dental as
-                        <strong> not covered</strong>, and its vision benefit is a $175 eyewear allowance every 24 months
-                        plus routine exams &mdash; not a dental plan and not a VSP-style vision plan. These rates are the
-                        City&rsquo;s <strong>active-group</strong> 2026 figures; bought outside the group, coverage usually
-                        costs more.
+                        Rates quoted <strong>27 Sep 2026</strong> &mdash; Delta Dental of California&rsquo;s own shopping
+                        tool and VSP&rsquo;s published individual pricing, ZIP 95678, one person, age 50. Individual PPO
+                        plans carry a <strong>6-month waiting period</strong> on fillings and everything past cleanings
+                        and X-rays; a group plan does not. Rates for two or more people are the single rate scaled, not
+                        quoted &mdash; treat those as an estimate. Kaiser is no substitute: its CalPERS Medicare plan
+                        lists dental as <strong>not covered</strong>, and its vision is a $175 eyewear allowance every
+                        24 months plus routine exams.
                       </div>
                     </div>
                     {/* ── WHAT IT COSTS ONCE MEDICARE STARTS ── */}
