@@ -364,6 +364,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v67)", items: [
+    "<strong>The page fills the screen properly now.</strong> The shell was capped at 1,100px from back when this was one centred column — once the navigation rail took 196px out of that, the content had about 880px left, stranded in the middle of a monitor with big empty margins either side. The shell is 1,460px now and the side gutters came in from 20px to 26px.",
+    "The header, the four-number bar and the content all line up on the same edges, so the logo sits directly above the rail.",
+    "Body text is still capped at 1,180px inside that — a 1,400px line of type is unreadable no matter how much room there is for it. Tighter gutters on a phone too: 14px each side instead of 12px of padding inside a narrower shell.",
+  ] },
   { date: "September 27, 2026 (v66)", items: [
     "<strong>Navigation moved to a rail down the left.</strong> Eight destinations read faster as a list than as a row — and the row was wrapping onto two lines on most screens anyway. It sticks as you scroll, so you can jump screens from anywhere on the page.",
     "<strong>Pension is first now.</strong> It is the answer; everything else is how the answer was arrived at. A link with no tab in it lands there too, instead of dropping you on the input form.",
@@ -1078,7 +1083,7 @@ const styles = {
   headerSub: { margin: 0, fontSize: "10px", color: COLORS.accent,
     letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: "700",
     marginBottom: "5px" },
-  container: { maxWidth: "1100px", margin: "0 auto", padding: "36px 20px 48px" },
+  container: { maxWidth: "1460px", margin: "0 auto", padding: "26px 26px 56px" },
   grid: { display: "grid", gridTemplateColumns: "380px 1fr", gap: "24px", alignItems: "start" },
   // Ordinary card. Sits at rest — most of the page is this.
   card: { background: COLORS.card, border: `1px solid ${COLORS.borderSoft}`,
@@ -2991,7 +2996,7 @@ export default function RFFRetirementCalculator() {
         background: COLORS.bg, borderBottom: `1px solid ${COLORS.borderSoft}`,
         padding: isMobile ? "16px 14px" : "22px 20px",
       }}>
-        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex",
+        <div style={{ maxWidth: "1460px", margin: "0 auto", display: "flex",
           alignItems: "center", gap: isMobile ? "12px" : "16px" }}>
           <img src={logoUrl} alt="" aria-hidden="true"
             style={{ height: isMobile ? "46px" : "62px", width: "auto", flexShrink: 0 }} />
@@ -3076,7 +3081,7 @@ export default function RFFRetirementCalculator() {
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 4px 18px -6px rgba(74, 56, 38, 0.26)" }}>
         {/* The four numbers a member actually came for: what they make now, gross and net,
             against what they will get retired, gross and net. Everything else is the working. */}
-        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 20px",
+        <div style={{ maxWidth: "1460px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 26px",
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: isMobile ? "8px" : "16px" }}>
           {[
             { label: `While working \u00b7 ${headerWorkYear}`,
@@ -3107,7 +3112,7 @@ export default function RFFRetirementCalculator() {
       </div>
       {/* Guided setup owns the whole screen until it is finished. Half a wizard beside a
           full dashboard is worse than either — the member cannot tell which one to use. */}
-            <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
+            <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 14px 40px" : "26px 26px 56px" }}>
         {datesInvalid && (
           <div style={{ background: "rgba(179,38,30,0.1)", border: "1px solid rgba(179,38,30,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#7d1a14" }}>
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Member details — the numbers above aren't valid until then.
@@ -3145,7 +3150,10 @@ export default function RFFRetirementCalculator() {
               </button>
             ))}
           </nav>
-          <div style={{ minWidth: 0 }}>
+          {/* The shell is wide so the page is not marooned in the middle of a monitor, but
+              the reading column is still capped — a 1,400px line of body text is unreadable
+              however much room there is for it. */}
+          <div style={{ minWidth: 0, maxWidth: "1180px" }}>
         <div style={{ ...styles.grid, gridTemplateColumns: "1fr" }}>
           {/* LEFT PANEL */}
           <div>
