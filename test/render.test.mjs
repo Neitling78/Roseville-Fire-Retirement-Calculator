@@ -43,27 +43,45 @@ async function scenario(saved) {
   return out;
 }
 
-// ── A first-time visitor ────────────────────────────────────────────────────
-console.log("\n-- first visit: questions, not somebody else's numbers --");
+// ── A first-time visitor gets guided setup ──────────────────────────
+// Landing cold on eight tabs and forty fields, a member cannot tell which answers matter.
+// The wizard asks five, one at a time, and will not advance on an answer it cannot use.
+console.log("\n-- first visit: guided setup, one step at a time --");
 const A = await scenario(null);
 check("every screen renders", () => Object.values(A).every(h => h.length > 200) || "a screen came back empty");
-check("opens with Roseville", () => has(A.member, "1 \u00b7 Roseville"));
-check("then prior service", () => has(A.member, "2 \u00b7 Prior service"));
-// Date of birth is asked before the hire date: it is the question with no wrong answer, and
-// the line under the hire date reads an age back, so the age has to exist first.
-check("date of birth is asked before the hire date", () => {
+check("opens on step one, not the dashboard", () =>
+  has(A.member, "Step 1 of 5") && has(A.member, "When were you born?"));
+check("and asks only that one question", () => lacks(A.member, "When did Roseville hire you?"));
+// The whole point: the dashboard is not sitting behind the wizard competing with it.
+check("the tabs are not there yet", () => lacks(A.member, "Survivor / beneficiary"));
+check("nor any figure to misread", () => lacks(A.member, "Lands in your bank"));
+check("the Next button is there", () => has(A.member, "Next"));
+// Date of birth is step one because everything downstream reads an age back.
+check("date of birth is the first thing asked", () => {
   const dob = A.member.indexOf("Date of birth"), hire = A.member.indexOf("Roseville hire date");
-  return (dob >= 0 && hire >= 0 && dob < hire) || `dob at ${dob}, hire date at ${hire}`;
+  return (dob >= 0 && (hire < 0 || dob < hire)) || `dob at ${dob}, hire date at ${hire}`;
 });
-check("then specialty pay", () => has(A.member, "3 \u00b7 Specialty pay and certificates"));
-// The overtime + gross-pay card only appears once the member has entered something.
-check("asks what you do", () => has(A.member, "Rank and pay step"));
-check("asks when Roseville hired you", () => has(A.member, "Roseville hire date"));
-check("asks for sick leave hours at retirement", () => has(A.start, "sick leave hours will you have on the books at retirement"));
-check("withholds the answer", () => has(A.start, "each get their own tab"));
-check("shows NO take-home figure yet", () => lacks(A.start, "Lands in your bank"));
-check("says data stays in the browser", () => has(A.start, "leaves your browser"));
-check("'what if I wait' also waits", () => has(A.stayorgo, "Fill in"));
+// The gate has to actually gate. dob and hireDate carry defaults so the rest of the
+// maths stays finite -- if the wizard read those defaults it would let a member click
+// straight past a prefilled 1990-01-01 and silently adopt it as their birthday.
+check("step one starts empty, not prefilled", () => lacks(A.member, "1990-01-01"));
+check("and says what it wants", () => has(A.member, "Pick your date of birth to carry on"));
+check("no placeholder figures while setup runs", () =>
+  lacks(A.member, "While retired") && lacks(A.member, "While working"));
+check("says how long it is", () => has(A.member, "Five questions"));
+check("says data stays in the browser", () => has(A.member, "leaves your browser"));
+// A URL pointing at any tab still lands in setup -- there is nothing else to show.
+check("every entry point lands in setup", () =>
+  ["pension", "comp", "stayorgo", "health"].every(t => A[t].includes("Step 1 of 5"))
+  || "a tab skipped the wizard");
+
+// A member who has been through it never sees it again: wizardDone falls back to
+// setupDone, so an existing saved profile is not sent back to step one.
+const RET = await scenario({ setupDone:true, hireDate:"1998-06-01", dob:"1972-03-15",
+  memberType:"classic", medicalTier:"1", classification:"Fire Captain", salaryStep:"H",
+  retirementDateOverride:"2028-06-01" });
+check("a saved profile skips setup entirely", () => lacks(RET.member, "Step 1 of 5"));
+check("and gets the whole tool", () => has(RET.member, "1 \u00b7 Roseville") && has(RET.pension, "Your pension \u00b7 "));
 
 // ── A 28-year Classic Captain, the actual audience ──────────────────────────
 console.log("\n-- returning member: Classic Captain, 28 yrs, retiring 2028 --");

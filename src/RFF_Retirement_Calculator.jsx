@@ -358,6 +358,13 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v59)", items: [
+    "<strong>New members get guided setup instead of the whole tool at once.</strong> Five questions, one per screen, with a Next button that stays greyed out until the answer is one the calculator can actually use. Then the full dashboard opens on your pension number.",
+    "The five, in the order they depend on each other: <strong>date of birth → Roseville hire date → Classic or PEPRA → rank and step → when you plan to go.</strong> The hire date step reads back what it just decided for you — your years, your formula and your medical tier — so you can catch a typo before it propagates.",
+    "<strong>Everything else keeps its default and waits.</strong> Specialty pay, overtime, sick leave, prior agencies, medical: all correctable afterward. A setup flow that asks forty questions gets abandoned around question six.",
+    "<strong>Nothing is shown while you are still answering.</strong> No tabs, and no figures at the top — during setup those would be computed from placeholder dates, which is to say somebody else’s pension.",
+    "<strong>If you have used this before you will never see it.</strong> A saved profile goes straight to the dashboard. <em>Start over</em> puts you back at step one.",
+  ] },
   { date: "September 27, 2026 (v58)", items: [
     "<strong>The glowing masthead is gone.</strong> A 46px red-glow title over a 320px logo watermark was the most dated thing on the page. In its place: a small quiet bar with the logo and the name. The screen you came for starts at the top now instead of two inches down.",
     "<strong>Pension leads with figures instead of rows.</strong> Your allowance at 48px, the annual and your percentage of final pay beside it, and next to that a <strong>meter running to the 90% cap</strong> — which turns gold and says <em>⚠ At the cap</em> in words when you reach it, with the date you got there. A colour change on its own is not a message.",
@@ -1186,6 +1193,18 @@ export default function RFFRetirementCalculator() {
   // to dismiss without reading and looks like a bug on a phone; this makes the second click
   // say out loud what it is about to do, and gives up after ten seconds of hesitation.
   const [resetArmed, setResetArmed] = useState(false);
+  // Guided setup. A member landing here cold used to get eight tabs and about forty
+  // fields with no idea which of them mattered. The wizard asks the five that drive
+  // the headline, one at a time, and will not move on until the answer is usable.
+  // Anyone with a saved profile has already been through it and never sees it again:
+  // wizardDone falls back to setupDone so nobody is sent back to step one.
+  const [wizardDone, setWizardDone] = useState(SAVED.wizardDone ?? !!SAVED.setupDone);
+  const [wizardStep, setWizardStep] = useState(0);
+  // dob and hireDate carry defaults so every downstream figure stays finite. That would
+  // also let a member click Next past a prefilled 1990-01-01 and silently adopt it, so
+  // track whether they actually answered and show the field empty until they have.
+  const [dobAnswered, setDobAnswered] = useState(!!SAVED.dob);
+  const [hireAnswered, setHireAnswered] = useState(!!SAVED.hireDate);
   // Collapsible input sections — tap a title to open/close (choice persists on device)
   const [openSections, setOpenSections] = useState(SAVED.openSections ?? { profile: true, prior: true, hiredate: true, rank: true, paystep: true, raises: false, incentives: false, sickleave: false, yourprofile: false, breakdown: false, cola: false, survivor: false,
       startpay: false, startincent: false, starthourly: false, startraises: false, startpayout: false,
@@ -1572,7 +1591,7 @@ export default function RFFRetirementCalculator() {
       hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
       hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
       useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-      currentSickLeaveHours, rateYear, rateYearPicked, airtime,
+      currentSickLeaveHours, rateYear, rateYearPicked, airtime, wizardDone,
       calpersCreditRoseville, calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance,
       sickLeaveDisposition,
       beneficiaryAge,
@@ -1587,7 +1606,7 @@ export default function RFFRetirementCalculator() {
     hasInvestigation, investigationLevel, hasBachelor, hasAssociate,
     hasEngineerCert, hasCompanyOfficer, hasChiefFireOfficer, hasEngineBoss, hasFFII,
     useSpecial457Catchup, current457, annual457Contrib, hasEmployerMatch, returnRate, retireDrawRate, retireReturnRate, drawStartAge, retireWaitReturnRate, currentOTHours,
-    currentSickLeaveHours, rateYear, rateYearPicked, calpersCreditRoseville,
+    currentSickLeaveHours, rateYear, rateYearPicked, wizardDone, calpersCreditRoseville,
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition,
     beneficiaryAge,
     plannedRetirementYear,
@@ -1599,7 +1618,7 @@ export default function RFFRetirementCalculator() {
   const resetAll = () => {
     if (!resetArmed) { setResetArmed(true); return; }
     clearSavedState();
-    if (typeof window !== "undefined") window.location.reload();
+    if (typeof window !== "undefined") window.location.reload();  // reload re-enters the wizard
   };
   // Armed and then ignored means they thought better of it. Disarm rather than leaving a
   // live erase button sitting under their thumb.
@@ -2510,6 +2529,99 @@ export default function RFFRetirementCalculator() {
                       </div>
                     )}
   </>);
+  // ── GUIDED SETUP ──────────────────────────────────────────────
+  // Five questions, in the order the answers depend on each other, each gated on an answer
+  // the tool can actually use. Everything else in the calculator has a defensible default,
+  // so it is filled in afterward rather than demanded up front — a setup flow that asks
+  // forty questions gets abandoned at about question six.
+  const dobYears = dobDate ? (NOW - dobDate) / MS_PER_YEAR : 0;
+  const hireOk = /^\d{4}-\d{2}-\d{2}$/.test(hireDate || "")
+    && hireDateObj > new Date(1950, 0, 1) && hireDateObj <= NOW
+    && (!dobDate || (hireDateObj - dobDate) / MS_PER_YEAR >= 16);
+  const WIZARD = [
+    { key: "dob", title: "When were you born?",
+      blurb: "CalPERS pays on your age to the quarter-year, so this drives your benefit factor and the earliest day you can draw.",
+      valid: dobAnswered && dobValid && dobYears >= 16 && dobYears <= 90,
+      hint: (!dobAnswered || !dobValid) ? "Pick your date of birth to carry on."
+        : "That date would make you " + dobYears.toFixed(0) + " — check the year.",
+      body: (
+        <>
+          <label style={styles.label}>Date of birth</label>
+          <input type="date" style={styles.input} value={dobAnswered ? dob : ""}
+            onChange={e => { setDob(e.target.value); setDobAnswered(!!e.target.value); }} />
+        </>
+      ) },
+    { key: "hire", title: "When did Roseville hire you?",
+      blurb: "This sets your service credit, your medical tier, and whether you are Classic or PEPRA — more rides on it than on any other answer here.",
+      valid: hireAnswered && hireOk,
+      hint: (!hireAnswered || !/^\d{4}-\d{2}-\d{2}$/.test(hireDate || "")) ? "Pick your Roseville hire date to carry on."
+        : hireDateObj > NOW ? "That date is in the future."
+        : "That would have you hired before you turned 16 — check the year.",
+      body: (
+        <>
+          <label style={styles.label}>Roseville hire date</label>
+          <input type="date" style={styles.input} value={hireAnswered ? hireDate : ""}
+            onChange={e => { setHireDate(e.target.value); setHireAnswered(!!e.target.value); }} />
+          {hireAnswered && hireOk && (
+            <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "12px", lineHeight: 1.7 }}>
+              That is <strong style={{ color: COLORS.text }}>{((NOW - hireDateObj) / MS_PER_YEAR).toFixed(1)} years</strong> so
+              far, which makes you <strong style={{ color: COLORS.green }}>{hireDateObj.getFullYear() < CLASSIC_PEPRA_CUTOFF_YEAR ? "Classic (3% @ 50)" : "PEPRA (2.7% @ 57)"}</strong> and
+              {" "}<strong style={{ color: COLORS.green }}>Medical Tier {medicalTier}</strong>.
+            </div>
+          )}
+        </>
+      ) },
+    { key: "formula", title: "Are you Classic, 3% @ 50?",
+      blurb: "Your hire date already answered this. The one case it cannot see is a member who is Classic through CalPERS reciprocity from an agency before Roseville — if that is you, tick it.",
+      valid: true,
+      body: (
+        <>
+          <label style={styles.checkRow}>
+            <input style={styles.checkbox} type="checkbox" checked={memberType === "classic"}
+              onChange={e => { setOverridePensionType(true); setMemberType(e.target.checked ? "classic" : "pepra"); }} />
+            <span style={{ ...styles.checkLabel, fontWeight: 700 }}>Yes — I am Classic, 3% @ 50</span>
+          </label>
+          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "10px", lineHeight: 1.7 }}>
+            Roseville hires before 1/1/2013 are Classic; on or after are PEPRA. Classic is a bigger
+            benefit with a different cap, and nothing else in this tool is right if it is wrong.
+          </div>
+        </>
+      ) },
+    { key: "rank", title: "What is your rank and step?",
+      blurb: "Straight off the salary schedule. This is your base pay, which everything else is a percentage of.",
+      valid: true,
+      body: (
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: "10px" }}>
+          <select className="rff-select" style={styles.select} value={classification}
+            onChange={e => setClassification(e.target.value)}>
+            {Object.keys(activeSchedule).map(c => <option key={c}>{c}</option>)}
+          </select>
+          <select className="rff-select" style={styles.select} value={salaryStep}
+            onChange={e => setSalaryStep(e.target.value)}>
+            {Object.keys(activeSchedule[classification]?.steps || {}).map(st =>
+              <option key={st} value={st}>Step {st}</option>)}
+          </select>
+        </div>
+      ) },
+    { key: "when", title: "When do you plan to go?",
+      blurb: "A guess is fine — this is the one you get to change your mind about, and every figure in the tool moves with it.",
+      valid: !datesInvalid && retireAgeQ >= 50,
+      hint: datesInvalid ? "That date is on or before your hire date."
+        : "Safety members cannot draw a pension before age 50 — that date puts you at "
+          + retireAgeQ.toFixed(2) + ".",
+      body: (
+        <>
+          <label style={styles.label}>Your last day</label>
+          <input type="date" style={styles.input} value={effectiveRetDateStr}
+            onChange={e => setRetirementDateOverride(e.target.value)} />
+          <div style={{ fontSize: "12px", color: COLORS.textMuted, marginTop: "12px", lineHeight: 1.7 }}>
+            Age <strong style={{ color: COLORS.text }}>{retireAgeQ.toFixed(2)}</strong> with
+            {" "}<strong style={{ color: COLORS.text }}>{yearsOfService.toFixed(1)} years</strong> of service.
+          </div>
+        </>
+      ) },
+  ];
+  const wizStep = WIZARD[Math.min(wizardStep, WIZARD.length - 1)];
   // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={styles.app}>
@@ -2560,6 +2672,63 @@ export default function RFFRetirementCalculator() {
           </div>
         </div>
       </div>
+      {!wizardDone && (
+        <div className="no-print" style={{ ...styles.container, maxWidth: "620px", padding: isMobile ? "24px 14px 48px" : "48px 20px 64px" }}>
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+              {WIZARD.map((w, i) => (
+                <div key={w.key} className="rff-fill" style={{ flex: 1, height: "4px", borderRadius: "2px",
+                  background: i < wizardStep ? COLORS.green : i === wizardStep ? COLORS.accent : "rgba(255,255,255,0.09)" }} />
+              ))}
+            </div>
+            <div style={{ ...styles.metricLabel, marginBottom: "0" }}>
+              Step {wizardStep + 1} of {WIZARD.length}
+            </div>
+          </div>
+          <div className="rff-card" style={{ ...styles.cardHero, marginBottom: "18px" }}>
+            <h2 style={{ margin: "0 0 8px", fontSize: isMobile ? "22px" : "27px", fontWeight: 800,
+              letterSpacing: "-0.03em", lineHeight: 1.15, color: COLORS.text }}>{wizStep.title}</h2>
+            <div style={{ fontSize: "13px", color: COLORS.textMuted, marginBottom: "22px", lineHeight: 1.7 }}>
+              {wizStep.blurb}
+            </div>
+            {wizStep.body}
+            {!wizStep.valid && wizStep.hint && (
+              <div style={{ marginTop: "14px", fontSize: "12px", color: COLORS.gold, lineHeight: 1.6 }}>
+                {wizStep.hint}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            {wizardStep > 0 && (
+              <button onClick={() => setWizardStep(n => n - 1)}
+                style={{ ...styles.tab(false), padding: "13px 18px", fontSize: "14px" }}>
+                Back
+              </button>
+            )}
+            <button
+              disabled={!wizStep.valid}
+              onClick={() => {
+                setSetupDone(true);
+                if (wizardStep < WIZARD.length - 1) setWizardStep(n => n + 1);
+                else { setWizardDone(true); setTab("pension"); }
+              }}
+              style={{ flex: 1, padding: "14px 18px", borderRadius: "10px", fontSize: "15px", fontWeight: 700,
+                border: `1px solid ${wizStep.valid ? COLORS.accent : COLORS.borderSoft}`,
+                background: wizStep.valid ? COLORS.accent : "rgba(255,255,255,0.04)",
+                color: wizStep.valid ? "#fff" : COLORS.textDim,
+                cursor: wizStep.valid ? "pointer" : "not-allowed",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s" }}>
+              {wizardStep < WIZARD.length - 1 ? "Next" : "See my number"}
+            </button>
+          </div>
+          <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "18px", lineHeight: 1.7, textAlign: "center" }}>
+            Five questions, then the whole calculator opens up — specialty pay, overtime, sick leave,
+            medical and the rest all have sensible defaults you can correct afterward.
+            Nothing you type leaves your browser.
+          </div>
+        </div>
+      )}
+      {wizardDone && (<>
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 2px 12px rgba(0,0,0,0.45)" }}>
         {/* The four numbers a member actually came for: what they make now, gross and net,
             against what they will get retired, gross and net. Everything else is the working. */}
@@ -2592,7 +2761,9 @@ export default function RFFRetirementCalculator() {
           ))}
         </div>
       </div>
-      <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
+      {/* Guided setup owns the whole screen until it is finished. Half a wizard beside a
+          full dashboard is worse than either — the member cannot tell which one to use. */}
+            <div className="no-print" style={{ ...styles.container, padding: isMobile ? "16px 12px" : "32px 20px" }}>
         {datesInvalid && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: "#fca5a5" }}>
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Member details — the numbers above aren't valid until then.
@@ -5137,6 +5308,7 @@ export default function RFFRetirementCalculator() {
           </div>
         </div>
       </div>
+      </>)}
       <div className="print-report" style={{ padding: "24px", color: "#111", background: "#fff", fontFamily: "Helvetica, Arial, sans-serif" }}>
         <div style={{ textAlign: "center", borderBottom: "3px solid #d21f33", paddingBottom: "16px", marginBottom: "18px" }}>
           <img src={logoUrl} alt="" style={{ height: "120px", marginBottom: "8px" }} />
