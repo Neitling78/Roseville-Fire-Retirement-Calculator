@@ -31,9 +31,16 @@ const lacks = (t,n) => !t.includes(n) ? true : "should NOT contain: " + JSON.str
 const strip = (h) => h.replace(/<!-- -->/g,"").replace(/<[^>]+>/g," ").replace(/&#x27;/g,"'").replace(/&amp;/g,"&")
   .replace(/&quot;/g,'"').replace(/&#x2F;/g,"/").replace(/&#8722;|−/g,"-").replace(/\s+/g," ");
 
-async function scenario(saved) {
+// The Jan-2028 Labor Market Adjustment now DEFAULTS to an assumed 3%, which moves every
+// golden figure for a 2028-or-later year. These scenarios were all written against the old
+// zero, so pin them there and mark it chosen -- the default's own behaviour gets its own
+// tests below rather than being smeared through every other assertion in the file.
+async function scenario(saved, opts = {}) {
   globalThis.localStorage.clear();
-  if (saved) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  const seed = saved && !opts.rawLma
+    ? { lmaPct: 0, lmaTouched: true, ...saved }
+    : saved;
+  if (seed) globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
   const { default: Calc } = await import("./component.mjs?v=" + (++bust));
   const out = {};
   for (const t of ["member","comp","pension","survivor","health","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline","deductions","advanced"]) {
@@ -702,6 +709,45 @@ console.log("\n-- pension: figures, meter, split --");
   check("but the tool is still named", () => has(F.member, "Retirement Calculator"));
 }
 
+// ── The 2028 LMA default ───────────────────────────────────────
+// It defaults to an assumed 3% rather than 0. Zero was also an assumption -- a pessimistic
+// one that understated every pension figured on a 2028-or-later final year -- but either
+// way the figure is unpriced until the 2027 study happens, and has to say so.
+console.log("\n-- 2028 labor market adjustment --");
+{
+  const D = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50, rateYear:2028, rateYearPicked:true,
+    openSections:{ startraises:true } }, { rawLma: true });
+  check("it defaults to 3%, not zero", () => has(D.comp, "assumed 3%"));
+  check("and is never called a negotiated figure", () =>
+    has(D.comp, "not a negotiated or published figure"));
+  check("the warning stays whatever the number is", () =>
+    has(D.comp, "the year nobody can price yet"));
+  check("it names the study that has not happened", () =>
+    has(D.comp, "2027 Total Compensation Study"));
+
+  // A profile saved before the default existed carries lmaPct: 0 because that WAS the
+  // default. It takes the new assumption; a member who actually typed 0 keeps 0.
+  const LEGACY = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50, rateYear:2028, rateYearPicked:true,
+    lmaPct: 0, openSections:{ startraises:true } }, { rawLma: true });
+  check("an old saved zero takes the new default", () => has(LEGACY.comp, "assumed 3%"));
+  const CHOSE = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50, rateYear:2028, rateYearPicked:true,
+    lmaPct: 0, lmaTouched: true, openSections:{ startraises:true } }, { rawLma: true });
+  check("a deliberate zero is left alone", () =>
+    lacks(CHOSE.comp, "assumed 3%") && has(CHOSE.comp, "floor, not a forecast"));
+  // The assumption has to actually move the money, or it is decoration.
+  check("3% lifts the 2028 figure above the zero case", () => {
+    const g = (t) => { const m = t.match(/Gross pay [^$]*\$([\d,]+)/); return m ? +m[1].replace(/,/g,"") : null; };
+    const a = g(D.comp), b = g(CHOSE.comp);
+    return (a && b && a > b) || `3% case ${a} vs zero case ${b}`;
+  });
+}
+
 console.log("\n-- sweet-spot date --");
 {
   // Well short of the cap: 22 yrs in, no priors, sick leave converted.
@@ -1007,7 +1053,10 @@ check("2029 names the 1.75%", () => has(Y29L.comp, "+1.75%"));
 // 2028 with no LMA entered is a floor, and has to say so.
 check("2028 at zero LMA is flagged", () => has(Y28.comp, "the year nobody can price yet"));
 check("and called a floor, not a forecast", () => has(Y28.comp, "floor, not a forecast"));
-check("no warning once an LMA is set", () => lacks(Y28L.comp, "the year nobody can price yet"));
+// The warning stays whatever the number is -- it is about the study not having happened,
+// not about the box being empty. Only its wording changes.
+check("a set LMA is still called an assumption", () =>
+  has(Y28L.comp, "the year nobody can price yet") && has(Y28L.comp, "your assumption"));
 check("this year carries no assumption banner", () => lacks(Y26.comp, "What is in"));
 
 
@@ -1268,7 +1317,7 @@ check("laid out by year", () => ["2027","2028","2029","2030+"].every(y => FR.com
 check("2027 carries its rank separation", () => has(FR.comp, "Eng = FFP2 ×1.075"));
 check("2028 shows the alignment tightening", () => has(FR.comp, "Eng = FFP ×1.10"));
 check("2028 has the LMA input", () => has(FR.comp, "Labor Market Adjustment"));
-check("2028 says nobody knows it yet", () => has(FR.comp, "nobody knows this one yet"));
+check("2028 flags the LMA as unpriced", () => has(FR.comp, "floor, not a forecast"));
 check("2030+ has the bargaining dial", () => has(FR.comp, "Raises Local 1592 bargains"));
 check("cites Art.I.A(2) for 2027", () => has(FR.comp, "Art.I.A(2)"));
 check("cites Art.I.A.3 for the LMA", () => has(FR.comp, "Art.I.A.3"));

@@ -61,6 +61,12 @@ const mouGwiFor = (year, cls) => {
 };
 const CLASSIC_PEPRA_CUTOFF_YEAR = 2013;          // Hired before 1/1/2013 = Classic
 const LONGEVITY_CUTOFF_YEAR = 2017;              // Hired before 1/1/2017 = Longevity; on/after = Service Term Bonus
+// The January 2028 Labor Market Adjustment (MOU Ch.2 Art.I.A.3) is set by the 2027 Total
+// Compensation Study, which has not been done. This is a PLANNING ASSUMPTION, not a
+// negotiated or published figure, and it is labelled as one everywhere it appears. It sat
+// at 0 before, which read as "no raise in 2028" — also an assumption, just a pessimistic
+// one that quietly understated every pension figured on a 2028-or-later final year.
+const LMA_DEFAULT_PCT = 3;
 const ENGINEER_CERT_CEASE_DATE = new Date("2027-01-09");
 const CAPTAIN_INCENTIVE_CEASE_DATE = new Date("2027-01-09"); // Captain Paramedic & Engine Boss
 // Retiree medical (MOU Art II): Tier 1/2 = $1,200/mo, Tier 3 = $720/mo, both 2% COLA from 1/1/2013.
@@ -358,6 +364,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v61)", items: [
+    "<strong>The January 2028 Labor Market Adjustment now defaults to 3%.</strong> It used to sit at zero, which read as “no raise in 2028.” Both are assumptions — zero was just the pessimistic one, and it quietly understated every pension figured on a 2028-or-later final year.",
+    "<strong>It is still labelled as an assumption everywhere it appears,</strong> because it is: the LMA is set by the 2027 Total Compensation Study (MOU Ch.2 Art.I.A.3), which has not been done. Nothing about 3% is negotiated, published or promised. Change it under <strong>Compensation → Future raises</strong> and every figure moves.",
+    "If you type your own number — including 0 — it sticks. A profile saved before today carries a 0 that was the old default rather than your choice, so it takes the 3% instead.",
+    "<strong>Expect your pension figure to go up</strong> if you retire in 2028 or later. That is the assumption changing, not new information.",
+  ] },
   { date: "September 27, 2026 (v60)", items: [
     "<strong>Guided setup now walks the whole calculator, not just the front of it.</strong> Thirteen questions in three parts — <strong>The basics</strong>, <strong>Your pay</strong>, <strong>Money in retirement</strong> — so nothing important is left to be discovered three tabs deep a week later.",
     "<strong>The basics (1–5):</strong> date of birth, Roseville hire date, Classic or PEPRA, rank and step, when you plan to go. These are gated — Next stays dead until the answer is one the calculator can use.",
@@ -1466,7 +1478,13 @@ export default function RFFRetirementCalculator() {
   // Total Compensation Study (survey data effective 9/1/2027) sets it, so the figure does not
   // exist yet. Floor-only: the City raises classifications that fall BELOW the 55th percentile
   // up to it, so this can never be negative.
-  const [lmaPct, setLmaPct] = useState(SAVED.lmaPct ?? 0);
+  // A profile saved before this default existed carries lmaPct: 0 because that WAS the
+  // default, not because the member chose it — so it takes the new assumption. Typing a
+  // value (including 0) marks it chosen and it is left alone from then on.
+  const [lmaTouched, setLmaTouched] = useState(SAVED.lmaTouched === true);
+  const [lmaPct, setLmaPct] = useState(
+    SAVED.lmaTouched === true ? (SAVED.lmaPct ?? LMA_DEFAULT_PCT) : LMA_DEFAULT_PCT);
+  const setLmaPctChosen = (v) => { setLmaPct(v); setLmaTouched(true); };
   // ── DERIVED VALUES ────────────────────────────────────────────────────────
   const hireYear = parseInt(hireDate.slice(0, 4), 10) || new Date().getFullYear();
   const hireMonth = parseInt(hireDate.slice(5, 7), 10) || 1;
@@ -1606,7 +1624,7 @@ export default function RFFRetirementCalculator() {
       sickLeaveDisposition,
       beneficiaryAge,
       plannedRetirementYear,
-      unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
+      unionRaisePct, lmaPct, lmaTouched, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
       hasEligibleSurvivor,
     });
   }, [
@@ -1620,7 +1638,7 @@ export default function RFFRetirementCalculator() {
     calpersCreditIncludesPurchased, calpersCreditAsOf, calpersBalance, sickLeaveDisposition,
     beneficiaryAge,
     plannedRetirementYear,
-    unionRaisePct, lmaPct, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
+    unionRaisePct, lmaPct, lmaTouched, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
     hasEligibleSurvivor,
   ]);
   // Reset handler — clears localStorage and reloads page to defaults.
@@ -3863,11 +3881,16 @@ export default function RFFRetirementCalculator() {
                       {shownRateYear >= 2027 && <> Jan 2027 — {isPreventionClass(classification) ? `prevention +${pctExact(mouGwiFor(2027, classification))}` : "no general wage increase for suppression"}{R.rankSepApplied ? `; rank separation (${shownRateYear >= 2028 ? "Engineer 10% above Paramedic, Captain 10% above Engineer" : "Engineer 7.5% above Paramedic, Captain 10% above Engineer"})` : ""}.</>}
                       {shownRateYear >= 2028 && <> Jan 2028 — Labor Market Adjustment, shown at <strong style={{ color: (parseFloat(lmaPct) || 0) > 0 ? COLORS.gold : COLORS.textMuted }}>{lmaPct || 0}%</strong>.</>}
                       {shownRateYear >= 2029 && <> Jan 2029 — {isPreventionClass(classification) ? "prevention " : ""}+{pctExact(mouGwiFor(2029, classification))}.</>}
-                      {shownRateYear >= 2028 && (parseFloat(lmaPct) || 0) === 0 && (
+                      {shownRateYear >= 2028 && (
                         <div style={{ marginTop: "6px", color: COLORS.gold }}>
-                          ⚠ 2028 is the year nobody can price yet. The Labor Market Adjustment is set by the 2027
-                          Total Compensation Study and it is at zero here — so this is the floor, not a forecast.
-                          Put a number in under Future raises just below and every figure moves.
+                          ⚠ 2028 is the year nobody can price yet. The Labor Market Adjustment is set by the
+                          2027 Total Compensation Study, which has not been done — so the
+                          {" "}<strong>{lmaPct || 0}%</strong> above is {lmaTouched ? "your assumption" : "an assumption this tool makes"},
+                          not a negotiated or published figure.
+                          {(parseFloat(lmaPct) || 0) === 0
+                            ? <> At zero it is a floor, not a forecast — no 2028 raise at all.</>
+                            : <> Treat it as a planning figure until the study lands.</>}
+                          {" "}Change it under Future raises just below and every number on this screen moves with it.
                         </div>
                       )}
                     </div>
@@ -3957,10 +3980,15 @@ export default function RFFRetirementCalculator() {
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "3px" }}>
                             <span>Labor Market Adjustment</span>
                             <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
-                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
+                              onChange={e => setLmaPctChosen(Math.max(0, +e.target.value || 0))}
                               style={{ ...styles.input, margin: 0, width: "84px", padding: "6px 8px" }} />
                             <span style={{ color: COLORS.textMuted }}>%</span>
-                            {(parseFloat(lmaPct) || 0) === 0 && <span style={{ color: COLORS.gold, fontSize: "10px" }}>⚠ nobody knows this one yet</span>}
+                            <span style={{ color: COLORS.gold, fontSize: "10px" }}>
+                              {(parseFloat(lmaPct) || 0) === 0
+                                ? "⚠ at zero — that is a floor, not a forecast"
+                                : lmaTouched ? "⚠ your assumption — not a negotiated figure"
+                                : `⚠ assumed ${LMA_DEFAULT_PCT}% — the study that sets it has not been done`}
+                            </span>
                           </div>
                           {sep2028 && <>Alignment tightens to <strong style={{ color: COLORS.gold }}>{sep2028}</strong><br /></>}
                           <span style={{ color: COLORS.textDim }}>
@@ -4226,7 +4254,7 @@ export default function RFFRetirementCalculator() {
                           <label style={styles.label}>Labor Market Adjustment <span style={{ fontWeight: 400, color: COLORS.textDim }}>· Jan 2028</span></label>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <input type="number" step="0.25" min={0} max={30} value={lmaPct || ""} placeholder="0"
-                              onChange={e => setLmaPct(Math.max(0, +e.target.value || 0))}
+                              onChange={e => setLmaPctChosen(Math.max(0, +e.target.value || 0))}
                               style={{ ...styles.input, margin: 0 }} />
                             <span style={{ fontSize: "12px", color: COLORS.textMuted }}>%</span>
                           </div>
