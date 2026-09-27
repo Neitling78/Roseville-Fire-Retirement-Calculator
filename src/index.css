@@ -18,14 +18,14 @@ body {
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0b0b0d;
-  color: #f4f6f8;
+  background: #0f0b0a;
+  color: #f8f3ef;
   line-height: 1.5;
 }
 
 #root {
   min-height: 100vh;
-  background: #0b0b0d;
+  background: #0f0b0a;
   overflow-x: hidden;
 }
 
@@ -50,7 +50,7 @@ body {
 
 /* Cards lift slightly on hover so the page feels like a surface, not a printout. */
 .rff-card { transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
-.rff-card:hover { border-color: #3a3a42; }
+.rff-card:hover { border-color: #453733; }
 
 /* Focus that is visible without being a browser default. */
 .rff-card input:focus, .rff-card select:focus,
@@ -60,14 +60,14 @@ input:focus-visible, select:focus-visible, button:focus-visible {
   box-shadow: 0 0 0 3px rgba(210, 31, 51, 0.18);
 }
 
-::selection { background: rgba(210, 31, 51, 0.32); color: #fff; }
+::selection { background: rgba(210, 31, 51, 0.34); color: #fff; }
 
 /* Scrollbars, so the dark page does not get a bright gutter. */
-* { scrollbar-width: thin; scrollbar-color: #2e2e34 transparent; }
+* { scrollbar-width: thin; scrollbar-color: #352a27 transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: #2e2e34; border-radius: 6px; border: 2px solid #0b0b0d; }
-*::-webkit-scrollbar-thumb:hover { background: #3a3a42; }
+*::-webkit-scrollbar-thumb { background: #352a27; border-radius: 6px; border: 2px solid #0f0b0a; }
+*::-webkit-scrollbar-thumb:hover { background: #453733; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -89,7 +89,7 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 
 /* Native selects look unfinished in dark mode. Draw our own chevron. */
 .rff-select {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%239aa1ad' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23ada29c' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px !important;

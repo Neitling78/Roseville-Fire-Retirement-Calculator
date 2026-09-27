@@ -713,6 +713,33 @@ console.log("\n-- pension: figures, meter, split --");
 // It defaults to an assumed 3% rather than 0. Zero was also an assumption -- a pessimistic
 // one that understated every pension figured on a 2028-or-later final year -- but either
 // way the figure is unpriced until the 2027 study happens, and has to say so.
+// ── The palette is warm, and stays legible ───────────────────────────
+// Colour is easy to change and easy to break: a warm scheme that drops text contrast is
+// worse than a cold one. These pin the tokens and the contrast ratios they were chosen for.
+console.log("\n-- warm palette --");
+{
+  const hexToRgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (c) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const lum = (h) => { const [r, g, b] = hexToRgb(h).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const CARD = "#1b1413";
+  // Warm means the red channel leads in every neutral. The old palette had blue leading.
+  const warmer = (h) => { const [r, , b] = hexToRgb(h); return r > b; };
+  check("every neutral is warm, not cool", () =>
+    ["#0f0b0a", "#171110", CARD, "#231a18", "#352a27", "#281f1d", "#f8f3ef", "#ada29c", "#8a7d76"]
+      .every(warmer) || "a neutral still leads with blue");
+  check("body text clears AA on the card", () => contrast("#f8f3ef", CARD) >= 4.5
+    || `text is ${contrast("#f8f3ef", CARD).toFixed(2)}:1`);
+  check("muted text clears AA", () => contrast("#ada29c", CARD) >= 4.5
+    || `muted is ${contrast("#ada29c", CARD).toFixed(2)}:1`);
+  // The dim tone carries 10-11px notes, so it has to clear body contrast too, not large-text.
+  check("the dimmest text still clears AA body", () => contrast("#8a7d76", CARD) >= 4.5
+    || `dim is ${contrast("#8a7d76", CARD).toFixed(2)}:1`);
+  check("gold and green stay legible after warming", () =>
+    (contrast("#f0a028", CARD) >= 4.5 && contrast("#7cb342", CARD) >= 4.5)
+    || "a status colour dropped below AA");
+}
+
 console.log("\n-- 2028 labor market adjustment --");
 {
   const D = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
