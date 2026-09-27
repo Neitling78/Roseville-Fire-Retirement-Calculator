@@ -364,6 +364,10 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v63)", items: [
+    "<strong>The title is readable again.</strong> Stripping the old glowing masthead took it down to 15px, which was too far the other way — it read like a browser tab label rather than the name of the tool. Now 34px on a desktop, 24px on a phone, with the logo scaled up to match and the Local’s name underneath in red.",
+    "Still no glow, no drop shadow and no giant watermark behind it. Just bigger.",
+  ] },
   { date: "September 27, 2026 (v62)", items: [
     "<strong>The whole tool is warm now.</strong> The greys were very slightly <em>blue</em> — near-black at #0b0b0d, text at #f4f6f8 — which quietly fought the Local’s red on every screen. Every background, border, panel and text tone now sits on a warm hue instead, so the red reads as part of the palette rather than the one warm thing on a cold page.",
     "Green moved from a cool mint to a warm yellow-green, gold went a shade deeper and warmer, and the blue “for information” panels became a warm ember. Inset panels are tinted warm too — a plain white wash over a warm surface pulls it straight back to grey.",
@@ -2934,18 +2938,23 @@ export default function RFFRetirementCalculator() {
       </div>
       <div className="no-print" style={{
         background: COLORS.bg, borderBottom: `1px solid ${COLORS.borderSoft}`,
-        padding: isMobile ? "12px 14px" : "14px 20px",
+        padding: isMobile ? "16px 14px" : "22px 20px",
       }}>
         <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex",
-          alignItems: "center", gap: "12px" }}>
+          alignItems: "center", gap: isMobile ? "12px" : "16px" }}>
           <img src={logoUrl} alt="" aria-hidden="true"
-            style={{ height: isMobile ? "30px" : "34px", width: "auto", flexShrink: 0 }} />
+            style={{ height: isMobile ? "46px" : "62px", width: "auto", flexShrink: 0 }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: isMobile ? "14px" : "15px", fontWeight: 700,
-              letterSpacing: "-0.02em", color: COLORS.text, lineHeight: 1.2 }}>
+            {/* Big enough to be the name of the thing, small enough that it is still a header
+                and not the screen. The red-glow masthead it replaced was 46px over a 320px
+                watermark; this is the title at a size you can read across a kitchen table. */}
+            <div style={{ fontSize: isMobile ? "24px" : "34px", fontWeight: 800,
+              letterSpacing: "-0.03em", color: COLORS.text, lineHeight: 1.08 }}>
               Retirement Calculator
             </div>
-            <div style={{ fontSize: "11px", color: COLORS.textDim, letterSpacing: "0.02em",
+            <div style={{ fontSize: isMobile ? "11px" : "12px", color: COLORS.accent,
+              letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700,
+              marginTop: "4px",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               Roseville Firefighters · IAFF Local 1592
             </div>
