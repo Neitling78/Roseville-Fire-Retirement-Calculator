@@ -36,7 +36,15 @@ body {
 @media print {
   .no-print { display: none !important; }
   .print-report { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body, #root { background: #fff !important; }
+  body, #root {
+    background: #fff !important;
+    background-image: none !important;   /* the lit page texture is for the screen */
+  }
+  /* A4/Letter with real margins, so it reads as a document and not a screenshot. */
+  @page { margin: 14mm 12mm; }
+  /* Never split a table row, a figure or a heading across a page break. */
+  .print-report table, .print-report tr, .print-report img { break-inside: avoid; page-break-inside: avoid; }
+  .print-report h1, .print-report h2, .print-report h3 { break-after: avoid; page-break-after: avoid; }
 }
 
 /* ── Type and surface system ───────────────────────────────────────────────

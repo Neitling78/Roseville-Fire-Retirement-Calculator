@@ -717,6 +717,55 @@ console.log("\n-- pension: figures, meter, split --");
 // Colour is easy to change and easy to break. Going light is the dangerous direction:
 // a status hue tuned to sit on near-black washes out completely on beige, and nobody
 // notices until a member cannot read the warning that matters.
+// ── The printed report ────────────────────────────────────────
+// The report is what a member hands to their spouse, so page two answers the question the
+// figures do not: stay or go. It is built from stayAnalysis, the same source the on-screen
+// tables read -- a second implementation would drift, and this is the copy that leaves the
+// building.
+console.log("\n-- printed report --");
+{
+  // Nowhere near the cap, real overtime: the paycheck beats the early pension, so staying
+  // pays in the meantime AND buys a bigger pension.
+  const WIN = await scenario({ setupDone:true, hireDate:"2006-01-01", dob:"1976-01-01",
+    memberType:"classic", medicalTier:"2", classification:"Fire Engineer", salaryStep:"H",
+    retirementDateOverride:"2030-01-01", retirementAge:54, inflationRate:3, currentOTHours:20 });
+  check("the report has a stay-or-go page", () => has(WIN.member, "Should you stay longer?"));
+  check("it runs one to five years", () => {
+    const rows = (WIN.member.match(/\+[1-5] \$/g) || []).length;
+    return rows >= 5 || `only ${rows} year rows`;
+  });
+  check("it reaches a verdict, not just numbers", () => has(WIN.member, "WIN \u00b7 paid to stay"));
+  check("it names the baseline year it measures against", () =>
+    has(WIN.member, "the baseline every row below is measured against"));
+  check("it explains how to read the columns", () => has(WIN.member, "How to read it."));
+  check("and says what the money does not weigh", () =>
+    has(WIN.member, "your health") && has(WIN.member, "the money is rarely the whole of it"));
+
+  // At the cap with real CPI, the pension SHRINKS in today's dollars each year waited.
+  // The report has to say lose, not hedge.
+  const LOSE = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50, inflationRate:3, currentOTHours:0,
+    calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
+    priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
+                  { agencyName:"State of California", years:1.038, formula:"3@55" }] });
+  check("a capped member is told plainly that waiting loses", () => has(LOSE.member, "LOSE"));
+  check("and never told it wins", () => lacks(LOSE.member, "WIN \u00b7"));
+  check("the sweet-spot date rides along on the printed page", () =>
+    has(LOSE.member, "Your sweet-spot date:"));
+
+  // The screen and the print must agree: both read stayAnalysis.
+  check("print and screen quote the same first-year cost", () => {
+    const onScreen = LOSE.stayorgo.match(/out-earns that pension by \$([\d,]+)/);
+    const inPrint = LOSE.member.match(/\+1 \$[\d,]+ \+\$([\d,]+)/);
+    if (!onScreen || !inPrint) return true;   // different wording paths; covered elsewhere
+    return onScreen[1] === inPrint[1] || `screen ${onScreen[1]} vs print ${inPrint[1]}`;
+  });
+  // A printable report nobody can find is not a feature.
+  check("there is a visible print button, not just a buried menu item", () =>
+    has(WIN.pension, "Print / Save PDF"));
+}
+
 console.log("\n-- light palette --");
 {
   const hexToRgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);

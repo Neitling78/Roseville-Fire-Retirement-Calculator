@@ -364,6 +364,14 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v65)", items: [
+    "<strong>The printed report now has a second page: “Should you stay longer?”</strong> One to five more years, each priced at the paycheck you would actually be earning that year, against the pension you would have been drawing instead — and each one gets a <strong>verdict in plain words</strong>, not just numbers. WIN · paid to stay. WIN · repays by 65. LOSE · buys nothing. LOSE · never repays.",
+    "Columns: the pension each year buys, the checks you give up getting there, the permanent gain per year, the age it breaks even, and the net by 85. A short <em>how to read it</em> underneath, because a table of seven numbers is not self-explanatory.",
+    "<strong>Your sweet-spot date rides along on that page</strong> — the day more service stops adding to your percentage — with a line saying which side of it your current plan sits on.",
+    "It also says what the money does <em>not</em> weigh: your health, whether you still want the job, what a second career pays, what your family wants. The money is rarely the whole of it and the report should not pretend otherwise.",
+    "<strong>The print button is on the page now</strong>, not buried in the ⋯ menu. And the report prints like a document — real page margins, a header on the second page, and no table row or figure split across a page break.",
+    "The printed page and the screen read the <em>same</em> calculation. It is one source, not a second implementation — the printed copy is the one that leaves the building.",
+  ] },
   { date: "September 27, 2026 (v64)", items: [
     "<strong>Light beige, black and white.</strong> The whole tool flipped out of dark mode: a warm beige page, near-white cards, warm near-black ink. Reds, golds and greens all went considerably darker — a colour tuned to glow on near-black disappears on beige, and the warning colours are the ones that matter most.",
     "<strong>The background has depth now.</strong> Light falling from the top left, shadow pooling in the bottom corners, and a fine grain so the gradient never bands. It is pinned to the window rather than the page, so the content slides over it as you scroll — that parallax is what makes it read as a surface instead of a colour.",
@@ -2507,6 +2515,37 @@ export default function RFFRetirementCalculator() {
   const earliestRow = retireYearOptions[0] || null;
   // The year the Classic 90% cap first binds — after this, more service adds nothing.
   const capYearRow = benefitIsCapped ? retireYearOptions.find(r => r.atCap) : null;
+  // ── STAY ONE TO FIVE MORE YEARS: WIN OR LOSE ────────────────────────
+  // One source of truth for the trade, read by the Stay or go? tables AND by the printed
+  // report. The printed copy is the one a member hands to their spouse, so it cannot be
+  // a second implementation that drifts from the screen.
+  // Each year is priced at ITS OWN paycheck, in today's dollars, against the pension you
+  // would have been drawing instead.
+  const stayAnalysis = (() => {
+    const E = earliestRow;
+    if (!E || retireYearOptions.length < 2) return null;
+    const costOfYear = (y) => 12 * (E.takeHomeToday - workingTakeHomeTodayFor(y));
+    const rows = retireYearOptions.slice(1, 6).map(r => {
+      let givenUp = 0;
+      for (let y = E.year + 1; y <= r.year; y++) givenUp += costOfYear(y);
+      const gainPerYear = 12 * (r.takeHomeToday - E.takeHomeToday);
+      const breakEven = gainPerYear > 0
+        ? (givenUp > 0 ? givenUp / gainPerYear : 0)
+        : (givenUp < 0 && gainPerYear < 0 ? Math.abs(givenUp) / Math.abs(gainPerYear) : null);
+      const net20 = gainPerYear * 20 - givenUp;
+      // Four real outcomes, and they are not the same question:
+      //   paid to wait AND a bigger pension  -> nothing to weigh up
+      //   costs to wait but repays in time   -> a bet on living long enough
+      //   the pension never grows            -> there is nothing to buy
+      //   ahead now, behind later            -> inflation eats the head start
+      const verdict = gainPerYear <= 0 ? "nothing"
+        : givenUp <= 0 ? "free"
+        : net20 > 0 ? "repays" : "costs";
+      return { ...r, extraYears: r.year - E.year, givenUp, gainPerYear, breakEven, net20, verdict,
+        breakEvenAge: breakEven === null ? null : r.age + breakEven };
+    });
+    return { earliest: E, rows, firstYearCost: costOfYear(E.year + 1) };
+  })();
   // Prior-agency service, pension-type override and purchased service credit. Defined once
   // and rendered on both Working now and the advanced inputs tab, so the two never drift.
   // Condensed prior-service editor. One tight row per agency; the rare controls
@@ -3521,7 +3560,12 @@ export default function RFFRetirementCalculator() {
                     </div>
                     {(monthly457 > 0 || extraNetMonthly > 0) && (
                       <div className="rff-card" style={{ ...styles.card }}>
-                        <p style={styles.cardTitle}>Where the money comes from</p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+                    <p style={{ ...styles.cardTitle, flex: 1 }}>Where the money comes from</p>
+                    <button onClick={() => window.print()} style={{ ...styles.tab(false), padding: "9px 14px", fontSize: "12px", marginBottom: "18px" }}>
+                      Print / Save PDF →
+                    </button>
+                  </div>
                         <StackBar parts={[
                           { label: "CalPERS pension", value: combinedPensionMonthly },
                           { label: "457 draw", value: monthly457 },
@@ -5610,6 +5654,109 @@ export default function RFFRetirementCalculator() {
           <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Retiree medical — your out-of-pocket</span><span>−{fmt(retireeMedicalOOP)}/mo</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontWeight: 700, borderTop: "1px solid #eee" }}><span>Take-home after tax &amp; medical</span><span style={{ color: "#16a34a" }}>{fmt(totalMonthly - retTaxAnnual / 12 - retireeMedicalOOP)}/mo</span></div>
         </div>
+        {/* ══ PAGE TWO — the decision, not just the figures ════════════════════
+            A statement of what you will be paid answers half the question. The other half is
+            whether to go at all, and that is the page a member actually takes home to argue
+            about over the kitchen table. */}
+        {stayAnalysis && (
+          <div style={{ pageBreakBefore: "always", breakBefore: "page", paddingTop: "10px" }}>
+            <div style={{ borderBottom: "3px solid #b3172a", paddingBottom: "10px", marginBottom: "14px" }}>
+              <div style={{ fontSize: "10px", letterSpacing: "1.4px", textTransform: "uppercase", color: "#888" }}>
+                Roseville Firefighters · IAFF Local 1592 · {classification}, Step {salaryStep}
+              </div>
+              <div style={{ fontSize: "22px", fontWeight: 800, color: "#111", marginTop: "3px" }}>
+                Should you stay longer?
+              </div>
+              <div style={{ fontSize: "11px", color: "#555", marginTop: "3px" }}>
+                You can draw a pension from <strong>{stayAnalysis.earliest.year}</strong>. Every year you
+                work past that, you give up a year of pension checks to buy a permanently larger one.
+                This is that trade, priced at the paycheck you would actually be earning in each year.
+              </div>
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+              <thead>
+                <tr style={{ background: "#f4efe6", color: "#333" }}>
+                  <th style={{ textAlign: "left", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Go in</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Extra<br />yrs</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Pension<br />/mo</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Checks you<br />give up</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Gain /yr<br />for life</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Break<br />even</th>
+                  <th style={{ textAlign: "right", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Net by<br />age 85</th>
+                  <th style={{ textAlign: "left", padding: "7px 6px", borderBottom: "1px solid #ddd" }}>Verdict</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", fontWeight: 700 }}>{stayAnalysis.earliest.year}</td>
+                  <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right", color: "#777" }}>—</td>
+                  <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right" }}>{fmt(stayAnalysis.earliest.pensionToday)}</td>
+                  <td colSpan={4} style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "center", color: "#777", fontStyle: "italic" }}>
+                    go as soon as you are able — the baseline every row below is measured against
+                  </td>
+                  <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", color: "#777" }}>baseline</td>
+                </tr>
+                {stayAnalysis.rows.map(r => (
+                  <tr key={r.year} style={{ background: r.year === retirementYear ? "#fdf1f2" : "transparent" }}>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", fontWeight: r.year === retirementYear ? 800 : 600 }}>
+                      {r.year}{r.year === retirementYear ? " ← your plan" : ""}
+                    </td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right" }}>+{r.extraYears}</td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right" }}>{fmt(r.pensionToday)}</td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right",
+                      color: r.givenUp > 0 ? "#a12" : "#2c6b18" }}>
+                      {r.givenUp > 0 ? "−" + fmt(r.givenUp) : "+" + fmt(Math.abs(r.givenUp))}
+                    </td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right",
+                      color: r.gainPerYear > 0 ? "#2c6b18" : "#777" }}>
+                      {Math.abs(r.gainPerYear) < 1 ? "—" : (r.gainPerYear > 0 ? "+" : "−") + fmt(Math.abs(r.gainPerYear))}
+                    </td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right" }}>
+                      {r.verdict === "free" ? "day one"
+                        : r.breakEven === null ? "never"
+                        : `age ${Math.round(r.breakEvenAge)}`}
+                    </td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", textAlign: "right", fontWeight: 700,
+                      color: r.net20 > 0 ? "#2c6b18" : "#a12" }}>
+                      {r.net20 > 0 ? "+" : "−"}{fmt(Math.abs(r.net20))}
+                    </td>
+                    <td style={{ padding: "7px 6px", borderBottom: "1px solid #eee", fontWeight: 700,
+                      color: r.verdict === "costs" || r.verdict === "nothing" ? "#a12" : "#2c6b18" }}>
+                      {r.verdict === "free" ? "WIN · paid to stay"
+                        : r.verdict === "repays" ? "WIN · repays by " + Math.round(r.breakEvenAge)
+                        : r.verdict === "nothing" ? "LOSE · buys nothing"
+                        : "LOSE · never repays"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: "10px", color: "#555", marginTop: "10px", lineHeight: 1.6 }}>
+              <strong>How to read it.</strong> <em>Checks you give up</em> is the pension you forgo over
+              those years, less what the paycheck nets you in each of them — a positive number in green
+              means the paycheck wins and staying pays you in the meantime. <em>Gain per year for life</em>
+              is how much bigger the pension is, permanently. <em>Break even</em> is the age at which the
+              bigger pension has repaid the checks you skipped. <em>Net by age 85</em> is everything, added up.
+              All in today's dollars at {inflationRate || 0}% CPI, so the rows are comparable to each other.
+            </div>
+            {benefitIsCapped && capEligibleDate && (
+              <div style={{ fontSize: "11px", color: "#111", marginTop: "12px", padding: "10px 12px",
+                background: "#fdf6e8", border: "1px solid #e8d5a8", borderRadius: "6px", lineHeight: 1.6 }}>
+                <strong>Your sweet-spot date: {capDateStr}</strong> (age {capAgeAt !== null ? capAgeAt.toFixed(0) : "—"}).
+                {" "}You reach the {pct(benefitMaxPct)} cap on your Roseville service that day. After it, more
+                service adds nothing to your pension percentage — only your pay going up still moves the check.
+                {capAfterPlannedExit
+                  ? " Your current plan has you leaving before that, so the years above still buy percentage."
+                  : " Your current plan already has you at or past it, so the gains above come from your final compensation rising, not from service."}
+              </div>
+            )}
+            <div style={{ fontSize: "10px", color: "#777", marginTop: "12px", lineHeight: 1.6 }}>
+              What this does <strong>not</strong> weigh: your health, whether you want the job for another
+              five years, what a second career would pay, or what your family wants. It prices one thing —
+              the money — and the money is rarely the whole of it.
+            </div>
+          </div>
+        )}
         <div style={{ fontSize: "10px", color: "#777", marginTop: "10px", lineHeight: "1.5", borderTop: "1px solid #e5e5e5", paddingTop: "8px" }}>
           Estimates only — not official CalPERS figures. Tax is a rough estimate (2026 federal / 2025 CA brackets), not tax advice. COLA shown is the contract cap and is not guaranteed every year. PEPRA pay is capped at the state pensionable-comp limit. Confirm all figures with CalPERS and the City of Roseville. Generated at neitling78.github.io/Roseville-Fire-Retirement-Calculator
         </div>
