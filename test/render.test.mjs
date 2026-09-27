@@ -722,6 +722,22 @@ console.log("\n-- pension: figures, meter, split --");
 // figures do not: stay or go. It is built from stayAnalysis, the same source the on-screen
 // tables read -- a second implementation would drift, and this is the copy that leaves the
 // building.
+// ── The navigation rail ─────────────────────────────────────────
+console.log("\n-- navigation --");
+{
+  const N = await scenario({ ...mkCola("2028-12-31", 50) });
+  check("Pension is first", () => {
+    const order = ["Pension", "Member details", "Compensation", "Survivor / beneficiary",
+      "Health care", "Stay or go?", "Other income & tax", "Guide"];
+    const at = order.map(x => N.member.indexOf(x));
+    return at.every((v, i) => v >= 0 && (i === 0 || v > at[i - 1]))
+      || "rail out of order: " + at.join(",");
+  });
+  // No ?tab= should land on the answer, not the input form.
+  const bare = await scenario({ ...mkCola("2028-12-31", 50) });
+  check("a bare link lands on Pension", () => has(bare.pension, "Your pension \u00b7 "));
+}
+
 console.log("\n-- printed report --");
 {
   // Nowhere near the cap, real overtime: the paycheck beats the early pension, so staying
@@ -1071,8 +1087,14 @@ check("credit lands there as years, not dollars", () =>
 console.log("\n-- compensation defaults to the retirement year --");
 {
   const D = await scenario({ ...mkCola("2028-12-31", 50), currentOTHours: 40 });
-  check("the tab is called Compensation", () => has(D.member, "Member details Compensation Pension"));
+  // Navigation is a vertical rail on desktop, with Pension first -- it is the answer,
+  // and everything else is how the answer was arrived at.
+  check("Pension leads the navigation", () =>
+    has(D.member, "Pension Member details Compensation Survivor / beneficiary"));
   check("and not Current compensation", () => lacks(D.member, "Current compensation"));
+  check("every destination is still reachable", () =>
+    ["Health care", "Stay or go?", "Other income & tax", "Guide"].every(x => D.member.includes(x))
+    || "a destination fell out of the rail");
   check("the card lands on the retirement year", () => has(D.comp, "Compensation in 2028"));
   check("and says why that year", () => has(D.comp, "your last year"));
   check("the header is on the same year", () => has(D.comp, "While working \u00b7 2028"));

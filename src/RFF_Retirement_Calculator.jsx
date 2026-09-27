@@ -364,6 +364,11 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v66)", items: [
+    "<strong>Navigation moved to a rail down the left.</strong> Eight destinations read faster as a list than as a row — and the row was wrapping onto two lines on most screens anyway. It sticks as you scroll, so you can jump screens from anywhere on the page.",
+    "<strong>Pension is first now.</strong> It is the answer; everything else is how the answer was arrived at. A link with no tab in it lands there too, instead of dropping you on the input form.",
+    "On a phone it stays a wrapping row of short labels — a vertical rail on a 390px screen would eat most of it.",
+  ] },
   { date: "September 27, 2026 (v65)", items: [
     "<strong>The printed report now has a second page: “Should you stay longer?”</strong> One to five more years, each priced at the paycheck you would actually be earning that year, against the pension you would have been drawing instead — and each one gets a <strong>verdict in plain words</strong>, not just numbers. WIN · paid to stay. WIN · repays by 65. LOSE · buys nothing. LOSE · never repays.",
     "Columns: the pension each year buys, the checks you give up getting there, the permanent gain per year, the age it breaks even, and the net by 85. A short <em>how to read it</em> underneath, because a table of seven numbers is not self-explanatory.",
@@ -1229,7 +1234,7 @@ export default function RFFRetirementCalculator() {
       const q = typeof window !== "undefined" && window.location
         ? new URLSearchParams(window.location.search).get("tab") : null;
       if (LEGACY_TABS[q]) return LEGACY_TABS[q];
-      return VALID_TABS.includes(q) ? q : "member";
+      return VALID_TABS.includes(q) ? q : "pension";
     } catch { return "member"; }
   })();
   const [tab, setTab] = useState(initialTab);
@@ -3108,22 +3113,39 @@ export default function RFFRetirementCalculator() {
             ⚠ Your retirement date is on or before your hire date. Fix the hire date or retirement age on Member details — the numbers above aren't valid until then.
           </div>
         )}
-        <div style={{ ...styles.tabRow, flexWrap: "wrap", gap: isMobile ? "6px" : "8px" }}>
-          {/* One row, no parent tab. "Into the weeds" held exactly two screens and cost a click
-              to reach either of them. Old ?tab=advanced links land on Other income & tax. */}
-          {["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help"].map(t => (
-            <button key={t} style={{ ...styles.tab(tab === t), flex: isMobile ? "1 1 30%" : 1, textAlign: "center", fontSize: isMobile ? "11px" : "13px", padding: isMobile ? "10px 2px" : "12px 8px", whiteSpace: "nowrap" }}
-              onClick={() => setTab(t)}>
-              {{ member: isMobile ? "Member" : "Member details", comp: "Compensation",
-                 pension: "Pension",
-                 survivor: isMobile ? "Survivor" : "Survivor / beneficiary",
-                 health: isMobile ? "Health" : "Health care",
-                 stayorgo: isMobile ? "Stay/go" : "Stay or go?",
-                 income: isMobile ? "Tax" : "Other income & tax",
-                 help: "Guide" }[t]}
-            </button>
-          ))}
-        </div>
+        {/* Navigation runs down the left on a desktop: eight destinations read faster as a
+            list than as a row, and the row was wrapping to two lines anyway. Pension leads
+            because it is the answer — everything else is how the answer was arrived at.
+            On a phone it stays a wrapping row; a vertical rail there would eat the screen. */}
+        <div style={{ display: "grid", gap: isMobile ? "0" : "26px",
+          gridTemplateColumns: isMobile ? "1fr" : "196px minmax(0, 1fr)", alignItems: "start" }}>
+          <nav style={{
+            display: "flex", flexDirection: isMobile ? "row" : "column",
+            flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? "6px" : "3px",
+            marginBottom: isMobile ? "20px" : 0,
+            position: isMobile ? "static" : "sticky", top: isMobile ? "auto" : "84px",
+          }}>
+            {[["pension", "Pension", "Pension"],
+              ["member", "Member details", "Member"],
+              ["comp", "Compensation", "Pay"],
+              ["survivor", "Survivor / beneficiary", "Survivor"],
+              ["health", "Health care", "Health"],
+              ["stayorgo", "Stay or go?", "Stay/go"],
+              ["income", "Other income & tax", "Tax"],
+              ["help", "Guide", "Guide"]].map(([t, long, short]) => (
+              <button key={t} onClick={() => setTab(t)}
+                style={{ ...styles.tab(tab === t),
+                  flex: isMobile ? "1 1 30%" : "none",
+                  width: isMobile ? "auto" : "100%",
+                  textAlign: isMobile ? "center" : "left",
+                  fontSize: isMobile ? "11px" : "13.5px",
+                  padding: isMobile ? "10px 2px" : "11px 13px",
+                  whiteSpace: "nowrap" }}>
+                {isMobile ? short : long}
+              </button>
+            ))}
+          </nav>
+          <div style={{ minWidth: 0 }}>
         <div style={{ ...styles.grid, gridTemplateColumns: "1fr" }}>
           {/* LEFT PANEL */}
           <div>
@@ -5560,6 +5582,8 @@ export default function RFFRetirementCalculator() {
                 )}
               </div>
             )}
+          </div>
+        </div>
           </div>
         </div>
       </div>
