@@ -45,7 +45,11 @@ async function scenario(saved, opts = {}) {
   const out = {};
   for (const t of ["member","comp","pension","survivor","health","now","retired","stayorgo","start","pension","pay","wait","sickleave","medical","inputs","income","help","pensiondetail","timeline","deductions","advanced"]) {
     globalThis.window.location.search = "?tab=" + t;
-    out[t] = strip(renderToString(React.createElement(Calc)));
+    const html = renderToString(React.createElement(Calc));
+    out[t] = strip(html);
+    // Keep the unstripped markup for ONE tab only -- holding raw HTML for every tab of every
+    // scenario in the file is enough to run the test process out of heap.
+    if (t === "comp" && opts.raw) out.raw_comp = html;
   }
   return out;
 }
@@ -733,7 +737,7 @@ console.log("\n-- side by side --");
     filingStatus:"mfj", filingStatusRet:"mfj", annual457Contrib:12000,
     calpersCreditRoseville:23.390, calpersCreditAsOf:"2026-08-21", calpersCreditIncludesPurchased:true,
     priorService:[{ agencyName:"City of South Lake Tahoe", years:4.682, formula:"3@50" },
-                  { agencyName:"State of California", years:1.038, formula:"3@55" }] });
+                  { agencyName:"State of California", years:1.038, formula:"3@55" }] }, { raw:true });
   check("the comparison is on Compensation", () => has(SBS.comp, "Working vs retired, line by line"));
   check("both columns are headed with the same year", () =>
     has(SBS.comp, "While working \u00b7 2028") && has(SBS.comp, "Retired \u00b7 2028"));
@@ -744,23 +748,63 @@ console.log("\n-- side by side --");
   // same tab breaks the paycheck apart. Listing every incentive twice on one page is noise.
   const CARD = SBS.comp.slice(SBS.comp.indexOf("Working vs retired, line by line"),
                               SBS.comp.indexOf("The gap is smaller than the drop"));
-  check("the comparison card was sliced out", () => CARD.length > 200 || "could not find the card");
-  check("the working side starts at pensionable pay, not the incentive list", () =>
-    ["Base salary", "Specialty pay and certificates", "Longevity", "Holiday pay",
-     "Uniform allowance", "FLSA scheduled overtime"].every(x => !CARD.includes(x))
-    || "an itemised pay line is still on the card");
-  check("but it still carries the pay totals", () =>
-    ["Pensionable compensation", "Overtime you work", "Gross pay"].every(x => CARD.includes(x))
-    || "a pay total is missing");
-  // With no overtime the pensionable subtotal equals gross -- one figure, printed twice.
   const ZERO_OT = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
     memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
     retirementDateOverride:"2028-12-24", retirementAge:50, currentOTHours:0 });
   const ZCARD = ZERO_OT.comp.slice(ZERO_OT.comp.indexOf("Working vs retired, line by line"),
                                    ZERO_OT.comp.indexOf("The gap is smaller than the drop"));
-  check("with no overtime the subtotal drops and gross pay is the top line", () =>
+  check("the comparison card was sliced out", () => CARD.length > 200 || "could not find the card");
+  check("the working side starts at pensionable pay, not the incentive list", () =>
+    ["Base salary", "Specialty pay and certificates", "Longevity", "Holiday pay",
+     "Uniform allowance", "FLSA scheduled overtime"].every(x => !CARD.includes(x))
+    || "an itemised pay line is still on the card");
+  check("but it still carries the two gross figures", () =>
+    ["Gross pay", "Gross CalPERS pension"].every(x => CARD.includes(x))
+    || "a gross figure is missing");
+  // The whole point of the card is reading STRAIGHT ACROSS. Every line must have a partner on
+  // the other side, even when that partner is a dash -- a row present on one side only shunts
+  // everything below it out of line and the comparison stops being a comparison.
+  check("every line has a partner on the other side", () => {
+    const off = ["Federal income tax", "California income tax", "Medicare",
+      "CalPERS member contribution", "Union dues", "Health premium", "City pays toward it",
+      "Lands in your bank"].filter(x => (CARD.match(new RegExp(x, "g")) || []).length !== 2);
+    return off.length === 0 || "not paired: " + off.join(", ");
+  });
+  // The rows are only worth printing if they add up. Sum each column's own figures out of the
+  // markup and hold them against the bottom line the card prints.
+  const colSum = (html, which) => {
+    const cells = [...html.matchAll(new RegExp(`data-side="${which}"[\\s\\S]*?</div>`, "g"))].map(m => m[0]);
+    return cells.reduce((t, c) => {
+      // The LAST figure in the cell is the value; an earlier one is part of the caption
+      // ("92.5% of your $15,597 final compensation"), which must not be summed.
+      const all = [...strip(c).matchAll(/([-\u2212+]?)\$([\d,]+)/g)];
+      const m = all[all.length - 1];
+      if (!m) return t;                       // a dash row contributes nothing
+      const n = +m[2].replace(/,/g, "");
+      return t + (m[1] === "-" || m[1] === "\u2212" ? -n : n);
+    }, 0);
+  };
+  check("the working rows add up to the working bottom line", () => {
+    const shown = +SBS.comp.match(/Lands in your bank \$([\d,]+)\/mo/)[1].replace(/,/g, "");
+    const summed = colSum(SBS.raw_comp, "w");
+    return Math.abs(summed - shown) <= 2 || `rows sum to ${summed}, card prints ${shown}`;
+  });
+  check("and the retired rows add up to the retired bottom line", () => {
+    const all = [...SBS.comp.matchAll(/Lands in your bank \$([\d,]+)\/mo/g)].map(m => +m[1].replace(/,/g, ""));
+    const summed = colSum(SBS.raw_comp, "r");
+    return Math.abs(summed - all[1]) <= 2 || `rows sum to ${summed}, card prints ${all[1]}`;
+  });
+  check("the sides that stop paying show a dash, not a missing row", () =>
+    (CARD.match(/\u2014/g) || []).length >= 4 || "the stopped deductions are not rendered as dashes");
+  // And with the 457 dropped entirely, it has to leave from BOTH sides at once.
+  check("a line absent on both sides drops out whole", () => {
+    const n = (ZCARD.match(/457 deferral/g) || []).length;
+    return n === 0 || n === 2 || `457 appears ${n} time(s) -- that is a half-pair`;
+  });
+  // With no overtime the pensionable subtotal equals gross -- one figure, printed twice.
+  check("gross pay is the top line whether or not there is overtime", () =>
     (!ZCARD.includes("Pensionable compensation") && ZCARD.includes("Gross pay"))
-    || "the subtotal is still doubling up with gross pay");
+    || "the working column does not start at gross pay");
   // ...while the detailed table below it still lists every line.
   check("the detailed table below still itemises", () => {
     const BELOW = SBS.comp.slice(SBS.comp.indexOf("The gap is smaller than the drop"));

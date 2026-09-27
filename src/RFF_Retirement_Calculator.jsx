@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import logoUrl from "./assets/logo.png";
 // ─── CONSTANTS FROM 2026 RFF MOU & SALARY SCHEDULE ───────────────────────────
 // Official City of Roseville salary schedules, BOTH effective 3/21/2026.
@@ -2443,33 +2443,44 @@ export default function RFFRetirementCalculator() {
     const wFed = fedTaxAmt(wGrossYr + otherIncomeW, wPreTax, fedBrW, fedStdW, depCreditW) / 12;
     const wState = calcBracketTax(Math.max(0, wGrossYr + otherIncomeW - wPreTax - caStdW), caBrW) / 12;
     const wMedicare = P.gross * 0.0145;
-    const working = [
-      { k: "Pensionable compensation", sub: "base, specialty, longevity, holiday, uniform and FLSA overtime", v: P.pensionable, rule: true, hide: P.ot <= 0 },
-      { k: "Overtime you work", sub: "not pensionable — stops at retirement", v: P.ot, hide: P.ot <= 0 },
-      { k: "Gross pay", v: P.gross, total: true },
-      { k: "Federal income tax", v: -wFed },
-      { k: "California income tax", v: -wState },
-      { k: "Medicare", sub: "1.45% of wages", v: -wMedicare },
-      { k: "CalPERS member contribution", sub: pct(contribRate) + " of pensionable pay", v: -contrib },
-      { k: "457 deferral", v: -(effectiveMember457 / 12), hide: effectiveMember457 <= 0 },
-      { k: "Union dues", v: -UNION_DUES_MONTHLY },
-      { k: "Medical, dental and vision", sub: "your share after the City's allowance", v: -medicalTotalOOP, hide: medicalTotalOOP <= 0 },
-    ].filter(r => !r.hide);
     const taxM = combinedPensionMonthly * retEffRate;
     const fedShare = retTaxAnnual > 0 ? retFedTax / retTaxAnnual : 1;
-    const retired = [
-      { k: "Final compensation", sub: "highest 12 months", v: finalCompMonthly, muted: true },
-      { k: "Gross CalPERS pension", sub: pct(calpersTotalPct) + " of final comp", v: combinedPensionMonthly, total: true },
-      { k: "Federal income tax", v: -(taxM * fedShare) },
-      { k: `${stateName} income tax`, sub: retirementState === "CA" ? "fully taxable by California" : undefined, v: -(taxM - taxM * fedShare) },
-      { k: "Medicare", sub: "a pension is not wages — nothing comes out", v: 0, zero: true },
-      { k: "CalPERS member contribution", sub: "you stop paying it the day you retire", v: 0, zero: true },
-      { k: "457 deferral", sub: "you stop paying in", v: 0, zero: true, hide: effectiveMember457 <= 0 },
-      { k: "Union dues", sub: "you stop paying them", v: 0, zero: true },
-      { k: "Retiree health premium", sub: `${retireeMedicalPlan}, Tier ${medicalTier}`, v: -retireePremium },
-      { k: "City pays toward it", sub: "PEMHCA minimum + tier allowance", v: cityMedicalContribution },
-    ].filter(r => !r.hide);
-    return { working, retired, workTotal: finalYearTakeHome, retTotal: totalMonthlyTakeHome,
+    // PAIRED rows. Every line has a partner on the other side so the eye can read straight
+    // across: same row, same concept, same underline. Where a side genuinely has nothing --
+    // Medicare on a pension, the member contribution you stop paying -- it renders as a dash
+    // rather than being left out, because a missing row is what breaks the alignment.
+    // A pair with BOTH sides absent (no 457 at all) drops out whole, so the rows stay matched.
+    const pairs = [
+      { total: true,
+        w: { k: "Gross pay", sub: P.ot > 0 ? "including the overtime you work" : undefined, v: P.gross },
+        r: { k: "Gross CalPERS pension", sub: `${pct(calpersTotalPct)} of your ${fmt(finalCompMonthly)} final compensation`,
+             v: combinedPensionMonthly } },
+      { w: { k: "Federal income tax", v: -wFed },
+        r: { k: "Federal income tax", v: -(taxM * fedShare) } },
+      { w: { k: "California income tax", v: -wState },
+        r: { k: `${stateName} income tax`, sub: retirementState === "CA" ? "fully taxable by California" : undefined,
+             v: -(taxM - taxM * fedShare) } },
+      { w: { k: "Medicare", sub: "1.45% of wages", v: -wMedicare },
+        r: { k: "Medicare", sub: "a pension is not wages", v: 0, zero: true } },
+      { w: { k: "CalPERS member contribution", sub: pct(contribRate) + " of pensionable pay", v: -contrib },
+        r: { k: "CalPERS member contribution", sub: "you stop paying it the day you retire", v: 0, zero: true } },
+      { drop: effectiveMember457 <= 0,
+        w: { k: "457 deferral", v: -(effectiveMember457 / 12) },
+        r: { k: "457 deferral", sub: "you stop paying in", v: 0, zero: true } },
+      { w: { k: "Union dues", v: -UNION_DUES_MONTHLY },
+        r: { k: "Union dues", sub: "you stop paying them", v: 0, zero: true } },
+      { w: { k: "Health premium", sub: "medical, dental and vision", v: -(medicalTotalOOP + cityBenefitTotal) },
+        r: { k: "Health premium", sub: `${retireeMedicalPlan}, Tier ${medicalTier}`, v: -retireePremium } },
+      { w: { k: "City pays toward it", sub: "active-employee allowance", v: cityBenefitTotal },
+        r: { k: "City pays toward it", sub: "PEMHCA minimum + tier allowance", v: cityMedicalContribution } },
+    ].filter(x => !x.drop)
+     // Stamp the pair's flags onto both halves so the grid path and the stacked mobile path
+     // style the row identically -- the grid reads pr.w/pr.r straight, with no wrapper to
+     // carry the flag, which is how a total row quietly rendered as "+$14,425".
+     .map(x => ({ ...x, w: x.w && { ...x.w, total: x.total }, r: x.r && { ...x.r, total: x.total } }));
+    const working = pairs.map(x => x.w).filter(Boolean);
+    const retired = pairs.map(x => x.r).filter(Boolean);
+    return { pairs, working, retired, workTotal: finalYearTakeHome, retTotal: totalMonthlyTakeHome,
       year: finalWorkYear, contribRate };
   })();
   // Decision-maker: gain/loss in monthly take-home from retiring (nominal, and in today's dollars).
@@ -3997,42 +4008,83 @@ export default function RFFRetirementCalculator() {
                   purpose: a paycheck carries deductions a pension does not, and a pension carries a City
                   medical contribution a paycheck does not. They meet at the bottom line.
                 </div>
-                <div style={{ display: "grid", gap: isMobile ? "22px" : "28px",
-                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-                  {[{ title: "While working \u00b7 " + compareLedger.year, rows: compareLedger.working,
-                      total: compareLedger.workTotal, totalLabel: "Lands in your bank", tone: COLORS.text },
-                    { title: "Retired \u00b7 " + retirementYear, rows: compareLedger.retired,
-                      total: compareLedger.retTotal, totalLabel: "Lands in your bank", tone: COLORS.green }
-                  ].map(col => (
-                    <div key={col.title} style={{ minWidth: 0 }}>
-                      <div style={{ ...styles.metricLabel, color: col.tone, marginBottom: "10px" }}>{col.title}</div>
-                      {col.rows.map((r, i) => (
-                        <div key={r.k + i} style={{ ...styles.tableRow,
-                          ...(r.rule ? { borderTop: `1px solid ${COLORS.borderSoft}`, marginTop: "4px", paddingTop: "12px" } : {}),
-                          ...(r.total ? { borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "12px" } : {}) }}>
-                          <span style={{ ...styles.tableKey, fontWeight: (r.total || r.rule) ? 700 : 400,
-                            color: (r.total || r.rule) ? COLORS.text : COLORS.textMuted }}>
-                            {r.k}
-                            {r.sub && <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}> · {r.sub}</span>}
-                          </span>
-                          <span style={{ ...styles.tableVal,
-                            fontWeight: (r.total || r.rule) ? 800 : 650,
-                            color: r.zero ? COLORS.green : r.muted ? COLORS.textMuted
-                              : r.v < 0 ? COLORS.text : r.total ? COLORS.accent : COLORS.text }}>
-                            {r.zero ? "—"
-                              : (r.v < 0 ? "−" : (r.total || r.rule || r.muted) ? "" : "+") + fmt(Math.abs(r.v))}
-                          </span>
-                        </div>
-                      ))}
-                      <div style={{ ...styles.tableRowLast, borderTop: `2px solid ${COLORS.accent}`,
-                        marginTop: "10px", paddingTop: "14px" }}>
-                        <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>{col.totalLabel}</span>
-                        <span style={{ fontWeight: 800, color: col.tone === COLORS.green ? COLORS.green : COLORS.text,
-                          fontSize: isMobile ? "20px" : "24px", fontVariantNumeric: "tabular-nums" }}>{fmt(col.total)}/mo</span>
-                      </div>
+                {(() => {
+                  // ONE grid for both columns. Each paired row is a single grid row, so a rule
+                  // drawn for that row crosses both sides at exactly the same height -- alignment
+                  // by construction rather than by two columns happening to be the same length.
+                  const cell = (r, tone) => r ? (
+                    <>
+                      <span style={{ ...styles.tableKey, fontWeight: r.total ? 700 : 400,
+                        color: r.total ? COLORS.text : COLORS.textMuted }}>
+                        {r.k}
+                        {r.sub && <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}> · {r.sub}</span>}
+                      </span>
+                      <span style={{ ...styles.tableVal, fontWeight: r.total ? 800 : 650,
+                        color: r.zero ? COLORS.green : r.v < 0 ? COLORS.text : r.total ? tone : COLORS.text }}>
+                        {r.zero ? "—" : (r.v < 0 ? "−" : r.total ? "" : "+") + fmt(Math.abs(r.v))}
+                      </span>
+                    </>
+                  ) : <span style={{ ...styles.tableKey, color: COLORS.textDim }}>—</span>;
+                  // data-side lets the test suite sum each column independently and prove the
+                  // printed rows actually add up to the printed bottom line.
+                  const side = (r, tone, which) => (
+                    <div data-side={which} style={{ display: "flex", justifyContent: "space-between",
+                      alignItems: "baseline", gap: "10px", minWidth: 0, padding: "9px 0" }}>
+                      {cell(r, tone)}
                     </div>
-                  ))}
-                </div>
+                  );
+                  const bottom = (tone, total, big) => (
+                    <div style={{ borderTop: `2px solid ${COLORS.accent}`, marginTop: "6px", paddingTop: "14px",
+                      display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "10px" }}>
+                      <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text, fontSize: "14px" }}>Lands in your bank</span>
+                      <span style={{ fontWeight: 800, color: tone, fontSize: big,
+                        fontVariantNumeric: "tabular-nums" }}>{fmt(total)}/mo</span>
+                    </div>
+                  );
+                  if (isMobile) {
+                    // Two narrow columns wrap into nonsense on a phone, so stack the sides -- but
+                    // keep every row, dashes included, so the two lists still read line for line.
+                    return (
+                      <div>
+                        {[{ t: "While working · " + compareLedger.year, rows: compareLedger.working,
+                            tone: COLORS.text, total: compareLedger.workTotal, side: "w" },
+                          { t: "Retired · " + retirementYear, rows: compareLedger.retired,
+                            tone: COLORS.green, total: compareLedger.retTotal, side: "r" }].map(col => (
+                          <div key={col.t} style={{ marginBottom: "22px" }}>
+                            <div style={{ ...styles.metricLabel, color: col.tone, marginBottom: "6px" }}>{col.t}</div>
+                            {col.rows.map((r, i) => (
+                              <div key={r.k + i} style={{ borderTop: `1px solid ${i === 0 ? COLORS.border : COLORS.borderSoft}` }}>
+                                {side(r, COLORS.accent, col.side)}
+                              </div>
+                            ))}
+                            {bottom(col.tone, col.total, "20px")}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "40px" }}>
+                      <div style={{ ...styles.metricLabel, color: COLORS.text, paddingBottom: "8px" }}>
+                        While working · {compareLedger.year}
+                      </div>
+                      <div style={{ ...styles.metricLabel, color: COLORS.green, paddingBottom: "8px" }}>
+                        Retired · {retirementYear}
+                      </div>
+                      {compareLedger.pairs.map((pr, i) => {
+                        const line = { borderTop: `1px solid ${i === 0 ? COLORS.border : COLORS.borderSoft}` };
+                        return (
+                          <Fragment key={(pr.w?.k || pr.r?.k) + i}>
+                            <div style={line}>{side(pr.w, COLORS.accent, "w")}</div>
+                            <div style={line}>{side(pr.r, COLORS.accent, "r")}</div>
+                          </Fragment>
+                        );
+                      })}
+                      {bottom(COLORS.text, compareLedger.workTotal, "24px")}
+                      {bottom(COLORS.green, compareLedger.retTotal, "24px")}
+                    </div>
+                  );
+                })()}
                 {(() => {
                   const gap = compareLedger.retTotal - compareLedger.workTotal;
                   return (
