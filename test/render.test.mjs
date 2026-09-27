@@ -554,6 +554,52 @@ check("the tax figures say plainly that they are estimates", () => has(GH.pensio
 // Classic safety caps the Roseville bucket at 90%. There is a DAY you cross it, and past that
 // day service buys nothing. Every year-by-year table on this tab is read differently once you
 // know which side of that date you are on.
+// ── Specialty pay: the boxes have to add up to the header ─────────────────
+// Two things stopped them adding up: longevity was IN the total but in no box, and a box can
+// be ticked and still not counted when its pay ends before the member retires.
+console.log("\n-- specialty pay adds up --");
+{
+  const IN = await scenario({ setupDone:true, hireDate:"2003-01-01", dob:"1978-10-31",
+    memberType:"classic", medicalTier:"2", classification:"Fire Captain", salaryStep:"H",
+    retirementDateOverride:"2028-12-31", retirementAge:50,
+    hasBachelor:true, hasCompanyOfficer:true, hasEngineBoss:true,
+    hasHazmat:true, hazmatLevel:"team", hasRescue:true, rescueLevel:"team",
+    openSections:{ startincent:true } });
+  check("longevity has a row of its own", () => has(IN.member, "Longevity (20+ yrs) (7.5%)"));
+  check("and says it is not a choice", () => has(IN.member, "automatic, from your hire date"));
+  check("a box that ends before retirement is struck as not counted", () =>
+    has(IN.member, "ends 1/9/2027 · not counted"));
+  check("the arithmetic is shown, not left to the member", () =>
+    has(IN.member, "Boxes you ticked that count") && has(IN.member, "Total on this section"));
+  // 10 bachelor + 5 company officer + 2.5 hazmat team + 2.5 rescue team = 20.0 ticked-and-counted.
+  // Engine Boss is ticked and excluded. Plus 7.5 longevity = the 27.5% in the header.
+  check("ticked-and-counted, longevity and the total reconcile", () => {
+    const m = IN.member.match(/Boxes you ticked that count ([\d.]+)% Longevity \(20\+ yrs\) · automatic ([\d.]+)% Total on this section ([\d.]+)%/);
+    if (!m) return "could not read the three figures";
+    const [a, b, t] = [ +m[1], +m[2], +m[3] ];
+    return (Math.abs(a + b - t) < 0.05 && Math.abs(t - 27.5) < 0.05)
+      || `${a} + ${b} != ${t} (expected 20 + 7.5 = 27.5)`;
+  });
+  check("and the header carries the same total", () => has(IN.member, "27.5% total"));
+
+  // A 2017+ hire gets the Service Term Bonus instead, and it is not pensionable.
+  const STB = await scenario({ setupDone:true, hireDate:"2019-01-01", dob:"1995-01-01",
+    memberType:"pepra", medicalTier:"3", classification:"Fire Engineer", salaryStep:"E",
+    retirementDateOverride:"2040-01-01", retirementAge:45,
+    hasBachelor:true, openSections:{ startincent:true } });
+  check("a 2017+ hire gets Service Term Bonus, not longevity", () =>
+    has(STB.member, "Service Term Bonus (15+ yrs)") && lacks(STB.member, "Longevity ("));
+  check("and it is flagged as not pensionable", () => has(STB.member, "not pensionable"));
+
+  // Too junior for either: no row at all, and nothing to reconcile.
+  const NEW = await scenario({ setupDone:true, hireDate:"2024-01-01", dob:"1998-01-01",
+    memberType:"pepra", medicalTier:"3", classification:"Firefighter EMT I", salaryStep:"A",
+    retirementDateOverride:"2031-01-01", retirementAge:33,
+    hasBachelor:true, openSections:{ startincent:true } });
+  check("no seniority row before you have earned one", () =>
+    lacks(NEW.member, "automatic, from your hire date"));
+}
+
 console.log("\n-- sweet-spot date --");
 {
   // Well short of the cap: 22 yrs in, no priors, sick leave converted.

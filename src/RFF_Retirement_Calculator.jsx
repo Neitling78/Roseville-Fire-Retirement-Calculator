@@ -358,6 +358,12 @@ const STATES_LIST = [
 const MEDICAL_COVERAGE_LABELS = { ee: "Employee only", ee1: "Employee + 1 dependent", fam: "Employee + family" };
 // Member-facing changelog shown in the "What's New" tab. Newest first. Add a new {date, items} at the top each update.
 const CHANGELOG = [
+  { date: "September 27, 2026 (v55)", items: [
+    "<strong>Section 3 now adds up on screen.</strong> The header said 27.5% and the ticked boxes came to 20% — because longevity was in the total and in no box. Longevity (or the Service Term Bonus, for 2017-and-later hires) now has its own row at the top: ticked, greyed, and labelled <em>automatic, from your hire date</em>, because it is not a choice.",
+    "<strong>A ticked box that does not count now looks like it.</strong> Engine Boss, Captain Paramedic and the Engineer cert all end 1/9/2027 in exchange for rank separation. If you retire after that, those rows are struck through with an <em>ends 1/9/2027 · not counted</em> tag instead of sitting there ticked and looking like part of the total.",
+    "Underneath, the arithmetic: <strong>boxes you ticked that count + your automatic longevity = the figure in the header</strong>, with the year it is figured for. No more adding the boxes up and coming out short.",
+    "The row reads straight out of the same breakdown the total is built from, so the checklist and the total cannot drift apart — and a test fails if the three figures ever stop reconciling.",
+  ] },
   { date: "September 24, 2026 (v54)", items: [
     "<strong>It stopped looking like a spreadsheet.</strong> No screen moved and no number changed — what changed is which number your eye lands on. Every card used to carry the same weight: one size, one font, one border. Now money is set in a display serif at a size nothing else reaches, section titles recede into small caps, and cards sit forward or back depending on whether they hold an answer or an input.",
     "<strong>Real fonts, finally.</strong> The tool asked for DM Sans and never loaded it, so every screen was rendering in plain Helvetica. Inter now carries the interface and Instrument Serif carries the money.",
@@ -2007,6 +2013,21 @@ export default function RFFRetirementCalculator() {
   // vs current — use today's base salary (not projected) for the take-home comparison
   const currentMonthlySalary = baseSalary * (1 + currentIncentives.totalIncentivePct);
   // CalPERS member contribution is on TODAY'S pensionable comp (so the take-home comparison is today-vs-today, not today-minus-projected).
+  // The longevity (or Service Term Bonus) row shown in section 3. Read out of the SAME
+  // breakdown the section total is built from, so the checklist and the total cannot drift:
+  // if longevity is in the total, it has a row; if it is not, there is no row.
+  const autoSeniorityRow = incentives.breakdown.find(b => !b.note && /^(Longevity|Service Term Bonus)/.test(b.label)) || null;
+  // A ticked box whose pay ends before the member retires is NOT in the total. Saying so once,
+  // in a chip on the row itself, beats a warning box at the bottom that has to be connected
+  // back to which rows it meant.
+  const endedChip = (
+    <span style={{ ...styles.badge, background: "rgba(245,158,11,0.16)", color: COLORS.gold,
+      border: "1px solid rgba(245,158,11,0.4)", marginLeft: "8px", verticalAlign: "middle" }}>
+      ends 1/9/2027 · not counted
+    </span>
+  );
+  // Everything in the total that is NOT the automatic seniority line — i.e. the boxes you tick.
+  const tickedIncentivePct = Math.max(0, incentives.totalIncentivePct - (autoSeniorityRow ? autoSeniorityRow.pct : 0));
   const currentLongevityPct = (memberType === "classic" && showLongevity) ? LONGEVITY(currentServiceYears) : 0;
   const currentPensionableMonthly =
     baseSalary * (1 + currentIncentives.pensionablePct)
@@ -2771,6 +2792,22 @@ export default function RFFRetirementCalculator() {
                     <div style={{ fontSize: "11px", color: COLORS.textMuted, marginBottom: "10px", lineHeight: 1.6 }}>
                       Tick everything you hold. Education and CSFM certificates are capped at 15% combined (MOU Ch.2 Art.VI.B).
                     </div>
+                    {/* Longevity is in the total but was in no box, so the ticked boxes never added up to the
+                        figure in the header. It is not a choice — the hire date and your years decide it — so it
+                        shows as a ticked box you cannot untick, with the reason next to it. */}
+                    {autoSeniorityRow && (
+                      <label style={{ ...styles.checkRow, cursor: "default", opacity: 1 }}>
+                        <input style={{ ...styles.checkbox, cursor: "default" }} type="checkbox"
+                          checked readOnly disabled />
+                        <span style={{ ...styles.checkLabel, cursor: "default" }}>
+                          {autoSeniorityRow.label.replace(" — non-pensionable", "")} ({pct(autoSeniorityRow.pct)})
+                          <span style={{ fontSize: "11px", color: COLORS.textDim }}>
+                            {" — automatic, from your hire date"}
+                            {!autoSeniorityRow.pensionable && " · not pensionable"}
+                          </span>
+                        </span>
+                      </label>
+                    )}
                     <label style={styles.checkRow}>
                       <input style={styles.checkbox} type="checkbox" checked={hasBachelor}
                         onChange={e => { setHasBachelor(e.target.checked); if (e.target.checked) setHasAssociate(false); setSetupDone(true); }} />
@@ -2785,7 +2822,7 @@ export default function RFFRetirementCalculator() {
                       <label style={styles.checkRow}>
                         <input style={styles.checkbox} type="checkbox" checked={hasEngineerCert}
                           onChange={e => { setHasEngineerCert(e.target.checked); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Engineer cert / FA Driver-Op (5%){!engineerCertActive && " — ends 1/9/2027"}</span>
+                        <span style={{ ...styles.checkLabel, ...(engineerCertActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engineer cert / FA Driver-Op (5%)</span>{!engineerCertActive && endedChip}
                       </label>
                     )}
                     {classification === "Fire Captain" && (<>
@@ -2802,7 +2839,7 @@ export default function RFFRetirementCalculator() {
                       <label style={styles.checkRow}>
                         <input style={styles.checkbox} type="checkbox" checked={hasEngineBoss}
                           onChange={e => { setHasEngineBoss(e.target.checked); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Engine Boss NWCG (5%){!captainIncentivesActive && " — ends 1/9/2027"}</span>
+                        <span style={{ ...styles.checkLabel, ...(captainIncentivesActive ? {} : { color: COLORS.textDim, textDecoration: "line-through" }) }}>Engine Boss NWCG (5%)</span>{!captainIncentivesActive && endedChip}
                       </label>
                     </>)}
                     {(classification === "Firefighter Paramedic I" || classification === "Firefighter Paramedic II") && (
@@ -2816,7 +2853,7 @@ export default function RFFRetirementCalculator() {
                       <label style={styles.checkRow}>
                         <input style={styles.checkbox} type="checkbox" checked={hasParamedic}
                           onChange={e => { setHasParamedic(e.target.checked); setSetupDone(true); }} />
-                        <span style={styles.checkLabel}>Paramedic incentive (5%){classification === "Fire Captain" && !captainIncentivesActive && " — ends 1/9/2027"}</span>
+                        <span style={{ ...styles.checkLabel, ...((classification === "Fire Captain" && !captainIncentivesActive) ? { color: COLORS.textDim, textDecoration: "line-through" } : {}) }}>Paramedic incentive (5%)</span>{classification === "Fire Captain" && !captainIncentivesActive && endedChip}
                       </label>
                     )}
                     <label style={styles.checkRow}>
@@ -2860,6 +2897,32 @@ export default function RFFRetirementCalculator() {
                         ⚠ Captain Paramedic and Engine Boss pay both cease 1/9/2027 in exchange for rank
                         separation (MOU Ch.2 Art.X.B.2.c). Your retirement is after that date, so they are
                         not counted — the rank separation is in your projected salary instead.
+                      </div>
+                    )}
+                    {/* Two things made the header total look wrong: longevity was in it but in no box, and a
+                        box can be ticked and still not counted (pay that ends before you retire). Show the
+                        arithmetic rather than leaving a member to add the boxes up and come out short. */}
+                    {incentives.totalIncentivePct > 0 && (
+                      <div style={{ marginTop: "14px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px" }}>
+                        <div style={styles.tableRow}>
+                          <span style={styles.tableKey}>Boxes you ticked that count</span>
+                          <span style={styles.tableVal}>{pct(tickedIncentivePct)}</span>
+                        </div>
+                        {autoSeniorityRow && (
+                          <div style={styles.tableRow}>
+                            <span style={styles.tableKey}>{autoSeniorityRow.label.replace(" — non-pensionable", "")} <span style={{ fontSize: "10px", color: COLORS.textDim }}>· automatic</span></span>
+                            <span style={styles.tableVal}>{pct(autoSeniorityRow.pct)}</span>
+                          </div>
+                        )}
+                        <div style={styles.tableRowLast}>
+                          <span style={{ ...styles.tableKey, color: COLORS.text, fontWeight: 700 }}>Total on this section</span>
+                          <span style={styles.tableValGold}>{pct(incentives.totalIncentivePct)}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: COLORS.textDim, marginTop: "8px", lineHeight: 1.6 }}>
+                          Figured for <strong style={{ color: COLORS.textMuted }}>{retirementYear}</strong>, the year you retire.
+                          {!captainIncentivesActive && (hasParamedic || hasEngineBoss) && <> A ticked box whose pay ends before
+                          then is not in this total — that is why the boxes above can add to more than the figure here.</>}
+                        </div>
                       </div>
                     )}
                   </>)}
