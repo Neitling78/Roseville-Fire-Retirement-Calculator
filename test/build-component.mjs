@@ -7,6 +7,6 @@ await build({
   entryPoints: [join(here, "../src/RFF_Retirement_Calculator.jsx")],
   outfile: join(here, "component.mjs"),
   bundle: true, format: "esm", platform: "node", jsx: "automatic",
-  external: ["react", "react-dom", "react/jsx-runtime"],
+  external: ["react", "react-dom", "react/jsx-runtime", "pdfjs-dist", "pdfjs-dist/*"],
   loader: { ".png": "dataurl" }, logLevel: "error",
 });

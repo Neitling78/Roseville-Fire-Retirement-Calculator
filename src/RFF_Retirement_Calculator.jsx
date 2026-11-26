@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import logoUrl from "./assets/logo.png";
+import PaystubsTab from "./PaystubsTab.jsx";
+import { paystubFinalComp, ceasingPatterns } from "./paystubs.js";
 // ─── CONSTANTS FROM 2026 RFF MOU & SALARY SCHEDULE ───────────────────────────
 // Official City of Roseville salary schedules, BOTH effective 3/21/2026.
 //   Schedule A — 8 steps (A-H) — employees hired before 1/7/2017.
@@ -1298,6 +1300,14 @@ function clearSavedState() {
   } catch {}
 }
 const SAVED = loadSavedState();
+// Paystub summary — dates and dollar totals only, kept on this device under its own key.
+const PAYSTUB_KEY = "rff-paystubs-v1";
+function loadPaystubs() {
+  try { if (typeof window === "undefined") return null; return JSON.parse(window.localStorage.getItem(PAYSTUB_KEY) || "null"); } catch { return null; }
+}
+function savePaystubs(v) {
+  try { if (typeof window === "undefined") return; if (v) window.localStorage.setItem(PAYSTUB_KEY, JSON.stringify(v)); else window.localStorage.removeItem(PAYSTUB_KEY); } catch {}
+}
 // v48 migration. Sick leave used to be two boxes (hours to cash / hours to convert) applied to
 // a projected balance. It is now one figure — hours you expect AT RETIREMENT — and one choice.
 // A saved profile from the two-box era carries its total and its leaning across.
@@ -1323,6 +1333,11 @@ export default function RFFRetirementCalculator() {
     } catch { return "member"; }
   })();
   const [tab, setTab] = useState(initialTab);
+  // Paystub mode. Off = the calculator exactly as it was. On = final compensation comes
+  // from the pay the City reported to CalPERS on the member's own stubs.
+  const [paystubSummary, setPaystubSummaryState] = useState(() => loadPaystubs());
+  const setPaystubSummary = (v) => { setPaystubSummaryState(v); savePaystubs(v); };
+  const [usePaystubs, setUsePaystubs] = useState(SAVED.usePaystubs ?? false);
   // The tool used to open on a brand-new hire's numbers. It now shows nothing until the
   // member has answered the five questions that make the answer theirs.
   const [setupDone, setSetupDone] = useState(SAVED.setupDone ?? (SAVED.hireDate ? true : false));
@@ -1758,6 +1773,7 @@ export default function RFFRetirementCalculator() {
       sickLeaveDisposition,
       beneficiaryAge,
       plannedRetirementYear,
+      usePaystubs,
       unionRaisePct, lmaPct, lmaTouched, rhsReturn, inflationRate, openSections, survivorOption, survivorActualPct,
       hasEligibleSurvivor,
     });
@@ -1780,6 +1796,7 @@ export default function RFFRetirementCalculator() {
   const resetAll = () => {
     if (!resetArmed) { setResetArmed(true); return; }
     clearSavedState();
+    savePaystubs(null);
     if (typeof window !== "undefined") window.location.reload();  // reload re-enters the wizard
   };
   // Armed and then ignored means they thought better of it. Disarm rather than leaving a
@@ -1963,7 +1980,12 @@ export default function RFFRetirementCalculator() {
   // Uniform allowance (Classic only, pensionable)
   const uniformMonthly = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
   // FLSA OT — special comp, pensionable for Classic only (~2% of base), NOT PEPRA
-  const flsaOTPensionableMonthly = memberType === "classic" ? projectedBaseSalary * FLSA_OT_PENSIONABLE_PCT : 0;
+  // FLSA pensionable rate. Switch off: the calculator's 2.61% estimate, unchanged.
+  // Switch on: the "Overtime FLSA Over 64 Hours" line on the member's own stubs ÷ base
+  // reported — the only FLSA pay the City reports to CalPERS.
+  const stubFlsa = (usePaystubs && paystubSummary?.ok && paystubSummary.flsa) ? paystubSummary.flsa : null;
+  const flsaPct = stubFlsa ? stubFlsa.pct : FLSA_OT_PENSIONABLE_PCT;
+  const flsaOTPensionableMonthly = memberType === "classic" ? projectedBaseSalary * flsaPct : 0;
   const totalPensionableMonthly = cashPensionable + holidayPayMonthly + uniformMonthly + flsaOTPensionableMonthly;
   // ── FINAL COMPENSATION ───────────────────────────────────────────────────
   // Classic: ONE-YEAR final compensation. Roseville's CalPERS contract para 11.h elects
@@ -1980,15 +2002,24 @@ export default function RFFRetirementCalculator() {
     const lon = (memberType === "classic" && showLongevity) ? LONGEVITY(yrsAtThatPoint) : 0;
     const hol = memberType === "classic" ? (b / FLSA_56HR_MONTHLY_HOURS * (1 + lon)) * HOLIDAY_HOURS / 12 : 0;
     const uni = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
-    const flsa = memberType === "classic" ? b * FLSA_OT_PENSIONABLE_PCT : 0;
+    const flsa = memberType === "classic" ? b * flsaPct : 0;
     return b + inc.pensionableAmt + hol + uni + flsa;
   };
   const FINAL_COMP_MONTHS_PEPRA = 36;
-  const finalCompMonthly = memberType === "classic"
+  const finalCompMonthlyModel = memberType === "classic"
     ? totalPensionableMonthly
     : (pensionableForYear(retirementYear) + pensionableForYear(retirementYear - 1) + pensionableForYear(retirementYear - 2)) / 3;
+  // From the member's paystubs: actual reported pay where the stubs cover the window,
+  // projected from the newest stub (same raise/step/rank factors as above) after that.
+  const paystubComp = paystubSummary?.ok ? paystubFinalComp(paystubSummary, {
+    retirementDate: effectiveRetDateStr,
+    months: memberType === "classic" ? 12 : FINAL_COMP_MONTHS_PEPRA,
+    growthForYear: (y) => (baseSalary > 0 ? projectedBaseForYear(y) / projectedBaseForYear(NOW.getFullYear()) : 1),
+  }) : null;
+  const paystubsOn = !!(usePaystubs && paystubComp);
+  const finalCompMonthly = paystubsOn ? paystubComp.monthly : finalCompMonthlyModel;
   // How much the 36-month rule costs a PEPRA member versus using the final year alone.
-  const finalCompAveragingDrag = Math.max(0, totalPensionableMonthly - finalCompMonthly);
+  const finalCompAveragingDrag = Math.max(0, totalPensionableMonthly - finalCompMonthlyModel);
   // ── SICK LEAVE AT RETIREMENT ────────────────────────────────────
   // One member-supplied figure. Nothing is projected from today's balance: accruing 144 hrs/yr and
   // using none is a ceiling, not a forecast, and the tool used to present it as fact.
@@ -2340,14 +2371,14 @@ export default function RFFRetirementCalculator() {
     baseSalary * (1 + currentIncentives.pensionablePct)
     + (memberType === "classic" ? (baseSalary / FLSA_56HR_MONTHLY_HOURS) * (1 + currentLongevityPct) * HOLIDAY_HOURS / 12 : 0)
     + (memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0)
-    + (memberType === "classic" ? baseSalary * FLSA_OT_PENSIONABLE_PCT : 0);
+    + (memberType === "classic" ? baseSalary * flsaPct : 0);
   const employeeCalPERSContrib = currentPensionableMonthly * (memberType === "classic" ? 0.09 : 0.115);
   // Holiday pay, the uniform allowance and FLSA scheduled overtime are real cash, paid every year
   // and reported to CalPERS — but "salary" here only ever meant base + incentives, so all three were
   // missing from every working figure in the tool. That made working pay read about $1,200/mo light
   // against a pension figured on compensation that DID include them.
   const workingExtrasMonthly = holidayPayMonthlyNow + uniformMonthly
-    + (memberType === "classic" ? baseSalary * FLSA_OT_PENSIONABLE_PCT : 0);
+    + (memberType === "classic" ? baseSalary * flsaPct : 0);
   // Everything Roseville pays you in a month before overtime — the same total the Current
   // compensation table adds up, minus the overtime row.
   const workingGrossNoOT = currentMonthlySalary + workingExtrasMonthly;
@@ -2375,7 +2406,7 @@ export default function RFFRetirementCalculator() {
     const specialtyPct = Math.max(0, R.incentivePct - lonPct);
     const holiday = memberType === "classic" ? (R.base / H) * (1 + lonPct) * HOLIDAY_HOURS / 12 : 0;
     const uniform = memberType === "classic" ? UNIFORM_ALLOWANCE_ANNUAL / 12 : 0;
-    const flsa = memberType === "classic" ? R.base * FLSA_OT_PENSIONABLE_PCT : 0;
+    const flsa = memberType === "classic" ? R.base * flsaPct : 0;
     const ot = otHoursMonthly * R.flsaOT;
     const pensionable = R.base * (1 + R.incentivePct) + holiday + uniform + flsa;
     return { R, H, lonPct, specialtyPct, holiday, uniform, flsa, ot, pensionable, gross: pensionable + ot };
@@ -3335,6 +3366,25 @@ export default function RFFRetirementCalculator() {
       )}
       {wizardDone && (<>
       <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.surface, borderBottom: `2px solid ${COLORS.green}`, boxShadow: "0 4px 18px -6px rgba(74, 56, 38, 0.26)" }}>
+        {/* Paystub toggle. Off is the calculator exactly as it has always worked. */}
+        <div style={{ maxWidth: "1460px", margin: "0 auto", padding: isMobile ? "6px 12px 0" : "8px 26px 0",
+          display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", fontSize: isMobile ? "11px" : "12px" }}>
+          <button type="button" role="switch" aria-checked={paystubsOn}
+            onClick={() => { if (paystubComp) setUsePaystubs(!usePaystubs); else setTab("paystubs"); }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "none", border: "none", padding: 0, cursor: "pointer", color: COLORS.text, fontSize: "inherit", fontWeight: 700 }}>
+            <span style={{ width: "34px", height: "18px", borderRadius: "9px", position: "relative", flex: "none",
+              background: paystubsOn ? COLORS.green : COLORS.border, transition: "background 0.15s" }}>
+              <span style={{ position: "absolute", top: "2px", left: paystubsOn ? "18px" : "2px", width: "14px", height: "14px",
+                borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+            </span>
+            Use my paystubs
+          </button>
+          <span style={{ color: COLORS.textMuted }}>
+            {paystubsOn
+              ? `On · final comp from ${paystubSummary.stubCount} paystubs`
+              : paystubComp ? "Off · using the calculator's estimate" : "Off · add paystubs on the Paystubs tab"}
+          </span>
+        </div>
         {/* The four numbers a member actually came for: what they make now, gross and net,
             against what they will get retired, gross and net. Everything else is the working. */}
         <div style={{ maxWidth: "1460px", margin: "0 auto", padding: isMobile ? "8px 12px" : "10px 26px",
@@ -3389,6 +3439,7 @@ export default function RFFRetirementCalculator() {
             {[["pension", "Pension", "Pension"],
               ["member", "Member details", "Member"],
               ["comp", "Compensation", "Pay"],
+              ["paystubs", "Paystubs", "Stubs"],
               ["survivor", "Survivor / beneficiary", "Survivor"],
               ["health", "Health care", "Health"],
               ["stayorgo", "Stay or go?", "Stay/go"],
@@ -3414,6 +3465,15 @@ export default function RFFRetirementCalculator() {
           {/* LEFT PANEL */}
           <div>
             {/* ═══════════════ WORKING NOW · inputs ═══════════════ */}
+            {tab === "paystubs" && (
+              <PaystubsTab
+                summary={paystubSummary} onSummary={setPaystubSummary}
+                usePaystubs={usePaystubs} onUsePaystubs={setUsePaystubs}
+                ceasing={ceasingPatterns(classification)}
+                paystubComp={paystubComp} modelFinalComp={finalCompMonthlyModel}
+                memberType={memberType} retirementYear={retirementYear}
+                COLORS={COLORS} styles={styles} isMobile={isMobile} />
+            )}
             {tab === "member" && (
               <>
                 <div className="rff-card" style={{ ...styles.card, border: `1px solid ${COLORS.accent}` }}>
@@ -3880,7 +3940,7 @@ export default function RFFRetirementCalculator() {
                         </div>
                         <div style={{ ...styles.tableRowLast, borderTop: `1px solid ${COLORS.border}`, marginTop: "4px", paddingTop: "6px" }}>
                           <span style={{ ...styles.tableKey, fontWeight: 700, color: COLORS.text }}>
-                            Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}</span>
+                            Final compensation <span style={{ fontSize: "10px", color: COLORS.textDim, fontWeight: 400 }}>· {memberType === "classic" ? "highest 12 months" : "36-month average"}{paystubsOn ? " · from your paystubs" : ""}</span>
                           </span>
                           <span style={{ ...styles.tableValAccent, fontWeight: 800 }}>{fmt(finalCompMonthly)}/mo</span>
                         </div>
@@ -4320,8 +4380,8 @@ export default function RFFRetirementCalculator() {
                   m: yHoliday, hourly: false, pens: true },
                 memberType === "classic" && { k: "Uniform allowance", sub: `$${UNIFORM_ALLOWANCE_ANNUAL.toLocaleString()}/yr`,
                   m: uniformMonthly, hourly: false, pens: true },
-                memberType === "classic" && { k: "FLSA scheduled overtime", sub: `${pct(FLSA_OT_PENSIONABLE_PCT)} of base, built into 48/96`,
-                  m: yBase * FLSA_OT_PENSIONABLE_PCT, hourly: false, pens: true },
+                memberType === "classic" && { k: "FLSA scheduled overtime", sub: stubFlsa ? `${(flsaPct * 100).toFixed(3)}% of base, from your paystubs (Over 64 Hours line)` : `${pct(FLSA_OT_PENSIONABLE_PCT)} of base, built into 48/96`,
+                  m: yBase * flsaPct, hourly: false, pens: true },
                 { k: "Overtime you work", sub: otHoursMonthly > 0 ? `${otHoursMonthly} hrs at ${fmtHr(R.flsaOT)}` : "none entered",
                   m: yOT, hourly: false, pens: false },
               ].filter(Boolean);

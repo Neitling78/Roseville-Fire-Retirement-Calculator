@@ -1335,7 +1335,7 @@ console.log("\n-- compensation defaults to the retirement year --");
   // Navigation is a vertical rail on desktop, with Pension first -- it is the answer,
   // and everything else is how the answer was arrived at.
   check("Pension leads the navigation", () =>
-    has(D.member, "Pension Member details Compensation Survivor / beneficiary"));
+    has(D.member, "Pension Member details Compensation Paystubs Survivor / beneficiary"));
   check("and not Current compensation", () => lacks(D.member, "Current compensation"));
   check("every destination is still reachable", () =>
     ["Health care", "Stay or go?", "Other income & tax", "Guide"].every(x => D.member.includes(x))
