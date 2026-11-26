@@ -91,5 +91,16 @@ const NONE = await render({ ...base, usePaystubs: true }, false);
 check("without stubs the switch can't turn on", () => NONE.paystubs.includes("Off · add paystubs on the Paystubs tab") || "toggle text missing");
 check("and there is no comparison table", () => !NONE.paystubs.includes("Your pension both ways") || "table shown without stubs");
 
+// A summary saved by an older version has no line detail: the rows must not read $0.
+const { items, ...oldL12 } = summary.last12;
+store.clear(); store.setItem("rff-calc-v1", JSON.stringify({ ...base, usePaystubs: true }));
+store.setItem("rff-paystubs-v1", JSON.stringify({ ...summary, last12: oldL12 }));
+const { default: Calc2 } = await import("./component.mjs?p=" + (++bust));
+window.location.search = "?tab=paystubs";
+const OLD = strip(renderToString(React.createElement(Calc2)));
+check("old saved stubs: no line rows showing $0", () => !/Longevity \$[\d,]+ \$0 /.test(OLD) || "zero rows shown");
+check("and the member is asked to add them again", () => OLD.includes("Add your paystubs again") || "prompt missing");
+check("final comp and pension rows still show", () => OLD.includes("Gross pension") || "missing");
+
 console.log(`\n${fail ? "!!" : "OK"} ${pass} passed, ${fail} failed\n`);
 if (fail) process.exit(1);

@@ -217,7 +217,7 @@ export default function PaystubsTab({
                           <th style={{ ...cell, textAlign: "left" }}></th><th style={cell}>Switch off<br />estimate</th><th style={cell}>Switch on<br />paystubs</th><th style={cell}>Difference</th>
                         </tr></thead>
                         <tbody>
-                          {S.lines && lineRows.map(([k, label]) => (
+                          {S.lines && S.hasItems && lineRows.map(([k, label]) => (
                             <tr key={k} style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
                               <td style={{ ...cell, textAlign: "left" }}>{label}</td>
                               <td style={cell}>{fmt0(E.lines[k])}</td><td style={cell}>{fmt0(S.lines[k])}</td>
@@ -246,7 +246,7 @@ export default function PaystubsTab({
                     {S.hasItems === false && (
                       <div style={{ ...box("warn"), marginTop: "8px" }}>Add your paystubs again to see the line-by-line split. These were read before it existed.</div>
                     )}
-                    {S.incentiveItems && (
+                    {S.incentiveItems && S.hasItems && (
                       <details style={{ marginTop: "10px" }}>
                         <summary style={{ cursor: "pointer", fontSize: "13px", fontWeight: 700, color: COLORS.text }}>Incentives & certificates, item by item</summary>
                         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "14px", marginTop: "8px" }}>
