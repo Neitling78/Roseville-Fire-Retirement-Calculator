@@ -2017,6 +2017,7 @@ export default function RFFRetirementCalculator() {
     growthForYear: (y) => (baseSalary > 0 ? projectedBaseForYear(y) / projectedBaseForYear(NOW.getFullYear()) : 1),
     // Holiday Buy Up is counted at 168 hrs/yr × (hourly + longevity hourly), MOU Ch.3 Art.II.C.
     longevityPct: (memberType === "classic" && showLongevity) ? LONGEVITY(yearsOfService) : 0,
+    uniformAnnual: UNIFORM_ALLOWANCE_ANNUAL,
   }) : null;
   const paystubsOn = !!(usePaystubs && paystubComp);
   const finalCompMonthly = paystubsOn ? paystubComp.monthly : finalCompMonthlyModel;
@@ -2167,6 +2168,7 @@ export default function RFFRetirementCalculator() {
           longevityPct: stubLongevityPct,
           afterCease: effectiveRetDateStr >= CEASE_DATE_2027,
           ceasing: ceasingPatterns(classification),
+          uniformAnnual: UNIFORM_ALLOWANCE_ANNUAL,
         });
         return y ? { lines: { base: y.base, longevity: y.longevity, incentives: y.incentives, holiday: y.holiday, uniform: y.uniform, flsa: y.flsa },
           incentiveItems: y.incentiveItems, hasItems: !!paystubSummary.last12?.items } : {};

@@ -47,6 +47,9 @@ export const FLSA_REPORTED_LINE = "Overtime FLSA Over 64 Hours";
 // hours; hours carried over from a prior year and cashed out later can't add to it.
 export const HOLIDAY_LINE = "Holiday Buy Up";
 export const HOLIDAY_HOURS_PER_YEAR = 168;
+// Uniform allowance is a flat dollar amount ($1,300 a year, paid $50 a check since 2026),
+// so it is projected at that amount — never scaled up with base pay.
+export const isUniformLine = (label) => /^Uniform Allowance/.test(label);
 // Earnings lines seen on stubs that the City does NOT report to CalPERS.
 export const NOT_REPORTED_LINES = [
   "Overtime 1.5",
@@ -348,6 +351,10 @@ export function analyzeStubs(rawStubs, opts = {}) {
   in12.forEach((s) => SPECIAL_LINES.forEach((k) => {
     if (s.earnings[k]?.cur) items12[k] = r2((items12[k] || 0) + s.earnings[k].cur);
   }));
+  // Uniform only counts on tied stubs (as the special-pay totals do).
+  const tiedIn12 = new Set(rows12.filter((r) => r.reconciles).map((r) => r.checkDate + r.periodEnd));
+  const uniform12 = in12.filter((s) => tiedIn12.has(s.checkDate + s.periodEnd))
+    .reduce((a, s) => a + Object.entries(s.earnings).filter(([k]) => SPECIAL_LINES.includes(k) && isUniformLine(k)).reduce((b, [, v]) => b + (v.cur || 0), 0), 0);
   const days12 = daysBetween(rows12.length ? rows12[0].periodStart : last12Start, runEnd) + 1;
   // FLSA reported to CalPERS, from the stubs: the Over-64 line ÷ base reported.
   const flsa12 = rows12.reduce((a, r) => a + r.flsa, 0);
@@ -383,11 +390,12 @@ export function analyzeStubs(rawStubs, opts = {}) {
       base: r2(base12), special: r2(special12), total: r2(base12 + special12),
       ceasing: r2(ceasing12),
       holiday: r2(holiday12),
+      uniform: r2(uniform12),
       items: items12,
       // Special pay as a share of base — the rate it is carried forward at. Holiday Buy Up
       // is left out of these and projected on its own at 168 hours a year.
-      specialRatio: base12 > 0 ? (special12 - holiday12) / base12 : 0,
-      specialRatioAfterCease: base12 > 0 ? (special12 - holiday12 - ceasing12) / base12 : 0,
+      specialRatio: base12 > 0 ? (special12 - holiday12 - uniform12) / base12 : 0,
+      specialRatioAfterCease: base12 > 0 ? (special12 - holiday12 - uniform12 - ceasing12) / base12 : 0,
       monthly: r2((base12 + special12) / days12 * 365.25 / 12),
     },
     reconciledStubs: rows.length - notReconciled.length,
@@ -411,13 +419,15 @@ export function analyzeStubs(rawStubs, opts = {}) {
 // (hourly rate + longevity). Hours carried over and cashed out later are not counted.
 //   growthForYear(y): calculator's projected base for year y ÷ its base today.
 //   longevityPct: the member's longevity rate (Classic, hired before 2017), else 0.
-export function paystubFinalComp(summary, { retirementDate, months, growthForYear, longevityPct = 0 }) {
+//   uniformAnnual: the flat yearly uniform allowance (projected only if the stubs show one).
+export function paystubFinalComp(summary, { retirementDate, months, growthForYear, longevityPct = 0, uniformAnnual = 0 }) {
   if (!summary?.ok || !summary.baseMonthlyNow) return null;
   const end = retirementDate;                      // ISO, exclusive end
   const start = addDays(end, -Math.round(months * 365.25 / 12));
   const hourlyNow = summary.baseMonthlyNow / (2912 / 12);
   const holidayReported = (summary.last12?.holiday || 0) > 0;
   const holidayPerDayAt = (hourly) => holidayReported ? HOLIDAY_HOURS_PER_YEAR * hourly * (1 + longevityPct) / 365.25 : 0;
+  const uniformPerDay = (summary.last12?.uniform || 0) > 0 ? uniformAnnual / 365.25 : 0;
   const daily = new Map();
   for (const seg of summary.segments) {
     for (let d = seg.start; d <= seg.end; d = addDays(d, 1)) {
@@ -443,7 +453,7 @@ export function paystubFinalComp(summary, { retirementDate, months, growthForYea
       const ratio = d >= CEASE_DATE_2027 ? summary.last12.specialRatioAfterCease : summary.last12.specialRatio;
       const hol = holidayPerDayAt(hourlyNow * growth);
       projDays++;
-      projSum += summary.baseMonthlyNow * growth * (1 + ratio) * 12 / 365.25 + hol;
+      projSum += summary.baseMonthlyNow * growth * (1 + ratio) * 12 / 365.25 + hol + uniformPerDay;
       projHoliday += hol;
     } else {
       // Before the stubs begin (a window reaching further back than the stubs supplied):
@@ -451,7 +461,7 @@ export function paystubFinalComp(summary, { retirementDate, months, growthForYea
       const L = summary.last12;
       const hol = Math.min(L.holiday / L.days, holidayPerDayAt(hourlyNow));
       projDays++;
-      projSum += (L.total - L.holiday) / L.days + hol;
+      projSum += (L.total - L.holiday - (L.uniform || 0)) / L.days + hol + uniformPerDay;
       projHoliday += hol;
     }
   }
@@ -473,7 +483,7 @@ export function paystubFinalComp(summary, { retirementDate, months, growthForYea
 // The same projection the final-comp window uses, laid out line by line at one year's
 // rates, so it can be set beside the calculator's estimate and any gap traced to its item.
 //   baseMonthly: stub base projected to that year. afterCease: date is on/after 1/9/2027.
-export function stubPayForYear(summary, { baseMonthly, longevityPct = 0, afterCease = false, ceasing = [] }) {
+export function stubPayForYear(summary, { baseMonthly, longevityPct = 0, afterCease = false, ceasing = [], uniformAnnual = 0 }) {
   if (!summary?.ok || !summary.last12) return null;
   const L = summary.last12;
   const share = (amt) => (L.base > 0 ? baseMonthly * amt / L.base : 0);
@@ -484,10 +494,11 @@ export function stubPayForYear(summary, { baseMonthly, longevityPct = 0, afterCe
     if (afterCease && ceasing.some((re) => re.test(label))) continue;
     const m = share(amt);
     if (label === FLSA_REPORTED_LINE) cat.flsa += m;
-    else if (/^Uniform Allowance/.test(label)) cat.uniform += m;
+    else if (isUniformLine(label)) continue;
     else if (/^Longevity$/.test(label)) cat.longevity += m;
     else { cat.incentives += m; incentiveItems.push({ label, monthly: m }); }
   }
+  if ((L.uniform || 0) > 0) cat.uniform = uniformAnnual / 12;
   if (L.holiday > 0) cat.holiday = HOLIDAY_HOURS_PER_YEAR * (baseMonthly / (2912 / 12)) * (1 + longevityPct) / 12;
   const total = Object.values(cat).reduce((a, b) => a + b, 0);
   return { ...cat, total, incentiveItems };

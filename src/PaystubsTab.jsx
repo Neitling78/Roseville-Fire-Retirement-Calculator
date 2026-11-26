@@ -128,6 +128,8 @@ export default function PaystubsTab({
                 {last12.holiday > 0 && <>Holiday Buy Up ({fmt2(last12.holiday)} of the special pay) counts for CalPERS at
                   168 hours a year at most, at your hourly rate plus longevity. Hours carried over from a prior year and cashed
                   out later are not counted. </>}
+                {last12.uniform > 0 && <>Uniform allowance is a flat $1,300 a year ($50 a check), so it is carried forward at that
+                  amount, not grown with your pay. </>}
                 The rest of your special pay ran at {(last12.specialRatio * 100).toFixed(1)}% of base pay. Going forward the
                 calculator carries that percentage on your projected base pay{last12.holiday > 0 ? ", and adds holiday at 168 hours a year" : ""}.
                 {last12.ceasing > 0 && <> {fmt0(last12.ceasing)} of it is pay the MOU ends on 1/9/2027; after that date it is

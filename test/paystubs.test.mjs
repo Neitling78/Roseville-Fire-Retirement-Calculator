@@ -149,5 +149,15 @@ check("inside the stub window the cash-out is capped at 168 hrs", () => near(fc(
 check("and the excluded amount is reported", () => near(fc(HL, "2026-11-14").holidayExcluded * 12, 48 * 50 * 1.075, 3) );
 check("no Holiday Buy Up on the stubs: none is projected", () => fc(analyzeStubs(run(26, "2026-10-31"), { today: "2026-11-25" }), "2028-06-01").holidayMonthly === 0);
 
+console.log("\n-- paystubs: uniform allowance is a flat $1,300 a year --");
+const uni = analyzeStubs(run(26, "2026-10-31", { special: { "Education Pay BA or BS": 600, "Uniform Allowance Payment": 50 } }), { today: "2026-11-25" });
+check("uniform is kept out of the special-pay ratio", () => near(uni.last12.specialRatio, 600 / 5800, 0.000001));
+check("the 12-month uniform total is read", () => near(uni.last12.uniform, 1300, 0.001));
+const uf = (g) => paystubFinalComp(uni, { retirementDate: "2028-06-01", months: 12, growthForYear: () => g, uniformAnnual: 1300 });
+check("a 20% raise does not raise the uniform allowance", () => near(uf(1.2).monthly - uf(1).monthly, 0.2 * 5800 * 26 / 12 * (1 + 600 / 5800) * 0 + (uf(1.2).monthly - uf(1).monthly), 0) && near((uf(1.2).monthly - uf(1).monthly) / (uf(1).monthly - 1300 / 12) , 0.2, 0.0001));
+const noUni = analyzeStubs(run(26, "2026-10-31", { special: { "Education Pay BA or BS": 600 } }), { today: "2026-11-25" });
+check("no uniform on the stubs: none is projected", () => near(paystubFinalComp(noUni, { retirementDate: "2028-06-01", months: 12, growthForYear: () => 1, uniformAnnual: 1300 }).monthly
+  + 1300 / 12, uf(1).monthly, 0.01));
+
 console.log(`\n${fail ? "!!" : "OK"} ${pass} passed, ${fail} failed\n`);
 if (fail) process.exit(1);
