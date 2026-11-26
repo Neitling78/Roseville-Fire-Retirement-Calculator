@@ -12,7 +12,7 @@ const usDate = (iso) => iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}/${iso.sl
 
 export default function PaystubsTab({
   summary, onSummary, usePaystubs, onUsePaystubs, ceasing,
-  paystubComp, modelFinalComp, memberType, retirementYear,
+  paystubComp, modelFinalComp, memberType, retirementYear, pensionCompare, onGoTo,
   COLORS, styles, isMobile,
 }) {
   const [busy, setBusy] = useState(null);          // { done, total }
@@ -188,25 +188,85 @@ export default function PaystubsTab({
                 </div>
               </details>
 
-              {paystubComp && (
-                <>
-                  <p style={{ ...styles.cardTitle, margin: "20px 0 6px" }}>Your final compensation · retiring {retirementYear}</p>
-                  <div style={row}><span>From your paystubs</span><strong style={{ color: COLORS.accent }}>{fmt0(paystubComp.monthly)}/mo</strong></div>
-                  <div style={row}><span>Calculator estimate (no paystubs)</span><strong>{fmt0(modelFinalComp)}/mo</strong></div>
-                  {paystubComp.holidayMonthly > 0 && (
-                    <div style={row}><span>Holiday Buy Up in it · 168 hrs a year</span><strong>{fmt0(paystubComp.holidayMonthly)}/mo</strong></div>
-                  )}
-                  {paystubComp.holidayExcluded > 0.5 && (
-                    <div style={{ ...row, color: COLORS.textMuted }}><span>Holiday pay on your stubs above 168 hrs a year, not counted</span><span>{fmt0(paystubComp.holidayExcluded)}/mo</span></div>
-                  )}
-                  <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.5, marginTop: "6px" }}>
-                    {memberType === "classic" ? "Classic: your highest 12 months, taken as the 12 months before you retire." : "PEPRA: the 36 months before you retire, averaged."}
-                    {" "}{Math.round(paystubComp.actualShare * 100)}% of that window is pay already on your stubs; the rest is projected
-                    from your newest stub with the same raises and steps the calculator uses everywhere else.
-                    Figures are estimates — CalPERS calculates the real benefit.
-                  </div>
-                </>
-              )}
+              {paystubComp && pensionCompare?.stubs && (() => {
+                const P = pensionCompare, E = P.estimate, S = P.stubs;
+                const diff = (a, b) => { const d = b - a; return (d >= 0 ? "+" : "−") + fmt0(Math.abs(d)); };
+                const cell = { padding: "6px 4px", textAlign: "right", whiteSpace: "nowrap" };
+                const lineRows = [
+                  ["base", "Base pay"], ["longevity", "Longevity"], ["incentives", "Incentives & certificates"],
+                  ["holiday", "Holiday (168 hrs a year)"], ["uniform", "Uniform allowance"], ["flsa", "FLSA scheduled overtime"],
+                ];
+                return (
+                  <>
+                    <p style={{ ...styles.cardTitle, margin: "22px 0 6px" }}>Your pension both ways · retiring {retirementYear}</p>
+                    <div style={row}>
+                      <span>CalPERS service credit at retirement <span style={{ color: COLORS.textDim, fontSize: "11px" }}>· from Member details</span></span>
+                      <strong>{P.serviceYears.toFixed(3)} yrs</strong>
+                    </div>
+                    <div style={{ fontSize: "12px", color: P.usingCalpersCredit ? COLORS.textMuted : "#8a5a00", lineHeight: 1.5, padding: "4px 0 6px" }}>
+                      {P.serviceSource}.{" "}
+                      {onGoTo && <button type="button" onClick={() => onGoTo("member")} style={{ background: "none", border: "none", padding: 0, color: COLORS.accent, cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>Change it on Member details</button>}
+                    </div>
+                    <div style={row}><span>Pension percentage {P.capped ? "(at the 90% cap)" : ""}</span><strong>{(P.pct * 100).toFixed(2)}%</strong></div>
+
+                    <div style={{ overflowX: "auto", marginTop: "10px" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <thead><tr style={{ color: COLORS.textMuted, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                          <th style={{ ...cell, textAlign: "left" }}></th><th style={cell}>Switch off<br />estimate</th><th style={cell}>Switch on<br />paystubs</th><th style={cell}>Difference</th>
+                        </tr></thead>
+                        <tbody>
+                          {S.lines && lineRows.map(([k, label]) => (
+                            <tr key={k} style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
+                              <td style={{ ...cell, textAlign: "left" }}>{label}</td>
+                              <td style={cell}>{fmt0(E.lines[k])}</td><td style={cell}>{fmt0(S.lines[k])}</td>
+                              <td style={{ ...cell, color: Math.abs(S.lines[k] - E.lines[k]) < 1 ? COLORS.textDim : COLORS.text, fontWeight: Math.abs(S.lines[k] - E.lines[k]) >= 25 ? 700 : 400 }}>{diff(E.lines[k], S.lines[k])}</td>
+                            </tr>
+                          ))}
+                          <tr style={{ borderTop: `2px solid ${COLORS.border}` }}>
+                            <td style={{ ...cell, textAlign: "left" }}><strong>Final compensation</strong><div style={{ fontSize: "10px", color: COLORS.textDim }}>{memberType === "classic" ? "12 months before you retire" : "36-month average"}</div></td>
+                            <td style={cell}><strong>{fmt0(E.final)}</strong></td><td style={cell}><strong>{fmt0(S.final)}</strong></td><td style={cell}><strong>{diff(E.final, S.final)}</strong></td>
+                          </tr>
+                          <tr style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
+                            <td style={{ ...cell, textAlign: "left" }}><strong>Gross pension</strong><div style={{ fontSize: "10px", color: COLORS.textDim }}>unmodified, {(P.pct * 100).toFixed(2)}% × final comp</div></td>
+                            <td style={cell}><strong>{fmt0(E.pension)}</strong></td><td style={{ ...cell, color: COLORS.accent }}><strong>{fmt0(S.pension)}</strong></td><td style={cell}><strong>{diff(E.pension, S.pension)}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.5, marginTop: "8px" }}>
+                      The line rows are monthly pay at your {retirementYear} rates. The service credit and percentage are the same
+                      on both sides, so any difference comes only from pay. A gap on one line usually means a setting on
+                      Member details or Compensation (rank, step, incentives) doesn't match your stub.
+                      {memberType !== "classic" && " PEPRA: final compensation averages 36 months, so it won't equal the sum of one year's lines."}
+                      {paystubComp.actualShare > 0 && ` ${Math.round(paystubComp.actualShare * 100)}% of the paystub window is pay already on your stubs.`}
+                      {" "}Estimates only — CalPERS calculates the real benefit.
+                    </div>
+                    {S.hasItems === false && (
+                      <div style={{ ...box("warn"), marginTop: "8px" }}>Add your paystubs again to see the line-by-line split. These were read before it existed.</div>
+                    )}
+                    {S.incentiveItems && (
+                      <details style={{ marginTop: "10px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "13px", fontWeight: 700, color: COLORS.text }}>Incentives & certificates, item by item</summary>
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "14px", marginTop: "8px" }}>
+                          <div>
+                            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: COLORS.textMuted }}>Switch off · your settings</div>
+                            {E.incentiveItems.length ? E.incentiveItems.map((i) => <div key={i.label} style={row}><span>{i.label}</span><span>{fmt0(i.monthly)}</span></div>)
+                              : <div style={{ ...row, color: COLORS.textDim }}>None selected</div>}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: COLORS.textMuted }}>Switch on · your stubs</div>
+                            {S.incentiveItems.length ? S.incentiveItems.map((i) => <div key={i.label} style={row}><span>{i.label}</span><span>{fmt0(i.monthly)}</span></div>)
+                              : <div style={{ ...row, color: COLORS.textDim }}>None on your stubs</div>}
+                          </div>
+                        </div>
+                      </details>
+                    )}
+                    {paystubComp.holidayExcluded > 0.5 && (
+                      <div style={{ ...row, color: COLORS.textMuted }}><span>Holiday pay on your stubs above 168 hrs a year, not counted</span><span>{fmt0(paystubComp.holidayExcluded)}/mo</span></div>
+                    )}
+                  </>
+                );
+              })()}
 
               <label style={{ ...styles.checkRow, marginTop: "16px", cursor: "pointer" }}>
                 <input type="checkbox" style={styles.checkbox} checked={!!usePaystubs} onChange={(e) => onUsePaystubs(e.target.checked)} />

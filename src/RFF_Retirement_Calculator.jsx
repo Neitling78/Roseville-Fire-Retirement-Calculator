@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import logoUrl from "./assets/logo.png";
 import PaystubsTab from "./PaystubsTab.jsx";
-import { paystubFinalComp, ceasingPatterns } from "./paystubs.js";
+import { paystubFinalComp, ceasingPatterns, stubPayForYear, CEASE_DATE_2027 } from "./paystubs.js";
 // ─── CONSTANTS FROM 2026 RFF MOU & SALARY SCHEDULE ───────────────────────────
 // Official City of Roseville salary schedules, BOTH effective 3/21/2026.
 //   Schedule A — 8 steps (A-H) — employees hired before 1/7/2017.
@@ -1318,7 +1318,7 @@ const LEGACY_SICK_TOTAL = LEGACY_SICK_CASH + LEGACY_SICK_CREDIT;
 export default function RFFRetirementCalculator() {
   // Deep link: ?tab=sickleave opens straight to a screen, so a link in a newsletter or a
   // text message can point at the part that matters. Also what the render test drives.
-  const VALID_TABS = ["member", "comp", "pension", "survivor", "health", "stayorgo", "income", "help", "updates"];
+  const VALID_TABS = ["member", "comp", "paystubs", "pension", "survivor", "health", "stayorgo", "income", "help", "updates"];
   // Links sent out before each rebuild still have to land somewhere sensible.
   const LEGACY_TABS = { start: "member", pay: "member", now: "member", retired: "pension",
                         wait: "stayorgo", medical: "health", deductions: "survivor", advanced: "income",
@@ -2128,6 +2128,51 @@ export default function RFFRetirementCalculator() {
   const pension50Monthly = pensionableForPension * pensionPct;     // Roseville-formula bucket (capped at 90%)
   // Option 1 / Unmodified — the maximum CalPERS will pay, and the figure myCalPERS quotes first.
   const monthlyPensionUnmodified = pensionableForPension * calpersTotalPct;
+  // ── PENSION BOTH WAYS (Paystubs tab) ─────────────────────────────────────
+  // Same service credit and percentage from Member details on both sides, so the only thing
+  // that differs is final compensation — and the line-by-line rows show which item moves it.
+  const stubLongevityPct = (memberType === "classic" && showLongevity) ? LONGEVITY(yearsOfService) : 0;
+  // The estimate with the calculator's own FLSA rate, whatever the switch is set to.
+  const finalCompEstimate = finalCompMonthlyModel
+    - (memberType === "classic" ? projectedBaseSalary * (flsaPct - FLSA_OT_PENSIONABLE_PCT) : 0);
+  const pensionFor = (fc) => (memberType === "pepra" ? Math.min(fc, peraCapMonthly) : fc) * calpersTotalPct;
+  const estLongevity = incentives.breakdown.filter((b) => b.pensionable && /^Longevity/.test(b.label))
+    .reduce((a, b) => a + b.pct, 0) * projectedBaseSalary;
+  const pensionCompare = {
+    serviceYears: yearsOfServiceForPension,
+    serviceSource: usingCalpersCredit
+      ? `${(parseFloat(calpersCreditRoseville) || 0).toFixed(3)} yrs from myCalPERS${calpersCreditAsOf ? ` (as of ${calpersCreditAsOf})` : ""} + ${serviceStillToEarn.toFixed(2)} yrs still to work`
+        + (sickLeaveCreditYears > 0 ? ` + ${sickLeaveCreditYears.toFixed(2)} yrs sick leave` : "")
+        + (airtimeCountedSeparately > 0 ? ` + ${airtimeCountedSeparately.toFixed(2)} yrs airtime` : "")
+      : "estimated from your hire date — enter your myCalPERS service credit on Member details for an exact figure",
+    usingCalpersCredit,
+    pct: calpersTotalPct,
+    capped: benefitIsCapped && pensionPct >= benefitMaxPct - 1e-9,
+    estimate: { final: finalCompEstimate, pension: pensionFor(finalCompEstimate),
+      lines: {
+        base: projectedBaseSalary,
+        longevity: estLongevity,
+        incentives: incentives.pensionableAmt - estLongevity,
+        holiday: holidayPayMonthly,
+        uniform: uniformMonthly,
+        flsa: memberType === "classic" ? projectedBaseSalary * FLSA_OT_PENSIONABLE_PCT : 0,
+      },
+      incentiveItems: incentives.breakdown.filter((b) => b.pensionable && !/^Longevity/.test(b.label))
+        .map((b) => ({ label: b.label, monthly: b.pct * projectedBaseSalary })),
+    },
+    stubs: paystubComp ? { final: paystubComp.monthly, pension: pensionFor(paystubComp.monthly),
+      ...(() => {
+        const y = stubPayForYear(paystubSummary, {
+          baseMonthly: paystubSummary.baseMonthlyNow * (baseSalary > 0 ? projectedBaseForYear(retirementYear) / projectedBaseForYear(NOW.getFullYear()) : 1),
+          longevityPct: stubLongevityPct,
+          afterCease: effectiveRetDateStr >= CEASE_DATE_2027,
+          ceasing: ceasingPatterns(classification),
+        });
+        return y ? { lines: { base: y.base, longevity: y.longevity, incentives: y.incentives, holiday: y.holiday, uniform: y.uniform, flsa: y.flsa },
+          incentiveItems: y.incentiveItems, hasItems: !!paystubSummary.last12?.items } : {};
+      })(),
+    } : null,
+  };
   // ── SURVIVOR CONTINUANCE AND THE OPTION ELECTION ─────────────────────────
   // Two different things that members constantly conflate. Survivor continuance is a STATUS —
   // employer-paid, half the unmodified allowance, the same under every option, costing nothing.
@@ -3472,7 +3517,8 @@ export default function RFFRetirementCalculator() {
                 summary={paystubSummary} onSummary={setPaystubSummary}
                 usePaystubs={usePaystubs} onUsePaystubs={setUsePaystubs}
                 ceasing={ceasingPatterns(classification)}
-                paystubComp={paystubComp} modelFinalComp={finalCompMonthlyModel}
+                paystubComp={paystubComp} modelFinalComp={finalCompEstimate}
+                pensionCompare={pensionCompare} onGoTo={setTab}
                 memberType={memberType} retirementYear={retirementYear}
                 COLORS={COLORS} styles={styles} isMobile={isMobile} />
             )}
