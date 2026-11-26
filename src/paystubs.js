@@ -42,6 +42,11 @@ export const SPECIAL_LINES = [
 // The one FLSA line the City reports to CalPERS. "FLSA Overtime" (the other FLSA line)
 // is NOT reported.
 export const FLSA_REPORTED_LINE = "Overtime FLSA Over 64 Hours";
+// Holiday Buy Up counts for CalPERS at 168 hours a year at most (MOU Ch.3 Art.II.C:
+// (base hourly + longevity hourly) × holiday hours). Each regular check carries 168 ÷ 26
+// hours; hours carried over from a prior year and cashed out later can't add to it.
+export const HOLIDAY_LINE = "Holiday Buy Up";
+export const HOLIDAY_HOURS_PER_YEAR = 168;
 // Earnings lines seen on stubs that the City does NOT report to CalPERS.
 export const NOT_REPORTED_LINES = [
   "Overtime 1.5",
@@ -308,6 +313,7 @@ export function analyzeStubs(rawStubs, opts = {}) {
       baseLines: cents(baseLines), specialLines: cents(specialLines),
       persNormal: s.persNormal, persSpecial: cents(s.persSpecial + s.persRetro),
       flsa: cents(s.earnings[FLSA_REPORTED_LINE]?.cur || 0),
+      holiday: tied ? cents(s.earnings[HOLIDAY_LINE]?.cur || 0) : 0,
       unknown,
     };
   });
@@ -335,6 +341,7 @@ export function analyzeStubs(rawStubs, opts = {}) {
   const sum = (arr, k) => arr.reduce((a, r) => a + r[k], 0);
   const rows12 = rows.filter(inYear);
   const base12 = sum(rows12, "base"), special12 = sum(rows12, "special"), ceasing12 = sum(rows12, "ceasing");
+  const holiday12 = sum(rows12, "holiday");
   const days12 = daysBetween(rows12.length ? rows12[0].periodStart : last12Start, runEnd) + 1;
   // FLSA reported to CalPERS, from the stubs: the Over-64 line ÷ base reported.
   const flsa12 = rows12.reduce((a, r) => a + r.flsa, 0);
@@ -347,8 +354,9 @@ export function analyzeStubs(rawStubs, opts = {}) {
 
   // Daily segments of actual reported pay, for the final-compensation window.
   const segments = rows.map((r) => {
-    const d = daysBetween(r.periodStart, r.periodEnd) + 1;
-    return { start: r.periodStart, end: r.periodEnd, perDay: (r.base + r.special) / Math.max(1, d) };
+    const d = Math.max(1, daysBetween(r.periodStart, r.periodEnd) + 1);
+    return { start: r.periodStart, end: r.periodEnd, perDay: (r.base + r.special) / d,
+      holidayPerDay: r.holiday / d, rate: r.hourlyRate || 0 };
   });
 
   const latest = used[used.length - 1];
@@ -368,9 +376,11 @@ export function analyzeStubs(rawStubs, opts = {}) {
       start: rows12[0]?.periodStart || last12Start, end: runEnd, days: days12,
       base: r2(base12), special: r2(special12), total: r2(base12 + special12),
       ceasing: r2(ceasing12),
-      // Special pay as a share of base — the rate it is carried forward at.
-      specialRatio: base12 > 0 ? special12 / base12 : 0,
-      specialRatioAfterCease: base12 > 0 ? (special12 - ceasing12) / base12 : 0,
+      holiday: r2(holiday12),
+      // Special pay as a share of base — the rate it is carried forward at. Holiday Buy Up
+      // is left out of these and projected on its own at 168 hours a year.
+      specialRatio: base12 > 0 ? (special12 - holiday12) / base12 : 0,
+      specialRatioAfterCease: base12 > 0 ? (special12 - holiday12 - ceasing12) / base12 : 0,
       monthly: r2((base12 + special12) / days12 * 365.25 / 12),
     },
     reconciledStubs: rows.length - notReconciled.length,
@@ -390,40 +400,64 @@ export function analyzeStubs(rawStubs, opts = {}) {
 // the newest stub are projected: today's stub base pay grown by the calculator's own
 // raise/step/rank factor for that year, plus special pay at the stub ratio (less the
 // pays that stop on 1/9/2027 once that date has passed).
+// Holiday Buy Up, both actual and projected, counts at no more than 168 hours a year at
+// (hourly rate + longevity). Hours carried over and cashed out later are not counted.
 //   growthForYear(y): calculator's projected base for year y ÷ its base today.
-export function paystubFinalComp(summary, { retirementDate, months, growthForYear }) {
+//   longevityPct: the member's longevity rate (Classic, hired before 2017), else 0.
+export function paystubFinalComp(summary, { retirementDate, months, growthForYear, longevityPct = 0 }) {
   if (!summary?.ok || !summary.baseMonthlyNow) return null;
   const end = retirementDate;                      // ISO, exclusive end
   const start = addDays(end, -Math.round(months * 365.25 / 12));
-  const ceaseAt = CEASE_DATE_2027;
-  let actualDays = 0, actualSum = 0, projDays = 0, projSum = 0;
-  const dailyActual = new Map();
+  const hourlyNow = summary.baseMonthlyNow / (2912 / 12);
+  const holidayReported = (summary.last12?.holiday || 0) > 0;
+  const holidayPerDayAt = (hourly) => holidayReported ? HOLIDAY_HOURS_PER_YEAR * hourly * (1 + longevityPct) / 365.25 : 0;
+  const daily = new Map();
   for (const seg of summary.segments) {
-    for (let d = seg.start; d <= seg.end; d = addDays(d, 1)) dailyActual.set(d, (dailyActual.get(d) || 0) + seg.perDay);
+    for (let d = seg.start; d <= seg.end; d = addDays(d, 1)) {
+      const cur = daily.get(d) || { pay: 0, hol: 0, rate: 0 };
+      cur.pay += seg.perDay - (seg.holidayPerDay || 0);
+      cur.hol += seg.holidayPerDay || 0;
+      cur.rate = Math.max(cur.rate, seg.rate || 0);
+      daily.set(d, cur);
+    }
   }
   const lastActual = summary.coverageEnd;
   const firstActual = summary.coverageStart;
+  let actualDays = 0, actualPay = 0, holActual = 0, holCap = 0, projDays = 0, projSum = 0, projHoliday = 0;
   for (let d = start; d < end; d = addDays(d, 1)) {
-    if (d >= firstActual && d <= lastActual && dailyActual.has(d)) {
-      actualDays++; actualSum += dailyActual.get(d);
+    if (d >= firstActual && d <= lastActual && daily.has(d)) {
+      const x = daily.get(d);
+      actualDays++; actualPay += x.pay; holActual += x.hol;
+      // Cap on the pay calendar: 168 hours across 26 checks = 364 days.
+      holCap += holidayPerDayAt(x.rate || hourlyNow) * 365.25 / 364;
     } else if (d > lastActual) {
       const y = parseInt(d.slice(0, 4), 10);
-      const ratio = d >= ceaseAt ? summary.last12.specialRatioAfterCease : summary.last12.specialRatio;
+      const growth = growthForYear(y);
+      const ratio = d >= CEASE_DATE_2027 ? summary.last12.specialRatioAfterCease : summary.last12.specialRatio;
+      const hol = holidayPerDayAt(hourlyNow * growth);
       projDays++;
-      projSum += summary.baseMonthlyNow * growthForYear(y) * (1 + ratio) * 12 / 365.25;
+      projSum += summary.baseMonthlyNow * growth * (1 + ratio) * 12 / 365.25 + hol;
+      projHoliday += hol;
     } else {
-      // Before the stubs begin (window reaches further back than the stubs supplied):
-      // use the average of the stubs actually supplied for that stretch.
+      // Before the stubs begin (a window reaching further back than the stubs supplied):
+      // the stubs' own 12-month average, with holiday held to 168 hours a year.
+      const L = summary.last12;
+      const hol = Math.min(L.holiday / L.days, holidayPerDayAt(hourlyNow));
       projDays++;
-      projSum += summary.last12.monthly * 12 / 365.25;
+      projSum += (L.total - L.holiday) / L.days + hol;
+      projHoliday += hol;
     }
   }
+  const holCounted = Math.min(holActual, holCap);
   const totalDays = actualDays + projDays;
   if (!totalDays) return null;
+  const perMonth = (v) => v / totalDays * 365.25 / 12;
   return {
-    monthly: (actualSum + projSum) / totalDays * 365.25 / 12,
+    monthly: perMonth(actualPay + holCounted + projSum),
     windowStart: start, windowEnd: addDays(end, -1),
     actualDays, projectedDays: projDays,
     actualShare: actualDays / totalDays,
+    holidayMonthly: perMonth(holCounted + projHoliday),
+    holidayExcluded: perMonth(holActual - holCounted),
   };
 }

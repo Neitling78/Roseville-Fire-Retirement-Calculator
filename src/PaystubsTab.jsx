@@ -125,8 +125,11 @@ export default function PaystubsTab({
               <div style={row}><span>Special pay reported to CalPERS</span><strong>{fmt2(last12.special)}</strong></div>
               <div style={{ ...row, fontSize: "14px" }}><span><strong>Pensionable pay</strong></span><strong style={{ color: COLORS.accent }}>{fmt2(last12.total)} · {fmt0(last12.monthly)}/mo</strong></div>
               <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.5, marginTop: "6px" }}>
-                Special pay ran at {(last12.specialRatio * 100).toFixed(1)}% of base pay. Going forward the calculator carries
-                that percentage on your projected base pay.
+                {last12.holiday > 0 && <>Holiday Buy Up ({fmt2(last12.holiday)} of the special pay) counts for CalPERS at
+                  168 hours a year at most, at your hourly rate plus longevity. Hours carried over from a prior year and cashed
+                  out later are not counted. </>}
+                The rest of your special pay ran at {(last12.specialRatio * 100).toFixed(1)}% of base pay. Going forward the
+                calculator carries that percentage on your projected base pay{last12.holiday > 0 ? ", and adds holiday at 168 hours a year" : ""}.
                 {last12.ceasing > 0 && <> {fmt0(last12.ceasing)} of it is pay the MOU ends on 1/9/2027; after that date it is
                   taken out ({(last12.specialRatioAfterCease * 100).toFixed(1)}% of base).</>}
               </div>
@@ -190,6 +193,12 @@ export default function PaystubsTab({
                   <p style={{ ...styles.cardTitle, margin: "20px 0 6px" }}>Your final compensation · retiring {retirementYear}</p>
                   <div style={row}><span>From your paystubs</span><strong style={{ color: COLORS.accent }}>{fmt0(paystubComp.monthly)}/mo</strong></div>
                   <div style={row}><span>Calculator estimate (no paystubs)</span><strong>{fmt0(modelFinalComp)}/mo</strong></div>
+                  {paystubComp.holidayMonthly > 0 && (
+                    <div style={row}><span>Holiday Buy Up in it · 168 hrs a year</span><strong>{fmt0(paystubComp.holidayMonthly)}/mo</strong></div>
+                  )}
+                  {paystubComp.holidayExcluded > 0.5 && (
+                    <div style={{ ...row, color: COLORS.textMuted }}><span>Holiday pay on your stubs above 168 hrs a year, not counted</span><span>{fmt0(paystubComp.holidayExcluded)}/mo</span></div>
+                  )}
                   <div style={{ fontSize: "12px", color: COLORS.textMuted, lineHeight: 1.5, marginTop: "6px" }}>
                     {memberType === "classic" ? "Classic: your highest 12 months, taken as the 12 months before you retire." : "PEPRA: the 36 months before you retire, averaged."}
                     {" "}{Math.round(paystubComp.actualShare * 100)}% of that window is pay already on your stubs; the rest is projected

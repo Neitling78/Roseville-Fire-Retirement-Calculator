@@ -132,5 +132,22 @@ rnd[5] = { ...rnd[5], persSpecial: 487.03 };
 check("but a real one-cent difference does not", () => analyzeStubs(rnd, { today: "2026-11-25" }).reconciledStubs === 25);
 check("tied stubs use the exact pay lines, not deduction ÷ rate", () => near(rndA.last12.special, 26 * (3167.41 + 2243.85), 0.0001));
 
+console.log("\n-- paystubs: Holiday Buy Up, 168 hours a year --");
+const perCheck = Math.round(168 / 26 * 50 * 1.075 * 100) / 100;           // $50/hr + 7.5% longevity
+const hol = run(26, "2026-10-31", { rate: 50, special: { "Education Pay BA or BS": 600, "Holiday Buy Up": perCheck } });
+const holLump = run(26, "2026-10-31", { rate: 50, special: { "Education Pay BA or BS": 600, "Holiday Buy Up": perCheck } });
+// One check also cashes out 48 hours carried over from the year before.
+holLump[12] = parseStub(fakeStub({ start: holLump[12].periodStart, rate: 50, regular: 5800,
+  special: { "Education Pay BA or BS": 600, "Holiday Buy Up": perCheck + 48 * 50 * 1.075 } }).pages);
+const H = analyzeStubs(hol, { today: "2026-11-25" }), HL = analyzeStubs(holLump, { today: "2026-11-25" });
+check("holiday is kept out of the special-pay ratio", () => near(H.last12.specialRatio, 600 / 5800, 0.000001));
+const fc = (S, date) => paystubFinalComp(S, { retirementDate: date, months: 12, growthForYear: () => 1, longevityPct: 0.075 });
+const want = 168 * 50 * 1.075 / 12;
+check("projected holiday = 168 hrs × (rate + longevity) a year", () => near(fc(H, "2028-06-01").holidayMonthly, want, 0.01));
+check("a carried-over cash-out does not raise the projection", () => near(fc(HL, "2028-06-01").monthly, fc(H, "2028-06-01").monthly, 0.01));
+check("inside the stub window the cash-out is capped at 168 hrs", () => near(fc(HL, "2026-11-14").monthly, fc(H, "2026-11-14").monthly, 1));
+check("and the excluded amount is reported", () => near(fc(HL, "2026-11-14").holidayExcluded * 12, 48 * 50 * 1.075, 3) );
+check("no Holiday Buy Up on the stubs: none is projected", () => fc(analyzeStubs(run(26, "2026-10-31"), { today: "2026-11-25" }), "2028-06-01").holidayMonthly === 0);
+
 console.log(`\n${fail ? "!!" : "OK"} ${pass} passed, ${fail} failed\n`);
 if (fail) process.exit(1);

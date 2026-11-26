@@ -2015,6 +2015,8 @@ export default function RFFRetirementCalculator() {
     retirementDate: effectiveRetDateStr,
     months: memberType === "classic" ? 12 : FINAL_COMP_MONTHS_PEPRA,
     growthForYear: (y) => (baseSalary > 0 ? projectedBaseForYear(y) / projectedBaseForYear(NOW.getFullYear()) : 1),
+    // Holiday Buy Up is counted at 168 hrs/yr × (hourly + longevity hourly), MOU Ch.3 Art.II.C.
+    longevityPct: (memberType === "classic" && showLongevity) ? LONGEVITY(yearsOfService) : 0,
   }) : null;
   const paystubsOn = !!(usePaystubs && paystubComp);
   const finalCompMonthly = paystubsOn ? paystubComp.monthly : finalCompMonthlyModel;
