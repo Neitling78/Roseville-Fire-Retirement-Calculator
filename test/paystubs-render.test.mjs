@@ -91,6 +91,18 @@ const NONE = await render({ ...base, usePaystubs: true }, false);
 check("without stubs the switch can't turn on", () => NONE.paystubs.includes("Off · add paystubs on the Paystubs tab") || "toggle text missing");
 check("and there is no comparison table", () => !NONE.paystubs.includes("Your pension both ways") || "table shown without stubs");
 
+// Raises: the paystub side must use exactly the calculator's raise settings. Change the
+// January 2028 raise and both sides' base pay must move together, to the dollar.
+console.log("\n-- paystubs: raises always match the calculator's --");
+const baseRow = async (lma, extra = {}) => { const R = await render({ ...base, usePaystubs: true, lmaPct: lma, lmaTouched: true, ...extra }, true); return tableRow(R.paystubs, "Base pay"); };
+const r0 = await baseRow(0), r3 = await baseRow(3), r5 = await baseRow(5);
+check("LMA 0%: both sides' base pay match", () => (r0 && r0.off === r0.on) || JSON.stringify(r0));
+check("LMA 3%: both sides' base pay match", () => (r3 && r3.off === r3.on) || JSON.stringify(r3));
+check("LMA 5%: both sides' base pay match", () => (r5 && r5.off === r5.on) || JSON.stringify(r5));
+check("and a bigger raise moves both", () => (r5.on > r3.on && r3.on > r0.on) || JSON.stringify([r0, r3, r5]));
+const rb = await baseRow(3, { unionRaisePct: 4, retirementDateOverride: "2031-12-31" });
+check("future bargained raises (2030+) match too", () => (rb && rb.off === rb.on) || JSON.stringify(rb));
+
 // A summary saved by an older version has no line detail: the rows must not read $0.
 const { items, ...oldL12 } = summary.last12;
 store.clear(); store.setItem("rff-calc-v1", JSON.stringify({ ...base, usePaystubs: true }));
